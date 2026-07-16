@@ -3,9 +3,26 @@ name: CI
 on:
   push:
     branches: [main]
-    paths-ignore: ['frontend/**', 'docs/**']
+    paths:
+      - 'app/**'
+      - 'alembic/**'
+      - 'tests/**'
+      - 'requirements.txt'
+      - 'pyproject.toml'
+      - 'Dockerfile'
+      - 'docker-compose.yml'
+      - '.github/workflows/deploy-backend.yml'
   pull_request:
     branches: [main]
+    paths:
+      - 'app/**'
+      - 'alembic/**'
+      - 'tests/**'
+      - 'requirements.txt'
+      - 'pyproject.toml'
+      - 'Dockerfile'
+      - 'docker-compose.yml'
+      - '.github/workflows/deploy-backend.yml'
 
 jobs:
   test:
