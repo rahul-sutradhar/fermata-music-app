@@ -40,7 +40,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run tests
-        run: pytest -q
+        run: python -m pytest -q
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fermata_test
           SECRET_KEY: test-secret-key
