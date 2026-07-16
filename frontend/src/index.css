@@ -1,0 +1,50 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-spotify-green: var(--spotify-green);
+  --color-spotify-green-hover: var(--spotify-green-hover);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-highlight: var(--surface-highlight);
+  --color-subtext: var(--subtext);
+  --color-base: var(--base);
+  --color-primary: var(--primary);
+  --color-inverted: var(--inverted);
+  
+  --font-sans: 'Inter', system-ui, sans-serif;
+}
+
+:root {
+  --spotify-green: #1db954;
+  --spotify-green-hover: #1ed760;
+  --surface: #121212;
+  --surface-elevated: #1a1a1a;
+  --surface-highlight: #282828;
+  --subtext: #a7a7a7;
+  --base: #000000;
+  --primary: #ffffff;
+  --inverted: #000000;
+}
+
+.light {
+  --spotify-green: #1db954;
+  --spotify-green-hover: #1ed760;
+  --surface: #ffffff;
+  --surface-elevated: #f3f4f6;
+  --surface-highlight: #e5e7eb;
+  --subtext: #4b5563;
+  --base: #f9fafb;
+  --primary: #000000;
+  --inverted: #ffffff;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #5a5a5a transparent;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+}

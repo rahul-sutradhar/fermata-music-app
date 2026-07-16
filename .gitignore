@@ -1,0 +1,58 @@
+# Obsidian / documentation
+.obsidian/
+.trash/
+Documentation/
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# IDE / Editor configurations
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Lock / terminal files
+.terminal.lock
+
+# Logs
+*.log
+logs/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Storage & local uploads
+storage/*
+!storage/playlist_covers/
+storage/playlist_covers/*
+!storage/playlist_covers/.gitkeep
+
+# Temporary / backup / run output files
+~$*
+out.txt
+recover.py

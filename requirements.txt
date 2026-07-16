@@ -1,0 +1,13 @@
+# Direct dependencies for pip users.
+# Alternative: uv sync (uses pyproject.toml + uv.lock)
+fastapi[standard]>=0.138.0
+pydantic-settings>=2.0.0
+python-dotenv>=1.0.0
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0
+alembic>=1.14.0
+passlib[bcrypt]>=1.7.4
+pyjwt>=2.8.0
+# Upstash Redis: serverless Redis-compatible backend (redis-py client works seamlessly)
+redis>=4.5.0
+boto3>=1.28.0  # for Backblaze B2 S3-compatible storage
