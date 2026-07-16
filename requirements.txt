@@ -16,4 +16,3 @@ boto3>=1.28.0  # for Backblaze B2 S3-compatible storage
 argon2-cffi>=21.3.0
 pwdlib[argon2]>=0.3.0
 pytest>=9.1.1
-
