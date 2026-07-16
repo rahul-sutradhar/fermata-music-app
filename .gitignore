@@ -36,6 +36,7 @@ htmlcov/
 
 # Lock / terminal files
 .terminal.lock
+.uv.lock
 
 # Logs
 *.log

@@ -11,3 +11,9 @@ pyjwt>=2.8.0
 # Upstash Redis: serverless Redis-compatible backend (redis-py client works seamlessly)
 redis>=4.5.0
 boto3>=1.28.0  # for Backblaze B2 S3-compatible storage
+
+# Development and testing dependencies
+argon2-cffi>=21.3.0
+pwdlib[argon2]>=0.3.0
+pytest>=9.1.1
+
