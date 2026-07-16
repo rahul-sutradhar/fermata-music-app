@@ -1,12 +1,13 @@
-let API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8001'
-const HOSTED_API_BASE = import.meta.env.VITE_API_HOSTED_BASE ?? 'https://fermata-backend.onrender.com'
+let API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8001'
+const HOSTED_API_BASE = import.meta.env.VITE_API_HOSTED_BASE || ''
+
 
 let checkPromise: Promise<void> | null = null
 
 function ensureApiBase(): Promise<void> {
   if (checkPromise) return checkPromise
 
-  if (API_BASE.includes('localhost') || API_BASE.includes('127.0.0.1')) {
+  if ((API_BASE.includes('localhost') || API_BASE.includes('127.0.0.1')) && HOSTED_API_BASE) {
     checkPromise = (async () => {
       try {
         const controller = new AbortController()
