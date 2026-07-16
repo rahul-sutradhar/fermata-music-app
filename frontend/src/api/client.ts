@@ -11,13 +11,13 @@ function ensureApiBase(): Promise<void> {
       try {
         const controller = new AbortController()
         const id = setTimeout(() => controller.abort(), 1200)
-        
-        const response = await fetch(`${API_BASE}/health`, { 
+
+        const response = await fetch(`${API_BASE}/health`, {
           method: 'GET',
-          signal: controller.signal 
+          signal: controller.signal
         })
         clearTimeout(id)
-        
+
         if (!response.ok) {
           throw new Error()
         }
