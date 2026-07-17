@@ -1,6 +1,10 @@
 import pytest
 from app.core.config import settings
 
+@pytest.fixture(autouse=True)
+def configure_health_token(monkeypatch):
+    monkeypatch.setattr(settings, "health_check_token", "test-secret-token")
+
 def test_health_check_no_token(client):
     response = client.get("/health")
     assert response.status_code == 403
@@ -11,12 +15,8 @@ def test_health_check_invalid_token(client):
     assert response.status_code == 403
     assert response.json() == {"detail": "Not authorized"}
 
-def test_health_check_valid_token(client, monkeypatch):
-    test_token = "test-secret-token"
-    # Override settings.health_check_token using monkeypatch
-    monkeypatch.setattr(settings, "health_check_token", test_token)
-    
-    response = client.get(f"/health?token={test_token}")
+def test_health_check_valid_token(client):
+    response = client.get("/health?token=test-secret-token")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
 
