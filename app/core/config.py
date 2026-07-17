@@ -8,6 +8,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore",
     )
 
     app_name: str = "Fermata"
@@ -34,6 +35,9 @@ class Settings(BaseSettings):
     rate_limit_requests: int = 60
     rate_limit_window_seconds: int = 60
     auth_rate_limit_requests: int = 10
+
+    # Health Check Token
+    health_check_token: str | None = None
 
 
 @lru_cache

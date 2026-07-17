@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
@@ -40,6 +40,16 @@ app.include_router(uploads.router)
 
 
 @app.get("/health", tags=["health"])
-def health_check() -> dict[str, str]:
-    """Return service health status."""
+def health_check(token: str | None = None) -> dict[str, str]:
+    """Return service health status securely."""
+    if not settings.health_check_token:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Health check token is not configured on the server."
+        )
+    if token != settings.health_check_token:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized"
+        )
     return {"status": "ok"}
