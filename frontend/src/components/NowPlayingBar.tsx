@@ -240,30 +240,30 @@ export default function NowPlayingBar() {
   }
 
   return (
-    <div className="h-20 bg-surface-elevated border-t border-surface-highlight flex items-center px-4 gap-4 shrink-0">
+    <div className="h-20 bg-surface-elevated border-t border-surface-highlight flex items-center px-3 md:px-4 gap-2 md:gap-4 shrink-0">
       {/* Hidden audio element */}
       <audio ref={audioRef} preload="metadata" />
 
       {/* Track Info — Left */}
-      <div className="flex items-center gap-3 w-[240px] min-w-0">
-        <div className="w-12 h-12 rounded-md bg-surface-highlight flex items-center justify-center shrink-0">
-          <Music size={20} className="text-subtext" />
+      <div className="flex items-center gap-2 md:gap-3 w-auto md:w-[240px] min-w-0 flex-1 md:flex-initial">
+        <div className="w-10 h-10 md:w-12 md:h-12 rounded-md bg-surface-highlight flex items-center justify-center shrink-0">
+          <Music size={18} className="text-subtext" />
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-medium truncate">{currentTrack.title}</p>
-          <p className="text-xs text-subtext truncate">
+          <p className="text-xs md:text-sm font-medium truncate">{currentTrack.title}</p>
+          <p className="text-[10px] md:text-xs text-subtext truncate">
             {currentTrack.artist_name || 'Unknown Artist'}
           </p>
         </div>
       </div>
 
       {/* Controls — Center */}
-      <div className="flex-1 flex justify-center">
+      <div className="flex-1 md:flex-initial flex justify-center">
         <PlayerControls audioRef={audioRef} />
       </div>
 
       {/* Volume — Right */}
-      <div className="flex items-center gap-2 w-[160px] justify-end">
+      <div className="hidden md:flex items-center gap-2 w-[160px] justify-end">
         <button
           onClick={toggleMute}
           className="p-1 text-subtext hover:text-primary transition-colors"

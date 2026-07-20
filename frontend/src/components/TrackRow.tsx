@@ -44,7 +44,7 @@ export default function TrackRow({ track, index, tracks, onPlay }: Props) {
 
   return (
     <div
-      className={`group grid grid-cols-[32px_1fr_1fr_80px_40px] gap-4 items-center px-4 py-2 rounded-md transition-colors cursor-pointer ${
+      className={`group grid grid-cols-[32px_1fr_40px] md:grid-cols-[32px_1fr_1fr_80px_40px] gap-2 md:gap-4 items-center px-2 md:px-4 py-2 rounded-md transition-colors cursor-pointer ${
         isActive ? 'bg-surface-highlight/80' : 'hover:bg-surface-highlight/50'
       }`}
       onClick={handlePlay}
@@ -80,15 +80,15 @@ export default function TrackRow({ track, index, tracks, onPlay }: Props) {
       </div>
 
       {/* Album */}
-      <p className="text-sm text-subtext truncate">{track.album_title || '—'}</p>
+      <p className="hidden md:block text-sm text-subtext truncate">{track.album_title || '—'}</p>
 
       {/* Duration */}
-      <span className="text-sm text-subtext tabular-nums text-right">
+      <span className="hidden md:block text-sm text-subtext tabular-nums text-right">
         {formatDuration(track.duration_seconds)}
       </span>
 
       {/* More Menu */}
-      <div className="relative">
+      <div className="relative flex justify-end">
         <button
           onClick={(e) => {
             e.stopPropagation()
@@ -111,11 +111,11 @@ export default function TrackRow({ track, index, tracks, onPlay }: Props) {
 
 export function TrackListHeader() {
   return (
-    <div className="grid grid-cols-[32px_1fr_1fr_80px_40px] gap-4 items-center px-4 py-2 border-b border-surface-highlight text-xs text-subtext uppercase tracking-wider">
+    <div className="grid grid-cols-[32px_1fr_40px] md:grid-cols-[32px_1fr_1fr_80px_40px] gap-2 md:gap-4 items-center px-2 md:px-4 py-2 border-b border-surface-highlight text-xs text-subtext uppercase tracking-wider">
       <span className="text-center">#</span>
       <span>Title</span>
-      <span>Album</span>
-      <span className="text-right flex items-center justify-end gap-1">
+      <span className="hidden md:block">Album</span>
+      <span className="hidden md:flex text-right items-center justify-end gap-1">
         <Clock size={14} />
       </span>
       <span />
