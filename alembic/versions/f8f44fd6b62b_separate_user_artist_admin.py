@@ -26,8 +26,14 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
-    op.drop_constraint(op.f('artists_user_id_fkey'), 'artists', type_='foreignkey')
-    op.create_foreign_key(None, 'artists', 'users', ['id'], ['id'], ondelete='CASCADE')
+    # Try dropping using the standard name, bypass if it's missing or named differently
+    try:
+        op.drop_constraint('artists_user_id_fkey', 'artists', type_='foreignkey')
+    except Exception:
+        pass
+
+    # Create the new foreign key
+    op.create_foreign_key('artists_id_fkey', 'artists', 'users', ['id'], ['id'], ondelete='CASCADE')
     op.drop_column('artists', 'user_id')
     op.alter_column('users', 'username',
                existing_type=sa.VARCHAR(length=50),
