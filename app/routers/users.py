@@ -184,10 +184,17 @@ def admin_update_user(
         elif payload.role == "artist":
             db.execute(text("INSERT INTO artists (id, name) VALUES (:id, :name)"), {"id": user_id, "name": user.username})
             
-        user.role = payload.role
+        # Flush any other pending updates (e.g. username, email) before role modification
+        db.flush()
         
-        db.commit()
+        # Update the role discriminator column directly in the database to prevent ORM class mismatch on commit
+        db.execute(text("UPDATE users SET role = :role WHERE id = :id"), {"role": payload.role, "id": user_id})
+        
+        # Expunge the old cached Python object from the session before committing
         db.expunge(user)
+        db.commit()
+        
+        # Re-fetch so SQLAlchemy builds a clean Python object of the new subclass type (Admin/Artist/User)
         user = db.get(User, user_id)
     else:
         db.commit()

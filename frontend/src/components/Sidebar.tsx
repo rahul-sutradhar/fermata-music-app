@@ -61,7 +61,7 @@ export default function Sidebar() {
     if (token) {
       getMyPlaylists()
         .then(setPlaylists)
-        .catch(() => {})
+        .catch(() => { })
     }
   }, [token])
 
@@ -122,10 +122,9 @@ export default function Sidebar() {
   }
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-      isActive
-        ? 'bg-surface-highlight text-primary'
-        : 'text-subtext hover:text-primary hover:bg-surface-highlight/50'
+    `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${isActive
+      ? 'bg-surface-highlight text-primary'
+      : 'text-subtext hover:text-primary hover:bg-surface-highlight/50'
     }`
 
   return (
@@ -187,10 +186,9 @@ export default function Sidebar() {
                   key={pl.id}
                   to={`/playlist/${pl.id}`}
                   className={({ isActive }) =>
-                    `block px-3 py-2 rounded-lg text-sm truncate transition-colors duration-150 ${
-                      isActive
-                        ? 'bg-surface-highlight text-primary'
-                        : 'text-subtext hover:text-primary hover:bg-surface-highlight/50'
+                    `block px-3 py-2 rounded-lg text-sm truncate transition-colors duration-150 ${isActive
+                      ? 'bg-surface-highlight text-primary'
+                      : 'text-subtext hover:text-primary hover:bg-surface-highlight/50'
                     }`
                   }
                 >
@@ -297,8 +295,8 @@ export default function Sidebar() {
                   {artistId === 'unknown'
                     ? 'Unknown Artist'
                     : artistId
-                    ? artistsList.find((a) => a.id === Number(artistId))?.name || 'Select Artist...'
-                    : 'Select Artist...'}
+                      ? artistsList.find((a) => a.id === Number(artistId))?.name || 'Select Artist...'
+                      : 'Select Artist...'}
                 </span>
                 <span className="text-xs text-subtext select-none">▼</span>
               </div>
@@ -346,10 +344,10 @@ export default function Sidebar() {
                     {artistsList.filter((a) =>
                       a.name.toLowerCase().includes(artistSearch.toLowerCase())
                     ).length === 0 && (
-                      <div className="px-3 py-2 text-xs text-subtext text-center">
-                        No matches found (Select Unknown)
-                      </div>
-                    )}
+                        <div className="px-3 py-2 text-xs text-subtext text-center">
+                          No matches found (Select Unknown)
+                        </div>
+                      )}
                   </div>
                 </div>
               )}
