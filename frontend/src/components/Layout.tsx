@@ -65,7 +65,7 @@ export default function Layout() {
       
       {/* Mobile Sidebar Drawer Overlay */}
       {isMobileSidebarOpen && (
-        <div className="fixed inset-0 z-50 flex md:hidden">
+        <div className="fixed inset-0 z-50 flex md:hidden h-screen h-[100dvh]">
           {/* Backdrop blur overlay */}
           <div 
             className="fixed inset-0 bg-black/60 backdrop-blur-sm"
@@ -73,7 +73,7 @@ export default function Layout() {
           />
           
           {/* Drawer Content */}
-          <div className="relative flex flex-col w-72 h-full bg-base shadow-2xl animate-in slide-in-from-left duration-200">
+          <div className="z-10 relative flex flex-col w-72 h-screen h-[100dvh] bg-base shadow-2xl animate-in slide-in-from-left duration-200">
             {/* Close Button */}
             <div className="absolute top-4 right-4 z-10">
               <button 
