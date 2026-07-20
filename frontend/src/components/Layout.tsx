@@ -51,7 +51,7 @@ export default function Layout() {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
         <main className="flex-1 overflow-y-auto bg-surface">
-          <div className="p-4 md:p-6 pb-32 md:pb-32">
+          <div className="p-4 md:p-6 pb-40 md:pb-32">
             <Outlet />
           </div>
         </main>
@@ -88,7 +88,7 @@ export default function Layout() {
       )}
 
       {/* Footer controls & Mobile navigation container */}
-      <div className="flex flex-col shrink-0">
+      <div className="fixed bottom-0 left-0 right-0 z-40 flex flex-col bg-base shrink-0">
         <NowPlayingBar />
         
         {/* Mobile Bottom Navigation Bar */}
