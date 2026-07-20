@@ -23,7 +23,7 @@ class TestUserRegistration:
                 "password": "secure_password_123",
             },
         )
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_204_NO_CONTENT
         data = response.json()
         assert data["username"] == "newuser"
         assert data["email"] == "newuser@example.com"
