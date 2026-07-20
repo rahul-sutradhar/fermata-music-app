@@ -17,3 +17,15 @@ class Track(Base):
     playlist_tracks: Mapped[list["PlaylistTrack"]] = relationship(
         back_populates="track"
     )
+
+    @property
+    def album_title(self) -> str | None:
+        return self.album.title if self.album else None
+
+    @property
+    def artist_id(self) -> int | None:
+        return self.album.artist_id if self.album else None
+
+    @property
+    def artist_name(self) -> str | None:
+        return self.album.artist.name if (self.album and self.album.artist) else None

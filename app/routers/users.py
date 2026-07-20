@@ -97,12 +97,31 @@ def admin_create_user(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already taken")
     if db.scalar(select(User).where(User.email == payload.email)):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
-    user = User(
-        username=payload.username,
-        email=payload.email,
-        hashed_password=hash_password(payload.password),
-        role=payload.role,
-    )
+    if payload.role == "admin":
+        from app.models.admin import Admin
+        user = Admin(
+            username=payload.username,
+            email=payload.email,
+            hashed_password=hash_password(payload.password),
+            role="admin",
+            name=payload.username,
+        )
+    elif payload.role == "artist":
+        from app.models.artist import Artist
+        user = Artist(
+            username=payload.username,
+            email=payload.email,
+            hashed_password=hash_password(payload.password),
+            role="artist",
+            name=payload.username,
+        )
+    else:
+        user = User(
+            username=payload.username,
+            email=payload.email,
+            hashed_password=hash_password(payload.password),
+            role="user",
+        )
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -125,6 +144,13 @@ def admin_update_user(
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User {user_id} not found")
 
+    # Protection for master admin
+    if user.username == "admin":
+        if payload.role is not None and payload.role != "admin":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot change the role of the master admin")
+        if payload.username is not None and payload.username != "admin":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot change the username of the master admin")
+
     if payload.username is not None:
         existing = db.scalar(select(User).where(User.username == payload.username, User.id != user_id))
         if existing:
@@ -135,11 +161,37 @@ def admin_update_user(
         if existing:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
         user.email = payload.email
-    if payload.role is not None:
+        
+    if payload.role is not None and payload.role != user.role:
+        from sqlalchemy import text
+        # If demoting from old subclass, delete from subclass tables
+        if user.role == "admin":
+            db.execute(text("DELETE FROM admins WHERE id = :id"), {"id": user_id})
+        elif user.role == "artist":
+            # Check if they have albums
+            from app.models.album import Album
+            has_albums = db.scalar(select(Album).where(Album.artist_id == user_id).limit(1)) is not None
+            if has_albums:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot demote artist: this artist has active albums or tracks. Please delete their music first."
+                )
+            db.execute(text("DELETE FROM artists WHERE id = :id"), {"id": user_id})
+            
+        # If promoting to new subclass, insert into subclass tables
+        if payload.role == "admin":
+            db.execute(text("INSERT INTO admins (id, name) VALUES (:id, :name)"), {"id": user_id, "name": user.username})
+        elif payload.role == "artist":
+            db.execute(text("INSERT INTO artists (id, name) VALUES (:id, :name)"), {"id": user_id, "name": user.username})
+            
         user.role = payload.role
-
-    db.commit()
-    db.refresh(user)
+        
+        db.commit()
+        db.expunge(user)
+        user = db.get(User, user_id)
+    else:
+        db.commit()
+        db.refresh(user)
     return UserResponse.model_validate(user)
 
 
@@ -159,6 +211,21 @@ def admin_delete_user(
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User {user_id} not found")
+
+    # Protection for master admin
+    if user.username == "admin":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete the master admin")
+
+    # Protection for deleting active catalog artists
+    if user.role == "artist":
+        from app.models.album import Album
+        has_albums = db.scalar(select(Album).where(Album.artist_id == user_id).limit(1)) is not None
+        if has_albums:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete artist: this artist has active albums or tracks. Please delete their music first."
+            )
+
     db.delete(user)
     db.commit()
 

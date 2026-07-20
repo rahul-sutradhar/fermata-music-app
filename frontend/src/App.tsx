@@ -14,7 +14,7 @@ import PlaylistPage from '@/pages/PlaylistPage'
 import ShowPage from '@/pages/ShowPage'
 import AudiobookPage from '@/pages/AudiobookPage'
 import ProfilePage from '@/pages/ProfilePage'
-import ManageTracksPage from '@/pages/ManageTracksPage'
+import AdminPanelPage from '@/pages/AdminPanelPage'
 import NotFound from '@/pages/NotFound'
 
 export default function App() {
@@ -46,7 +46,7 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route path="library" element={<LibraryPage />} />
           <Route path="profile" element={<ProfilePage />} />
-          <Route path="manage-tracks" element={<ManageTracksPage />} />
+          <Route path="admin" element={<AdminPanelPage />} />
         </Route>
 
         <Route path="*" element={<NotFound />} />

@@ -1,5 +1,6 @@
 """Player schemas."""
 
+from datetime import datetime
 from pydantic import BaseModel, Field
 
 
@@ -34,7 +35,7 @@ class RecentlyPlayedResponse(BaseModel):
 
     id: int
     track_id: int
-    played_at: str
+    played_at: datetime
 
     class Config:
         from_attributes = True

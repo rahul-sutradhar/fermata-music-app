@@ -18,7 +18,7 @@ export default function Card({ title, subtitle, imageUrl, href, onPlay, isRound 
   }
 
   return (
-    <button
+    <div
       onClick={handleClick}
       className="group bg-surface-elevated/60 hover:bg-surface-highlight rounded-lg p-4 transition-all duration-300 cursor-pointer text-left w-full"
     >
@@ -50,6 +50,6 @@ export default function Card({ title, subtitle, imageUrl, href, onPlay, isRound 
       {subtitle && (
         <p className="text-xs text-subtext mt-1 truncate">{subtitle}</p>
       )}
-    </button>
+    </div>
   )
 }

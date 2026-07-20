@@ -25,3 +25,9 @@ class TrackResponse(BaseModel):
     album_id: int
     duration_seconds: int | None
     audio_url: str | None = None
+    album_title: str | None = None
+    artist_id: int | None = None
+    artist_name: str | None = None
+
+    class Config:
+        from_attributes = True

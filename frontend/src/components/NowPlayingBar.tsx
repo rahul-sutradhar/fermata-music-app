@@ -1,22 +1,108 @@
 import { useRef, useEffect, useCallback } from 'react'
 import { Volume2, VolumeX, Music } from 'lucide-react'
 import { usePlayerStore } from '@/store/playerStore'
-import { getTrackAudioUrl } from '@/api/tracks'
-import { addRecentlyPlayed } from '@/api/player'
+import { getTrackAudioUrl, getTrack } from '@/api/tracks'
+import { addRecentlyPlayed, getPlayerState, updatePlayerState } from '@/api/player'
 import { useAuthStore } from '@/store/authStore'
 import PlayerControls from './PlayerControls'
 
 export default function NowPlayingBar() {
   const audioRef = useRef<HTMLAudioElement>(null)
+  const shouldRestoreProgress = useRef(false)
+  const savedProgressSecRef = useRef(0)
+
   const currentTrack = usePlayerStore((s) => s.currentTrack)
   const isPlaying = usePlayerStore((s) => s.isPlaying)
   const volume = usePlayerStore((s) => s.volume)
+  const shuffle = usePlayerStore((s) => s.shuffle)
+  const repeatMode = usePlayerStore((s) => s.repeatMode)
+
   const setIsPlaying = usePlayerStore((s) => s.setIsPlaying)
   const setProgressMs = usePlayerStore((s) => s.setProgressMs)
   const setDurationMs = usePlayerStore((s) => s.setDurationMs)
   const setVolume = usePlayerStore((s) => s.setVolume)
   const playNext = usePlayerStore((s) => s.playNext)
   const token = useAuthStore((s) => s.token)
+
+  // Load player state on page mount / login
+  useEffect(() => {
+    if (!token) return
+
+    async function restorePlayerState() {
+      try {
+        const state = await getPlayerState()
+        if (state) {
+          if (state.track_id) {
+            try {
+              const track = await getTrack(state.track_id)
+              if (track) {
+                // Store progress in ref BEFORE setting store state to avoid race condition
+                savedProgressSecRef.current = (state.progress_ms || 0) / 1000
+                shouldRestoreProgress.current = true
+                usePlayerStore.setState({
+                  currentTrack: track,
+                  isPlaying: false,
+                  progressMs: state.progress_ms,
+                  durationMs: track.duration_seconds ? track.duration_seconds * 1000 : 0,
+                  volume: state.volume,
+                  shuffle: state.shuffle,
+                  repeatMode: state.repeat_mode as 'off' | 'context' | 'track',
+                })
+              }
+            } catch (err) {
+              console.error('Failed to load saved track details:', err)
+            }
+          } else {
+            usePlayerStore.setState({
+              volume: state.volume,
+              shuffle: state.shuffle,
+              repeatMode: state.repeat_mode as 'off' | 'context' | 'track',
+            })
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load initial player state:', err)
+      }
+    }
+
+    restorePlayerState()
+  }, [token])
+
+  // Sync settings/playback changes back to the database (debounced by 1s)
+  useEffect(() => {
+    if (!token || !currentTrack) return
+
+    const timer = setTimeout(() => {
+      updatePlayerState({
+        track_id: currentTrack.id,
+        is_playing: isPlaying,
+        progress_ms: Math.round(usePlayerStore.getState().progressMs),
+        volume: volume,
+        shuffle: shuffle,
+        repeat_mode: repeatMode,
+      }).catch(() => { })
+    }, 1000)
+
+    return () => clearTimeout(timer)
+  }, [token, currentTrack, isPlaying, volume, shuffle, repeatMode])
+
+  // Periodic progress sync back to the database (every 5 seconds while playing)
+  useEffect(() => {
+    if (!token || !currentTrack || !isPlaying) return
+
+    const interval = setInterval(() => {
+      updatePlayerState({
+        track_id: currentTrack.id,
+        is_playing: isPlaying,
+        progress_ms: Math.round(usePlayerStore.getState().progressMs),
+        volume: usePlayerStore.getState().volume,
+        shuffle: usePlayerStore.getState().shuffle,
+        repeat_mode: usePlayerStore.getState().repeatMode,
+      }).catch(() => { })
+    }, 5000)
+
+    return () => clearInterval(interval)
+  }, [token, currentTrack, isPlaying])
 
   // Load audio source when track changes
   useEffect(() => {
@@ -31,9 +117,13 @@ export default function NowPlayingBar() {
         const res = await getTrackAudioUrl(currentTrack!.id)
         if (res && res.audio_url) {
           const apiBase = import.meta.env.VITE_API_BASE ?? 'http://localhost:8001'
-          url = res.audio_url.startsWith('http')
-            ? res.audio_url
-            : `${apiBase}${res.audio_url}`
+          if (res.audio_url.includes('backblazeb2.com')) {
+            url = `${apiBase}/tracks/${currentTrack!.id}/audio/play`
+          } else {
+            url = res.audio_url.startsWith('http')
+              ? res.audio_url
+              : `${apiBase}${res.audio_url}`
+          }
         }
       } catch {
         // fail silently and use fallback
@@ -59,13 +149,21 @@ export default function NowPlayingBar() {
       try {
         audio!.src = url
         audio!.load()
-        audio!.play().catch((err) => {
-          console.warn('Auto-play blocked, click the page to enable playback:', err)
-        })
-        setIsPlaying(true)
+        // Explicitly apply volume to prevent browser volume resets on new track loads
+        audio!.volume = Math.pow(usePlayerStore.getState().volume / 100, 2)
+        
+        const shouldPlay = usePlayerStore.getState().isPlaying
+        if (shouldPlay) {
+          audio!.play().catch((err) => {
+            console.warn('Auto-play blocked, click the page to enable playback:', err)
+          })
+          setIsPlaying(true)
+        } else {
+          setIsPlaying(false)
+        }
 
         // Record recently played
-        if (token) {
+        if (token && shouldPlay) {
           addRecentlyPlayed(currentTrack!.id).catch(() => { })
         }
       } catch (err) {
@@ -82,7 +180,8 @@ export default function NowPlayingBar() {
   // Sync volume
   useEffect(() => {
     if (audioRef.current) {
-      audioRef.current.volume = volume / 100
+      // Use exponential curve for natural logarithmic volume perception
+      audioRef.current.volume = Math.pow(volume / 100, 2)
     }
   }, [volume])
 
@@ -92,14 +191,26 @@ export default function NowPlayingBar() {
     if (!audio) return
 
     const onTimeUpdate = () => {
-      setProgressMs(audio.currentTime * 1000)
+      setProgressMs(Math.round(audio.currentTime * 1000))
       if (audio.duration && !isNaN(audio.duration)) {
-        setDurationMs(audio.duration * 1000)
+        setDurationMs(Math.round(audio.duration * 1000))
       }
     }
     const onLoadedMetadata = () => {
       if (audio.duration && !isNaN(audio.duration)) {
         setDurationMs(audio.duration * 1000)
+      }
+      if (shouldRestoreProgress.current) {
+        const savedSec = savedProgressSecRef.current
+        if (savedSec > 0) {
+          try {
+            audio.currentTime = savedSec
+          } catch (err) {
+            console.warn('Failed to restore playback position:', err)
+          }
+        }
+        shouldRestoreProgress.current = false
+        savedProgressSecRef.current = 0
       }
     }
     const onEnded = () => {
@@ -115,7 +226,7 @@ export default function NowPlayingBar() {
       audio.removeEventListener('loadedmetadata', onLoadedMetadata)
       audio.removeEventListener('ended', onEnded)
     }
-  }, [setProgressMs, setDurationMs, playNext])
+  }, [currentTrack, setProgressMs, setDurationMs, playNext])
 
   const toggleMute = useCallback(() => {
     setVolume(volume === 0 ? 50 : 0)

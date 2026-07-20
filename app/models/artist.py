@@ -1,14 +1,17 @@
 from sqlalchemy import String, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base
+from app.models.user import User
 
 
-class Artist(Base):
+class Artist(User):
     __tablename__ = "artists"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 
     albums: Mapped[list["Album"]] = relationship(back_populates="artist")
+
+    __mapper_args__ = {
+        "polymorphic_identity": "artist",
+    }

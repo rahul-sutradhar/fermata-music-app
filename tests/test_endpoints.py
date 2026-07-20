@@ -52,7 +52,7 @@ def test_get_artist_by_id(client, db_session):
     response = client.get(f"/artists/{artist.id}")
 
     assert response.status_code == 200
-    assert response.json() == {"id": artist.id, "name": artist.name, "user_id": artist.user_id}
+    assert response.json() == {"id": artist.id, "name": artist.name, "user_id": artist.id}
 
 
 def test_get_artist_albums(client, db_session):
@@ -73,13 +73,12 @@ def test_get_track_by_id(client, db_session):
     response = client.get(f"/tracks/{track.id}")
 
     assert response.status_code == 200
-    assert response.json() == {
-        "id": track.id,
-        "title": track.title,
-        "album_id": track.album_id,
-        "duration_seconds": track.duration_seconds,
-        "audio_url": None,
-    }
+    data = response.json()
+    assert data["id"] == track.id
+    assert data["title"] == track.title
+    assert data["album_id"] == track.album_id
+    assert data["duration_seconds"] == track.duration_seconds
+    assert data["audio_url"] == None
 
 
 def test_get_missing_album_returns_404(client):

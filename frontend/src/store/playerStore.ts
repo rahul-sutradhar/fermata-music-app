@@ -33,7 +33,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   shuffle: false,
   repeatMode: 'off',
 
-  setTrack: (track) => set({ currentTrack: track, progressMs: 0 }),
+  setTrack: (track) => set({ currentTrack: track, progressMs: 0, durationMs: track.duration_seconds ? track.duration_seconds * 1000 : 0 }),
   setQueue: (tracks) => set({ queue: tracks }),
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setProgressMs: (progressMs) => set({ progressMs }),

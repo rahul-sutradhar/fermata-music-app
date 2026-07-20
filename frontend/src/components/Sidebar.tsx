@@ -206,7 +206,7 @@ export default function Sidebar() {
               {user.username}
             </NavLink>
             {(user.role === 'artist' || user.role === 'admin') && (
-              <NavLink to="/manage-tracks" className={linkClass}>
+              <NavLink to="/admin" className={linkClass}>
                 <Settings size={18} />
                 Admin Panel
               </NavLink>

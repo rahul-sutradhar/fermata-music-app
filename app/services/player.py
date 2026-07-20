@@ -69,9 +69,28 @@ def add_to_recently_played(db: Session, user_id: int, track_id: int) -> Recently
 def get_recently_played(
     db: Session, user_id: int, skip: int = 0, limit: int = 20
 ) -> list[RecentlyPlayed]:
-    """Get user's recently played tracks."""
+    """Get user's recently played tracks, deduplicated by track (most recent play per track)."""
+    from sqlalchemy import func
+
+    # Subquery: find the latest played_at timestamp for each distinct track
+    latest_per_track = (
+        select(
+            RecentlyPlayed.track_id,
+            func.max(RecentlyPlayed.played_at).label("last_played_at"),
+        )
+        .where(RecentlyPlayed.user_id == user_id)
+        .group_by(RecentlyPlayed.track_id)
+        .subquery()
+    )
+
+    # Join back to get the full RecentlyPlayed row that matches the latest timestamp
     return db.scalars(
         select(RecentlyPlayed)
+        .join(
+            latest_per_track,
+            (RecentlyPlayed.track_id == latest_per_track.c.track_id)
+            & (RecentlyPlayed.played_at == latest_per_track.c.last_played_at),
+        )
         .where(RecentlyPlayed.user_id == user_id)
         .order_by(desc(RecentlyPlayed.played_at))
         .offset(skip)

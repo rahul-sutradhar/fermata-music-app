@@ -22,7 +22,7 @@ def list_artists(
     from sqlalchemy import select
     from app.models.artist import Artist
     artists = db.scalars(select(Artist).order_by(Artist.id).offset(skip).limit(limit)).all()
-    return [ArtistResponse(id=a.id, name=a.name, user_id=a.user_id) for a in artists]
+    return [ArtistResponse(id=a.id, name=a.name, user_id=a.id) for a in artists]
 
 
 @router.get(
@@ -81,7 +81,7 @@ def update_artist(
     """Update an artist (Admin or owning Artist)."""
     # Check ownership if not admin
     artist = artist_service._get_artist_or_404(db, artist_id)
-    if current_user.role != "admin" and artist.user_id != current_user.id:
+    if current_user.role != "admin" and artist.id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
     
     return artist_service.update_artist(db=db, artist_id=artist_id, name=payload.name, user_id=payload.user_id)

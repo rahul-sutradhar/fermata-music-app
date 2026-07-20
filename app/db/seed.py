@@ -33,39 +33,47 @@ def seed() -> None:
             return
 
         # Create Admin
-        admin = User(
+        from app.models.admin import Admin
+        admin = Admin(
             username="admin",
-            email="admin@fermata.local",
+            email="admin@fermata.com",
             hashed_password=hash_password("admin123"),
             role="admin",
+            name="Admin",
         )
         db.add(admin)
 
         # Create normal user
         user = User(
             username="dev-user",
-            email="dev@fermata.local",
+            email="dev@fermata.com",
             hashed_password=hash_password("password"),
             role="user",
         )
         db.add(user)
-
-        # Create artist user
-        queen_artist_user = User(
-            username="queen",
-            email="queen@fermata.local",
-            hashed_password=hash_password("password"),
-            role="artist",
-        )
-        db.add(queen_artist_user)
         db.flush()
 
         artists: dict[str, Artist] = {}
         for _, artist_name in SEED_ALBUMS:
             if artist_name not in artists:
-                # Link Queen artist user to the Queen artist
-                uid = queen_artist_user.id if artist_name == "Queen" else None
-                artist = Artist(name=artist_name, user_id=uid)
+                if artist_name == "Queen":
+                    artist = Artist(
+                        username="queen",
+                        email="queen@fermata.com",
+                        hashed_password=hash_password("password"),
+                        role="artist",
+                        name="Queen"
+                    )
+                else:
+                    import uuid
+                    username = f"artist_{uuid.uuid4().hex[:8]}"
+                    artist = Artist(
+                        username=username,
+                        email=f"{username}@fermata.com",
+                        hashed_password=hash_password(uuid.uuid4().hex),
+                        role="artist",
+                        name=artist_name
+                    )
                 db.add(artist)
                 artists[artist_name] = artist
 

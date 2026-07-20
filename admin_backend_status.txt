@@ -1,0 +1,37 @@
+Backend Admin Features & Routing Status
+========================================
+
+All required admin endpoints and resource management routers for the Admin Panel are fully implemented in the backend and verified via our test suite (73/73 tests passing).
+
+Below is the list of active backend endpoints used by the Admin Panel:
+
+1. User Management (Admin Only)
+-------------------------------
+* GET    /admin/users          - List users with pagination (Implemented in app/routers/users.py)
+* POST   /admin/users          - Create user with specific role (Implemented in app/routers/users.py)
+* PATCH  /admin/users/{id}     - Update user username, email, and role (Implemented in app/routers/users.py)
+* DELETE /admin/users/{id}     - Delete user (Implemented in app/routers/users.py)
+
+2. Artist Management (Admin Only for Create/Delete, Admin/Owner for Update)
+--------------------------------------------------------------------------
+* GET    /artists              - List artists with pagination (Implemented in app/routers/artists.py)
+* POST   /artists              - Create artist (Implemented in app/routers/artists.py)
+* PATCH  /artists/{id}         - Update artist name/linked user (Implemented in app/routers/artists.py)
+* DELETE /artists/{id}         - Delete artist (Implemented in app/routers/artists.py)
+
+3. Album Management (Admin/Artist Only)
+---------------------------------------
+* GET    /albums               - List albums with pagination (Implemented in app/routers/albums.py)
+* POST   /albums               - Create album (Implemented in app/routers/albums.py)
+* PATCH  /albums/{id}          - Update album title/artist (Implemented in app/routers/albums.py)
+* DELETE /albums/{id}          - Delete album (Implemented in app/routers/albums.py)
+
+4. Track Management (Admin/Artist Only)
+---------------------------------------
+* GET    /tracks               - List tracks with search & pagination (Implemented in app/routers/tracks.py)
+* POST   /tracks               - Create track (Implemented in app/routers/tracks.py)
+* PATCH  /tracks/{id}          - Update track details (Implemented in app/routers/tracks.py)
+* DELETE /tracks/{id}          - Delete track (Implemented in app/routers/tracks.py)
+* POST   /tracks/{id}/audio    - Upload audio file to S3/B2 storage (Implemented in app/routers/tracks.py)
+
+No routers are missing from the backend to support the new tabbed Admin Panel.

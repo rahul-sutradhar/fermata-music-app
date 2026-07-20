@@ -1,5 +1,6 @@
 from app.models.album import Album
 from app.models.artist import Artist
+from app.models.admin import Admin
 from app.models.content import Audiobook, Chapter, Episode, Show
 from app.models.library import UserLibrary
 from app.models.playlist import Playlist
@@ -12,6 +13,7 @@ from app.models.user import User
 __all__ = [
     "Album",
     "Artist",
+    "Admin",
     "Audiobook",
     "Chapter",
     "Episode",

@@ -84,7 +84,7 @@ These steps assume Python is already installed.
    uvicorn app.main:app --reload
    ```
 
-7. Open your browser to `http://localhost:8000/docs`. This page is
+7. Open your browser to `http://localhost:8001/docs`. This page is
    generated automatically by FastAPI and lets you try out the API
    directly.
 

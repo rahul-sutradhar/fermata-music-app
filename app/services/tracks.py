@@ -1,6 +1,6 @@
 from fastapi import HTTPException, status, UploadFile
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from pathlib import Path
 from uuid import uuid4
 
@@ -20,11 +20,18 @@ def _to_response(track: Track) -> TrackResponse:
         album_id=track.album_id,
         duration_seconds=track.duration_seconds,
         audio_url=get_audio_url(track.audio_file_key) if track.audio_file_key else None,
+        album_title=track.album_title,
+        artist_id=track.artist_id,
+        artist_name=track.artist_name,
     )
 
 
 def _get_track_or_404(db: Session, track_id: int) -> Track:
-    track = db.get(Track, track_id)
+    track = db.scalars(
+        select(Track)
+        .options(joinedload(Track.album).joinedload(Album.artist))
+        .where(Track.id == track_id)
+    ).first()
     if track is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -73,11 +80,15 @@ def _ensure_unique_title(
 
 
 def list_tracks(*, db: Session, skip: int, limit: int, q: str | None) -> list[TrackResponse]:
-    query = select(Track).order_by(Track.id)
+    query = (
+        select(Track)
+        .options(joinedload(Track.album).joinedload(Album.artist))
+        .order_by(Track.id)
+    )
     if q:
         query = query.where(Track.title.ilike(f"%{q}%"))
 
-    tracks = db.scalars(query.offset(skip).limit(limit)).all()
+    tracks = db.scalars(query.offset(skip).limit(limit)).unique().all()
     return [_to_response(track) for track in tracks]
 
 

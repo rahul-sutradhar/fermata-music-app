@@ -2,14 +2,11 @@ import { useEffect, useState } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { usePlayerStore } from '@/store/playerStore'
 import { getRecentlyPlayed } from '@/api/player'
-import { getTrack, listTracks } from '@/api/tracks'
-import { getMyPlaylists } from '@/api/playlists'
+import { listTracks } from '@/api/tracks'
 import { listAlbums } from '@/api/albums'
-import type { Track, Playlist, Album } from '@/types'
+import type { Track, Album } from '@/types'
 import CardGrid from '@/components/CardGrid'
 import Card from '@/components/Card'
-import TrackList from '@/components/TrackList'
-import { parsePlaylistName } from '@/components/Sidebar'
 
 export default function HomePage() {
   const token = useAuthStore((s) => s.token)
@@ -19,38 +16,30 @@ export default function HomePage() {
 
   const [recentTracks, setRecentTracks] = useState<Track[]>([])
   const [mostPlayedTracks, setMostPlayedTracks] = useState<Track[]>([])
-  const [allTracks, setAllTracks] = useState<Track[]>([])
   const [albums, setAlbums] = useState<Album[]>([])
-  const [playlists, setPlaylists] = useState<Playlist[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const load = async () => {
       try {
-        // Load all tracks and albums
-        const [tracksData, albumsData] = await Promise.all([
+        // Fetch tracks, albums, and (if logged in) recently-played all in one parallel batch
+        const fetchRecent = token ? getRecentlyPlayed(0, 12) : Promise.resolve([])
+        const [tracksData, albumsData, recent] = await Promise.all([
           listTracks(0, 50),
           listAlbums(0, 50),
+          fetchRecent,
         ])
-        setAllTracks(tracksData)
         setAlbums(albumsData)
-
-        // Mock most played tracks (first 5 tracks)
         setMostPlayedTracks(tracksData.slice(0, 5))
 
-        if (token) {
-          // Load recent + playlists for logged-in users
-          const [recent, pls] = await Promise.all([
-            getRecentlyPlayed(0, 12),
-            getMyPlaylists(),
-          ])
-          setPlaylists(pls)
-
-          // Resolve track details for recently played
-          const trackDetails = await Promise.all(
-            recent.slice(0, 8).map((r) => getTrack(r.track_id).catch(() => null)),
-          )
-          setRecentTracks(trackDetails.filter(Boolean) as Track[])
+        if (token && recent.length > 0) {
+          // Resolve recently-played track details from already-fetched tracks — zero extra requests
+          const trackMap = new Map(tracksData.map((t) => [t.id, t]))
+          const resolved = recent
+            .slice(0, 8)
+            .map((r) => trackMap.get(r.track_id))
+            .filter(Boolean) as Track[]
+          setRecentTracks(resolved)
         }
       } catch (err) {
         console.error('Failed to load homepage data:', err)
@@ -131,7 +120,7 @@ export default function HomePage() {
           <CardGrid title="Recently Played Albums">
             {albums.slice(0, 6).map((album) => (
               <Card
-                key={album.id}
+                key={`recent-album-${album.id}`}
                 title={album.title}
                 subtitle={album.artist_name || 'Various Artists'}
                 href={`/album/${album.id}`}
@@ -145,7 +134,7 @@ export default function HomePage() {
           <CardGrid title="Most Played Albums">
             {albums.slice(2, 8).map((album) => (
               <Card
-                key={album.id}
+                key={`most-album-${album.id}`}
                 title={album.title}
                 subtitle={album.artist_name || 'Various Artists'}
                 href={`/album/${album.id}`}
@@ -153,33 +142,6 @@ export default function HomePage() {
             ))}
           </CardGrid>
         </>
-      )}
-
-      {/* Your Playlists */}
-      {playlists.length > 0 && (
-        <CardGrid title="Your Playlists">
-          {playlists.map((pl) => {
-            const info = parsePlaylistName(pl.name)
-            return (
-              <Card
-                key={pl.id}
-                title={info.name}
-                subtitle={info.artist ? `By ${info.artist}` : 'Playlist'}
-                href={`/playlist/${pl.id}`}
-              />
-            )
-          })}
-        </CardGrid>
-      )}
-
-      {/* Browse All */}
-      {allTracks.length > 0 && (
-        <section>
-          <h2 className="text-xl font-bold mb-4 font-sans">Browse All Tracks</h2>
-          <div className="bg-surface-elevated/20 rounded-xl p-4 border border-surface-highlight/30">
-            <TrackList tracks={allTracks} />
-          </div>
-        </section>
       )}
     </div>
   )

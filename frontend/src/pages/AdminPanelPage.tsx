@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Plus, Pencil, Trash2, Upload, Search, User, Music, Disc, Radio } from 'lucide-react'
+import { Plus, Pencil, Trash2, Upload, Search, User, Music, Disc, Radio, Shield } from 'lucide-react'
 import { listTracks, createTrack, updateTrack, deleteTrack, uploadTrackAudio } from '@/api/tracks'
 import { listUsers, createUser, updateUser, deleteUser } from '@/api/admin'
 import { listArtists, createArtist, updateArtist, deleteArtist } from '@/api/artists'
@@ -7,9 +7,9 @@ import { listAlbums, createAlbum, updateAlbum, deleteAlbum } from '@/api/albums'
 import type { Track, User as UserType, Artist, Album } from '@/types'
 import TrackFormModal from '@/components/TrackFormModal'
 
-type TabType = 'users' | 'artists' | 'albums' | 'tracks'
+type TabType = 'users' | 'artists' | 'admins' | 'albums' | 'tracks'
 
-export default function ManageTracksPage() {
+export default function AdminPanelPage() {
   const [activeTab, setActiveTab] = useState<TabType>('tracks')
   const [searchQ, setSearchQ] = useState('')
   const [loading, setLoading] = useState(true)
@@ -19,6 +19,7 @@ export default function ManageTracksPage() {
   const [users, setUsers] = useState<UserType[]>([])
   const [artists, setArtists] = useState<Artist[]>([])
   const [albums, setAlbums] = useState<Album[]>([])
+  const [userMap, setUserMap] = useState<Record<number, string>>({})
 
   // Modal control states
   const [trackModalOpen, setTrackModalOpen] = useState(false)
@@ -45,6 +46,12 @@ export default function ManageTracksPage() {
   const [showArtistSelectDropdown, setShowArtistSelectDropdown] = useState(false)
   const artistDropdownRef = useRef<HTMLDivElement>(null)
 
+  // Searchable artist account select states for artist profile modal
+  const [artistAccountsList, setArtistAccountsList] = useState<UserType[]>([])
+  const [artistAccountSearch, setArtistAccountSearch] = useState('')
+  const [showArtistAccountDropdown, setShowArtistAccountDropdown] = useState(false)
+  const artistAccountDropdownRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     if (albumModalOpen) {
       listArtists(0, 200)
@@ -54,9 +61,20 @@ export default function ManageTracksPage() {
   }, [albumModalOpen])
 
   useEffect(() => {
+    if (artistModalOpen) {
+      listUsers(0, 200)
+        .then(data => setArtistAccountsList(data.filter(u => u.role === 'artist')))
+        .catch(console.error)
+    }
+  }, [artistModalOpen])
+
+  useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (artistDropdownRef.current && !artistDropdownRef.current.contains(event.target as Node)) {
         setShowArtistSelectDropdown(false)
+      }
+      if (artistAccountDropdownRef.current && !artistAccountDropdownRef.current.contains(event.target as Node)) {
+        setShowArtistAccountDropdown(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -66,21 +84,46 @@ export default function ManageTracksPage() {
   const loadData = async () => {
     setLoading(true)
     try {
+      // Pre-fetch all users to build userMap and avoid duplicate requests
+      const allUsers = await listUsers(0, 100)
+      const map: Record<number, string> = {}
+      allUsers.forEach(u => {
+        map[u.id] = u.username
+      })
+      setUserMap(map)
+
       if (activeTab === 'tracks') {
         const data = await listTracks(0, 100, searchQ || undefined)
         setTracks(data)
       } else if (activeTab === 'users') {
-        const data = await listUsers(0, 100)
-        setUsers(data.filter(u =>
-          u.username.toLowerCase().includes(searchQ.toLowerCase()) ||
-          u.email.toLowerCase().includes(searchQ.toLowerCase())
+        setUsers(allUsers.filter(u =>
+          u.role === 'user' && (
+            (u.username || '').toLowerCase().includes(searchQ.toLowerCase()) ||
+            (u.email || '').toLowerCase().includes(searchQ.toLowerCase())
+          )
+        ))
+      } else if (activeTab === 'admins') {
+        setUsers(allUsers.filter(u =>
+          u.role === 'admin' && (
+            (u.username || '').toLowerCase().includes(searchQ.toLowerCase()) ||
+            (u.email || '').toLowerCase().includes(searchQ.toLowerCase())
+          )
         ))
       } else if (activeTab === 'artists') {
-        const data = await listArtists(0, 100)
-        setArtists(data.filter(a => a.name.toLowerCase().includes(searchQ.toLowerCase())))
+        const profileData = await listArtists(0, 100)
+        setArtists(profileData.filter(a => (a.name || '').toLowerCase().includes(searchQ.toLowerCase())))
+        setUsers(allUsers.filter(u =>
+          u.role === 'artist' && (
+            (u.username || '').toLowerCase().includes(searchQ.toLowerCase()) ||
+            (u.email || '').toLowerCase().includes(searchQ.toLowerCase())
+          )
+        ))
+        setArtistAccountsList(allUsers.filter(u => u.role === 'artist'))
       } else if (activeTab === 'albums') {
         const data = await listAlbums(0, 100)
         setAlbums(data.filter(a => a.title.toLowerCase().includes(searchQ.toLowerCase())))
+        const artistData = await listArtists(0, 200)
+        setAllArtistsList(artistData)
       }
     } catch (err) {
       console.error('Failed to load admin data:', err)
@@ -151,12 +194,12 @@ export default function ManageTracksPage() {
   }
 
   // User CRUD Actions
-  const openUserModal = (user: UserType | null = null) => {
+  const openUserModal = (user: UserType | null = null, defaultRole: string = 'user') => {
     setEditingUser(user)
     if (user) {
-      setUserForm({ username: user.username, email: user.email, password: '', role: user.role || 'user' })
+      setUserForm({ username: user.username, email: user.email, password: '', role: user.role || defaultRole })
     } else {
-      setUserForm({ username: '', email: '', password: '', role: 'user' })
+      setUserForm({ username: '', email: '', password: '', role: defaultRole })
     }
     setUserModalOpen(true)
   }
@@ -275,9 +318,9 @@ export default function ManageTracksPage() {
   }
 
   return (
-    <div>
+    <div className="space-y-6">
       {/* Title Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-2">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Admin Control Panel</h1>
           <p className="text-sm text-subtext mt-1">Manage platform users, artists, discographies, and uploads</p>
@@ -295,20 +338,20 @@ export default function ManageTracksPage() {
         )}
         {activeTab === 'users' && (
           <button
-            onClick={() => openUserModal()}
+            onClick={() => openUserModal(null, 'user')}
             className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-all hover:scale-[1.02]"
           >
             <Plus size={16} />
             Add User
           </button>
         )}
-        {activeTab === 'artists' && (
+        {activeTab === 'admins' && (
           <button
-            onClick={() => openArtistModal()}
+            onClick={() => openUserModal(null, 'admin')}
             className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-all hover:scale-[1.02]"
           >
             <Plus size={16} />
-            Add Artist
+            Add Admin
           </button>
         )}
         {activeTab === 'albums' && (
@@ -323,7 +366,7 @@ export default function ManageTracksPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-surface-highlight mb-6 gap-2">
+      <div className="flex border-b border-surface-highlight mb-4 gap-2">
         <button
           onClick={() => { setActiveTab('tracks'); setSearchQ('') }}
           className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'tracks' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
@@ -349,6 +392,14 @@ export default function ManageTracksPage() {
           Artists
         </button>
         <button
+          onClick={() => { setActiveTab('admins'); setSearchQ('') }}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'admins' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+            }`}
+        >
+          <Shield size={16} />
+          Admins
+        </button>
+        <button
           onClick={() => { setActiveTab('albums'); setSearchQ('') }}
           className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'albums' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
             }`}
@@ -359,13 +410,13 @@ export default function ManageTracksPage() {
       </div>
 
       {/* Search Input */}
-      <div className="relative max-w-sm mb-6">
+      <div className="relative max-w-sm mb-4">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-subtext" />
         <input
           type="text"
           value={searchQ}
           onChange={(e) => setSearchQ(e.target.value)}
-          placeholder={`Search ${activeTab}...`}
+          placeholder={`Search ${activeTab === 'artists' ? 'artists accounts/profiles' : activeTab}...`}
           className="w-full pl-9 pr-4 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-primary/20 transition-colors placeholder:text-subtext/50"
         />
       </div>
@@ -375,8 +426,118 @@ export default function ManageTracksPage() {
         <div className="flex items-center justify-center py-20">
           <div className="w-8 h-8 border-2 border-spotify-green border-t-transparent rounded-full animate-spin" />
         </div>
+      ) : activeTab === 'artists' ? (
+        /* ARTISTS TAB - CUSTOM DETAILED ROLE-SEPARATED DESIGN */
+        <div className="space-y-8 animate-in fade-in duration-200">
+          {/* SECTION 1: ARTIST LOGIN ACCOUNTS */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-primary">Artist Accounts</h2>
+                <p className="text-xs text-subtext mt-0.5">User accounts assigned the 'artist' role for platform access</p>
+              </div>
+              <button
+                onClick={() => openUserModal(null, 'artist')}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-spotify-green text-black text-xs font-semibold hover:bg-spotify-green-hover transition-colors"
+              >
+                <Plus size={14} />
+                Add Artist Account
+              </button>
+            </div>
+            <div className="rounded-xl border border-surface-highlight overflow-hidden bg-surface-elevated/40">
+              <div className="grid grid-cols-[1fr_1.5fr_100px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+                <span>Username</span>
+                <span>Email</span>
+                <span className="text-right">Actions</span>
+              </div>
+              <div className="divide-y divide-surface-highlight/30">
+                {users.filter(u => u.role === 'artist').length === 0 ? (
+                  <div className="py-8 text-center text-subtext text-sm">No artist accounts found</div>
+                ) : (
+                  users.filter(u => u.role === 'artist').map((u) => (
+                    <div key={u.id} className="grid grid-cols-[1fr_1.5fr_100px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
+                      <span className="text-sm font-medium truncate">{u.username}</span>
+                      <span className="text-sm text-subtext truncate">{u.email}</span>
+                      <div className="flex items-center gap-1 justify-end">
+                        <button
+                          onClick={() => openUserModal(u, 'artist')}
+                          className="p-2 rounded-lg text-subtext hover:text-primary hover:bg-surface-highlight transition-colors"
+                          title="Edit Account"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleUserDelete(u.id)}
+                          className="p-2 rounded-lg text-subtext hover:text-red-400 hover:bg-surface-highlight transition-colors"
+                          title="Delete Account"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 2: PUBLIC ARTIST PROFILES */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-primary">Public Artist Catalog Profiles</h2>
+                <p className="text-xs text-subtext mt-0.5">Catalog representation linked to database discographies</p>
+              </div>
+              <button
+                onClick={() => openArtistModal()}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-spotify-green text-black text-xs font-semibold hover:bg-spotify-green-hover transition-colors"
+              >
+                <Plus size={14} />
+                Add Artist Profile
+              </button>
+            </div>
+             <div className="rounded-xl border border-surface-highlight overflow-hidden bg-surface-elevated/40">
+              <div className="grid grid-cols-[1fr_220px_100px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+                <span>Artist Name</span>
+                <span>Linked Account</span>
+                <span className="text-right">Actions</span>
+              </div>
+              <div className="divide-y divide-surface-highlight/30">
+                {artists.length === 0 ? (
+                  <div className="py-8 text-center text-subtext text-sm">No artist profiles found</div>
+                ) : (
+                  artists.map((a) => (
+                    <div key={a.id} className="grid grid-cols-[1fr_220px_100px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
+                      <span className="text-sm font-medium truncate">{a.name}</span>
+                      <span className="text-sm text-subtext">
+                        {a.user_id ? (userMap[a.user_id] ? `${userMap[a.user_id]} (ID: ${a.user_id})` : `ID: ${a.user_id}`) : 'Not linked'}
+                      </span>
+                      <div className="flex items-center gap-1 justify-end">
+                        <button
+                          onClick={() => openArtistModal(a)}
+                          className="p-2 rounded-lg text-subtext hover:text-primary hover:bg-surface-highlight transition-colors"
+                          title="Edit Profile"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleArtistDelete(a.id)}
+                          className="p-2 rounded-lg text-subtext hover:text-red-400 hover:bg-surface-highlight transition-colors"
+                          title="Delete Profile"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       ) : (
-        <div className="rounded-xl border border-surface-highlight overflow-hidden bg-surface-elevated/40">
+        /* STANDARD TAB VIEWS */
+        <div className="rounded-xl border border-surface-highlight overflow-hidden bg-surface-elevated/40 animate-in fade-in duration-200">
           {/* TRACKS TABLE */}
           {activeTab === 'tracks' && (
             <>
@@ -444,33 +605,25 @@ export default function ManageTracksPage() {
             </>
           )}
 
-          {/* USERS TABLE */}
+          {/* NORMAL USERS TABLE */}
           {activeTab === 'users' && (
             <>
-              <div className="grid grid-cols-[1fr_1.5fr_100px_120px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[1fr_1.5fr_120px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>Username</span>
                 <span>Email</span>
-                <span>Role</span>
                 <span className="text-right">Actions</span>
               </div>
               <div className="divide-y divide-surface-highlight/30">
                 {users.length === 0 ? (
-                  <div className="py-12 text-center text-subtext text-sm">No users found</div>
+                  <div className="py-12 text-center text-subtext text-sm">No normal users found</div>
                 ) : (
                   users.map((u) => (
-                    <div key={u.id} className="grid grid-cols-[1fr_1.5fr_100px_120px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
+                    <div key={u.id} className="grid grid-cols-[1fr_1.5fr_120px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
                       <span className="text-sm font-medium truncate">{u.username}</span>
                       <span className="text-sm text-subtext truncate">{u.email}</span>
-                      <span>
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold uppercase ${u.role === 'admin' ? 'bg-red-500/10 text-red-400' :
-                          u.role === 'artist' ? 'bg-purple-500/10 text-purple-400' : 'bg-blue-500/10 text-blue-400'
-                          }`}>
-                          {u.role}
-                        </span>
-                      </span>
                       <div className="flex items-center gap-1 justify-end">
                         <button
-                          onClick={() => openUserModal(u)}
+                          onClick={() => openUserModal(u, 'user')}
                           className="p-2 rounded-lg text-subtext hover:text-primary hover:bg-surface-highlight transition-colors"
                           title="Edit"
                         >
@@ -491,32 +644,32 @@ export default function ManageTracksPage() {
             </>
           )}
 
-          {/* ARTISTS TABLE */}
-          {activeTab === 'artists' && (
+          {/* ADMINS TABLE */}
+          {activeTab === 'admins' && (
             <>
-              <div className="grid grid-cols-[1fr_150px_120px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
-                <span>Artist Name</span>
-                <span>User ID</span>
+              <div className="grid grid-cols-[1fr_1.5fr_120px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+                <span>Username</span>
+                <span>Email</span>
                 <span className="text-right">Actions</span>
               </div>
               <div className="divide-y divide-surface-highlight/30">
-                {artists.length === 0 ? (
-                  <div className="py-12 text-center text-subtext text-sm">No artists found</div>
+                {users.length === 0 ? (
+                  <div className="py-12 text-center text-subtext text-sm">No administrators found</div>
                 ) : (
-                  artists.map((a) => (
-                    <div key={a.id} className="grid grid-cols-[1fr_150px_120px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
-                      <span className="text-sm font-medium truncate">{a.name}</span>
-                      <span className="text-sm text-subtext">{a.user_id || 'Not linked'}</span>
+                  users.map((u) => (
+                    <div key={u.id} className="grid grid-cols-[1fr_1.5fr_120px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
+                      <span className="text-sm font-medium truncate">{u.username}</span>
+                      <span className="text-sm text-subtext truncate">{u.email}</span>
                       <div className="flex items-center gap-1 justify-end">
                         <button
-                          onClick={() => openArtistModal(a)}
+                          onClick={() => openUserModal(u, 'admin')}
                           className="p-2 rounded-lg text-subtext hover:text-primary hover:bg-surface-highlight transition-colors"
                           title="Edit"
                         >
                           <Pencil size={14} />
                         </button>
                         <button
-                          onClick={() => handleArtistDelete(a.id)}
+                          onClick={() => handleUserDelete(u.id)}
                           className="p-2 rounded-lg text-subtext hover:text-red-400 hover:bg-surface-highlight transition-colors"
                           title="Delete"
                         >
@@ -533,9 +686,9 @@ export default function ManageTracksPage() {
           {/* ALBUMS TABLE */}
           {activeTab === 'albums' && (
             <>
-              <div className="grid grid-cols-[1fr_150px_120px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[1fr_220px_120px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>Album Title</span>
-                <span>Artist ID</span>
+                <span>Artist Profile</span>
                 <span className="text-right">Actions</span>
               </div>
               <div className="divide-y divide-surface-highlight/30">
@@ -543,9 +696,11 @@ export default function ManageTracksPage() {
                   <div className="py-12 text-center text-subtext text-sm">No albums found</div>
                 ) : (
                   albums.map((al) => (
-                    <div key={al.id} className="grid grid-cols-[1fr_150px_120px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
+                    <div key={al.id} className="grid grid-cols-[1fr_220px_120px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
                       <span className="text-sm font-medium truncate">{al.title}</span>
-                      <span className="text-sm text-subtext">{al.artist_id}</span>
+                      <span className="text-sm text-subtext">
+                        {al.artist_id ? (allArtistsList.find(a => a.id === al.artist_id)?.name ? `${allArtistsList.find(a => a.id === al.artist_id)?.name} (ID: ${al.artist_id})` : `ID: ${al.artist_id}`) : 'Unknown'}
+                      </span>
                       <div className="flex items-center gap-1 justify-end">
                         <button
                           onClick={() => openAlbumModal(al)}
@@ -582,8 +737,12 @@ export default function ManageTracksPage() {
       {/* USER FORM MODAL */}
       {userModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <form onSubmit={handleUserSubmit} className="bg-surface-elevated rounded-xl p-6 w-full max-w-md shadow-2xl border border-surface-highlight space-y-4">
-            <h2 className="text-lg font-bold">{editingUser ? 'Edit User' : 'Create User'}</h2>
+          <form onSubmit={handleUserSubmit} className="bg-surface-elevated rounded-xl p-6 w-full max-w-md shadow-2xl border border-surface-highlight space-y-4 text-left">
+            <h2 className="text-lg font-bold">
+              {editingUser
+                ? `Edit ${userForm.role.toUpperCase()}`
+                : `Create ${userForm.role.toUpperCase()}`}
+            </h2>
             <div>
               <label className="block text-sm font-medium text-subtext mb-1">Username</label>
               <input
@@ -617,15 +776,15 @@ export default function ManageTracksPage() {
               </div>
             )}
             <div>
-              <label className="block text-sm font-medium text-subtext mb-1">Role</label>
+              <label className="block text-sm font-medium text-subtext mb-1">Assigned Account Role</label>
               <select
                 value={userForm.role}
                 onChange={e => setUserForm({ ...userForm, role: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors bg-surface-highlight"
+                className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors uppercase font-semibold cursor-pointer"
               >
-                <option value="user">User</option>
-                <option value="artist">Artist</option>
-                <option value="admin">Admin</option>
+                <option value="user">USER</option>
+                <option value="artist">ARTIST</option>
+                <option value="admin">ADMIN</option>
               </select>
             </div>
             <div className="flex gap-3 pt-2">
@@ -647,11 +806,11 @@ export default function ManageTracksPage() {
         </div>
       )}
 
-      {/* ARTIST FORM MODAL */}
+      {/* ARTIST PROFILE FORM MODAL */}
       {artistModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <form onSubmit={handleArtistSubmit} className="bg-surface-elevated rounded-xl p-6 w-full max-w-md shadow-2xl border border-surface-highlight space-y-4">
-            <h2 className="text-lg font-bold">{editingArtist ? 'Edit Artist' : 'Create Artist'}</h2>
+          <form onSubmit={handleArtistSubmit} className="bg-surface-elevated rounded-xl p-6 w-full max-w-md shadow-2xl border border-surface-highlight space-y-4 text-left">
+            <h2 className="text-lg font-bold">{editingArtist ? 'Edit Artist Profile' : 'Create Artist Profile'}</h2>
             <div>
               <label className="block text-sm font-medium text-subtext mb-1">Artist Name</label>
               <input
@@ -662,16 +821,76 @@ export default function ManageTracksPage() {
                 className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-subtext mb-1">Linked User ID (Optional)</label>
-              <input
-                type="number"
-                value={artistForm.user_id}
-                onChange={e => setArtistForm({ ...artistForm, user_id: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors"
-                placeholder="User ID or empty"
-              />
+
+            {/* Searchable Artist Account Dropdown */}
+            <div className="relative font-sans text-left" ref={artistAccountDropdownRef}>
+              <label className="block text-sm font-medium text-subtext mb-1">Link User Account (Optional)</label>
+              <div
+                onClick={() => setShowArtistAccountDropdown(!showArtistAccountDropdown)}
+                className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary cursor-pointer border-2 border-transparent hover:border-spotify-green/50 flex justify-between items-center transition-colors"
+              >
+                <span className="truncate">
+                  {artistForm.user_id
+                    ? artistAccountsList.find((u) => u.id === Number(artistForm.user_id))?.username || `User ID: ${artistForm.user_id}`
+                    : 'Select Artist Account...'}
+                </span>
+                <span className="text-xs text-subtext select-none">▼</span>
+              </div>
+
+              {showArtistAccountDropdown && (
+                <div className="absolute left-0 right-0 mt-1 bg-surface-elevated border border-surface-highlight rounded-lg shadow-2xl z-50 p-2 space-y-2 max-h-60 overflow-hidden flex flex-col">
+                  <input
+                    type="text"
+                    placeholder="Search account..."
+                    value={artistAccountSearch}
+                    onChange={(e) => setArtistAccountSearch(e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-md bg-surface-highlight text-xs text-primary outline-none border border-transparent focus:border-spotify-green/30"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <div className="flex-1 overflow-y-auto space-y-0.5 scrollbar-thin">
+                    <div
+                      onClick={() => {
+                        setArtistForm({ ...artistForm, user_id: '' })
+                        setShowArtistAccountDropdown(false)
+                        setArtistAccountSearch('')
+                      }}
+                      className="px-3 py-2 text-xs hover:bg-surface-highlight rounded-md cursor-pointer truncate text-primary flex justify-between items-center border-b border-surface-highlight/30"
+                    >
+                      <span className="font-semibold text-subtext">Do Not Link / Clear Selection</span>
+                    </div>
+
+                    {artistAccountsList
+                      .filter((u) =>
+                        (u.username || '').toLowerCase().includes(artistAccountSearch.toLowerCase()) ||
+                        (u.email || '').toLowerCase().includes(artistAccountSearch.toLowerCase())
+                      )
+                      .map((u) => (
+                        <div
+                          key={u.id}
+                          onClick={() => {
+                            setArtistForm({ ...artistForm, user_id: String(u.id) })
+                            setShowArtistAccountDropdown(false)
+                            setArtistAccountSearch('')
+                          }}
+                          className="px-3 py-2 text-xs hover:bg-surface-highlight rounded-md cursor-pointer truncate text-primary flex justify-between items-center"
+                        >
+                          <span className="truncate mr-2">{u.username} ({u.email})</span>
+                          <span className="text-[10px] text-subtext shrink-0">ID: {u.id}</span>
+                        </div>
+                      ))}
+                    {artistAccountsList.filter((u) =>
+                      (u.username || '').toLowerCase().includes(artistAccountSearch.toLowerCase()) ||
+                      (u.email || '').toLowerCase().includes(artistAccountSearch.toLowerCase())
+                    ).length === 0 && (
+                        <div className="px-3 py-2 text-xs text-subtext text-center">
+                          No matches found
+                        </div>
+                      )}
+                  </div>
+                </div>
+              )}
             </div>
+
             <div className="flex gap-3 pt-2">
               <button
                 type="button"
@@ -694,7 +913,7 @@ export default function ManageTracksPage() {
       {/* ALBUM FORM MODAL */}
       {albumModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <form onSubmit={handleAlbumSubmit} className="bg-surface-elevated rounded-xl p-6 w-full max-w-md shadow-2xl border border-surface-highlight space-y-4">
+          <form onSubmit={handleAlbumSubmit} className="bg-surface-elevated rounded-xl p-6 w-full max-w-md shadow-2xl border border-surface-highlight space-y-4 text-left">
             <h2 className="text-lg font-bold">{editingAlbum ? 'Edit Album' : 'Create Album'}</h2>
             <div>
               <label className="block text-sm font-medium text-subtext mb-1">Album Title</label>
@@ -734,7 +953,7 @@ export default function ManageTracksPage() {
                   <div className="flex-1 overflow-y-auto space-y-0.5 scrollbar-thin">
                     {allArtistsList
                       .filter((a) =>
-                        a.name.toLowerCase().includes(artistSelectSearch.toLowerCase())
+                        (a.name || '').toLowerCase().includes(artistSelectSearch.toLowerCase())
                       )
                       .map((a) => (
                         <div
@@ -751,7 +970,7 @@ export default function ManageTracksPage() {
                         </div>
                       ))}
                     {allArtistsList.filter((a) =>
-                      a.name.toLowerCase().includes(artistSelectSearch.toLowerCase())
+                      (a.name || '').toLowerCase().includes(artistSelectSearch.toLowerCase())
                     ).length === 0 && (
                         <div className="px-3 py-2 text-xs text-subtext text-center">
                           No matches found
