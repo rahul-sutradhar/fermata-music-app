@@ -26,15 +26,10 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
-    # Try dropping using the standard name, bypass if it's missing or named differently
-    try:
-        op.drop_constraint('artists_user_id_fkey', 'artists', type_='foreignkey')
-    except Exception:
-        pass
-
-    # Create the new foreign key
+    op.drop_constraint('fk_artists_user_id', 'artists', type_='foreignkey')
     op.create_foreign_key('artists_id_fkey', 'artists', 'users', ['id'], ['id'], ondelete='CASCADE')
     op.drop_column('artists', 'user_id')
+    
     op.alter_column('users', 'username',
                existing_type=sa.VARCHAR(length=50),
                nullable=True)
@@ -60,7 +55,9 @@ def downgrade() -> None:
                existing_type=sa.VARCHAR(length=50),
                nullable=False)
     op.add_column('artists', sa.Column('user_id', sa.INTEGER(), autoincrement=False, nullable=True))
-    op.drop_constraint(None, 'artists', type_='foreignkey')
-    op.create_foreign_key(op.f('artists_user_id_fkey'), 'artists', 'users', ['user_id'], ['id'])
+    
+    op.drop_constraint('artists_id_fkey', 'artists', type_='foreignkey')
+    op.create_foreign_key('fk_artists_user_id', 'artists', 'users', ['user_id'], ['id'])
+    
     op.drop_table('admins')
     # ### end Alembic commands ###
