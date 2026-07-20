@@ -48,3 +48,7 @@ body {
   margin: 0;
   overflow: hidden;
 }
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}

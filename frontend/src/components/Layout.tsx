@@ -13,7 +13,7 @@ export default function Layout() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
 
   return (
-    <div className="flex flex-col h-screen bg-base text-primary overflow-hidden">
+    <div className="flex flex-col h-screen h-[100dvh] bg-base text-primary overflow-hidden">
       {/* Mobile Top Header Bar */}
       <header className="flex md:hidden items-center justify-between px-4 h-14 bg-base border-b border-surface-highlight shrink-0">
         <button 
