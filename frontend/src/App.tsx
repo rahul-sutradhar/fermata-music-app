@@ -15,6 +15,7 @@ import ShowPage from '@/pages/ShowPage'
 import AudiobookPage from '@/pages/AudiobookPage'
 import ProfilePage from '@/pages/ProfilePage'
 import AdminPanelPage from '@/pages/AdminPanelPage'
+import RecentsPage from '@/pages/RecentsPage'
 import NotFound from '@/pages/NotFound'
 
 export default function App() {
@@ -45,6 +46,7 @@ export default function App() {
 
         <Route element={<ProtectedRoute />}>
           <Route path="library" element={<LibraryPage />} />
+          <Route path="recents" element={<RecentsPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="admin" element={<AdminPanelPage />} />
         </Route>

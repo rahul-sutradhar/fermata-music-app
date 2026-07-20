@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Outlet, NavLink } from 'react-router-dom'
-import { Home, Search, Library, Menu, X, Sun, Moon } from 'lucide-react'
+import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Home, Search, Library, X, Sun, Moon, User, Plus } from 'lucide-react'
 import Sidebar from './Sidebar'
 import NowPlayingBar from './NowPlayingBar'
 import { useAuthStore } from '@/store/authStore'
@@ -11,41 +11,45 @@ export default function Layout() {
   const user = useAuthStore((s) => s.user)
   const { theme, toggleTheme } = useThemeStore()
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
+  const navigate = useNavigate()
+
+  const handleCreateClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    if (!token) {
+      navigate('/login')
+      return
+    }
+    // Dispatch the custom event to open the modal in Sidebar
+    window.dispatchEvent(new Event('open-create-playlist-modal'))
+  }
 
   return (
     <div className="flex flex-col h-screen h-[100dvh] bg-base text-primary overflow-hidden">
       {/* Mobile Top Header Bar */}
       <header className="flex md:hidden items-center justify-between px-4 h-14 bg-base border-b border-surface-highlight shrink-0">
+        {/* Left: Profile / Account Icon to Open Sidebar */}
         <button 
           onClick={() => setIsMobileSidebarOpen(true)}
-          className="p-2 -ml-2 rounded-full hover:bg-surface-highlight text-subtext hover:text-primary transition-colors"
+          className="w-8 h-8 rounded-full bg-surface-highlight flex items-center justify-center text-xs font-bold text-spotify-green hover:scale-105 transition-transform cursor-pointer"
           title="Open Menu"
         >
-          <Menu size={22} />
+          {token && user ? (
+            user.username.charAt(0).toUpperCase()
+          ) : (
+            <User size={18} className="text-subtext" />
+          )}
         </button>
         
         <span className="text-md font-bold tracking-tight">Fermata</span>
         
-        {/* Right controls: Theme Toggle + Profile Avatar */}
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={toggleTheme}
-            className="p-2 rounded-full hover:bg-surface-highlight text-subtext hover:text-primary transition-colors"
-            title={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
-          >
-            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
-          
-          {token && user ? (
-            <NavLink to="/profile" className="w-8 h-8 rounded-full bg-surface-highlight flex items-center justify-center text-xs font-bold text-spotify-green hover:scale-105 transition-transform">
-              {user.username.charAt(0).toUpperCase()}
-            </NavLink>
-          ) : (
-            <NavLink to="/login" className="text-xs text-spotify-green font-semibold">
-              Sign in
-            </NavLink>
-          )}
-        </div>
+        {/* Right: Theme Toggle */}
+        <button 
+          onClick={toggleTheme}
+          className="p-2 rounded-full hover:bg-surface-highlight text-subtext hover:text-primary transition-colors cursor-pointer"
+          title={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+        >
+          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
@@ -105,6 +109,7 @@ export default function Layout() {
             <Home size={20} />
             <span>Home</span>
           </NavLink>
+          
           <NavLink 
             to="/search" 
             className={({ isActive }) => 
@@ -116,19 +121,32 @@ export default function Layout() {
             <Search size={20} />
             <span>Search</span>
           </NavLink>
-          {token && (
-            <NavLink 
-              to="/library" 
-              className={({ isActive }) => 
-                `flex flex-col items-center justify-center gap-1 text-[10px] font-medium w-20 transition-colors ${
-                  isActive ? 'text-spotify-green' : 'text-subtext'
-                }`
+          
+          <NavLink 
+            to="/library" 
+            className={({ isActive }) => 
+              `flex flex-col items-center justify-center gap-1 text-[10px] font-medium w-20 transition-colors ${
+                isActive ? 'text-spotify-green' : 'text-subtext'
+              }`
+            }
+            onClick={(e) => {
+              if (!token) {
+                e.preventDefault()
+                navigate('/login')
               }
-            >
-              <Library size={20} />
-              <span>Library</span>
-            </NavLink>
-          )}
+            }}
+          >
+            <Library size={20} />
+            <span>Your Library</span>
+          </NavLink>
+          
+          <button 
+            onClick={handleCreateClick}
+            className="flex flex-col items-center justify-center gap-1 text-[10px] font-medium w-20 text-subtext hover:text-primary transition-colors cursor-pointer"
+          >
+            <Plus size={20} />
+            <span>Create</span>
+          </button>
         </nav>
       </div>
     </div>

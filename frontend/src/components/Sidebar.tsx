@@ -13,6 +13,7 @@ import {
   Settings,
   X,
   UserCheck,
+  History,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useThemeStore } from '@/store/themeStore'
@@ -63,6 +64,12 @@ export default function Sidebar() {
         .catch(() => {})
     }
   }, [token])
+
+  useEffect(() => {
+    const handleOpenModal = () => setIsModalOpen(true)
+    window.addEventListener('open-create-playlist-modal', handleOpenModal)
+    return () => window.removeEventListener('open-create-playlist-modal', handleOpenModal)
+  }, [])
 
   useEffect(() => {
     if (isModalOpen) {
@@ -144,10 +151,16 @@ export default function Sidebar() {
           Search
         </NavLink>
         {token && (
-          <NavLink to="/library" className={linkClass}>
-            <Library size={20} />
-            Your Library
-          </NavLink>
+          <>
+            <NavLink to="/library" className={linkClass}>
+              <Library size={20} />
+              Your Library
+            </NavLink>
+            <NavLink to="/recents" className={linkClass}>
+              <History size={20} />
+              Recently Played
+            </NavLink>
+          </>
         )}
       </nav>
 
