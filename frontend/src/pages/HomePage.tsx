@@ -7,6 +7,7 @@ import { listAlbums } from '@/api/albums'
 import type { Track, Album } from '@/types'
 import CardGrid from '@/components/CardGrid'
 import Card from '@/components/Card'
+import TrackList from '@/components/TrackList'
 
 export default function HomePage() {
   const token = useAuthStore((s) => s.token)
