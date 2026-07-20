@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
-import { Home, Search, Library, Menu, X } from 'lucide-react'
+import { Home, Search, Library, Menu, X, Sun, Moon } from 'lucide-react'
 import Sidebar from './Sidebar'
 import NowPlayingBar from './NowPlayingBar'
 import { useAuthStore } from '@/store/authStore'
+import { useThemeStore } from '@/store/themeStore'
 
 export default function Layout() {
   const token = useAuthStore((s) => s.token)
   const user = useAuthStore((s) => s.user)
+  const { theme, toggleTheme } = useThemeStore()
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
 
   return (
@@ -21,16 +23,29 @@ export default function Layout() {
         >
           <Menu size={22} />
         </button>
+        
         <span className="text-md font-bold tracking-tight">Fermata</span>
-        {token && user ? (
-          <NavLink to="/profile" className="w-8 h-8 rounded-full bg-surface-highlight flex items-center justify-center text-xs font-bold text-spotify-green hover:scale-105 transition-transform">
-            {user.username.charAt(0).toUpperCase()}
-          </NavLink>
-        ) : (
-          <NavLink to="/login" className="text-xs text-spotify-green font-semibold">
-            Sign in
-          </NavLink>
-        )}
+        
+        {/* Right controls: Theme Toggle + Profile Avatar */}
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={toggleTheme}
+            className="p-2 rounded-full hover:bg-surface-highlight text-subtext hover:text-primary transition-colors"
+            title={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+          >
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+          
+          {token && user ? (
+            <NavLink to="/profile" className="w-8 h-8 rounded-full bg-surface-highlight flex items-center justify-center text-xs font-bold text-spotify-green hover:scale-105 transition-transform">
+              {user.username.charAt(0).toUpperCase()}
+            </NavLink>
+          ) : (
+            <NavLink to="/login" className="text-xs text-spotify-green font-semibold">
+              Sign in
+            </NavLink>
+          )}
+        </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
