@@ -44,10 +44,10 @@ export default function TrackRow({ track, index, tracks, onPlay }: Props) {
 
   return (
     <div
-      className={`group grid grid-cols-[32px_1fr_1fr_80px_40px] gap-4 items-center px-4 py-2 rounded-md transition-colors ${
+      className={`group grid grid-cols-[32px_1fr_1fr_80px_40px] gap-4 items-center px-4 py-2 rounded-md transition-colors cursor-pointer ${
         isActive ? 'bg-surface-highlight/80' : 'hover:bg-surface-highlight/50'
       }`}
-      onDoubleClick={handlePlay}
+      onClick={handlePlay}
     >
       {/* Index / Play Icon */}
       <div className="flex items-center justify-center">
@@ -59,7 +59,10 @@ export default function TrackRow({ track, index, tracks, onPlay }: Props) {
           {index + 1}
         </span>
         <button
-          onClick={handlePlay}
+          onClick={(e) => {
+            e.stopPropagation()
+            handlePlay()
+          }}
           className="hidden group-hover:flex items-center justify-center text-primary"
         >
           {isCurrentlyPlaying ? <Pause size={14} /> : <Play size={14} className="ml-0.5" fill="currentColor" />}
@@ -87,7 +90,10 @@ export default function TrackRow({ track, index, tracks, onPlay }: Props) {
       {/* More Menu */}
       <div className="relative">
         <button
-          onClick={() => setShowMenu(!showMenu)}
+          onClick={(e) => {
+            e.stopPropagation()
+            setShowMenu(!showMenu)
+          }}
           className="p-1 rounded-full text-subtext opacity-0 group-hover:opacity-100 hover:text-primary transition-all"
         >
           <MoreHorizontal size={16} />

@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { usePlayerStore } from '@/store/playerStore'
 import { getRecentlyPlayed } from '@/api/player'
-import { listTracks } from '@/api/tracks'
+import { getTrack, listTracks } from '@/api/tracks'
+import { getMyPlaylists } from '@/api/playlists'
 import { listAlbums } from '@/api/albums'
-import type { Track, Album } from '@/types'
+import type { Track, Playlist, Album } from '@/types'
 import CardGrid from '@/components/CardGrid'
 import Card from '@/components/Card'
 import TrackList from '@/components/TrackList'
+import { parsePlaylistName } from '@/components/Sidebar'
 
 export default function HomePage() {
   const token = useAuthStore((s) => s.token)
@@ -17,30 +19,44 @@ export default function HomePage() {
 
   const [recentTracks, setRecentTracks] = useState<Track[]>([])
   const [mostPlayedTracks, setMostPlayedTracks] = useState<Track[]>([])
+  const [allTracks, setAllTracks] = useState<Track[]>([])
   const [albums, setAlbums] = useState<Album[]>([])
+  const [playlists, setPlaylists] = useState<Playlist[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const load = async () => {
       try {
-        // Fetch tracks, albums, and (if logged in) recently-played all in one parallel batch
-        const fetchRecent = token ? getRecentlyPlayed(0, 12) : Promise.resolve([])
-        const [tracksData, albumsData, recent] = await Promise.all([
+        // Load all tracks and albums
+        const [tracksData, albumsData] = await Promise.all([
           listTracks(0, 50),
           listAlbums(0, 50),
-          fetchRecent,
         ])
+        setAllTracks(tracksData)
         setAlbums(albumsData)
+
+        // Mock most played tracks (first 5 tracks)
         setMostPlayedTracks(tracksData.slice(0, 5))
 
-        if (token && recent.length > 0) {
-          // Resolve recently-played track details from already-fetched tracks — zero extra requests
+        if (token) {
+          // Load recent + playlists for logged-in users
+          const [recent, pls] = await Promise.all([
+            getRecentlyPlayed(0, 12),
+            getMyPlaylists(),
+          ])
+          setPlaylists(pls)
+
+          // Resolve track details for recently played (in-memory lookup first to avoid extra HTTP calls)
           const trackMap = new Map(tracksData.map((t) => [t.id, t]))
-          const resolved = recent
-            .slice(0, 8)
-            .map((r) => trackMap.get(r.track_id))
-            .filter(Boolean) as Track[]
-          setRecentTracks(resolved)
+          const trackDetails = await Promise.all(
+            recent.slice(0, 8).map((r) => {
+              if (trackMap.has(r.track_id)) {
+                return trackMap.get(r.track_id)!
+              }
+              return getTrack(r.track_id).catch(() => null)
+            }),
+          )
+          setRecentTracks(trackDetails.filter(Boolean) as Track[])
         }
       } catch (err) {
         console.error('Failed to load homepage data:', err)
@@ -121,7 +137,7 @@ export default function HomePage() {
           <CardGrid title="Recently Played Albums">
             {albums.slice(0, 6).map((album) => (
               <Card
-                key={`recent-album-${album.id}`}
+                key={album.id}
                 title={album.title}
                 subtitle={album.artist_name || 'Various Artists'}
                 href={`/album/${album.id}`}
@@ -135,7 +151,7 @@ export default function HomePage() {
           <CardGrid title="Most Played Albums">
             {albums.slice(2, 8).map((album) => (
               <Card
-                key={`most-album-${album.id}`}
+                key={album.id}
                 title={album.title}
                 subtitle={album.artist_name || 'Various Artists'}
                 href={`/album/${album.id}`}
@@ -143,6 +159,23 @@ export default function HomePage() {
             ))}
           </CardGrid>
         </>
+      )}
+
+      {/* Your Playlists */}
+      {playlists.length > 0 && (
+        <CardGrid title="Your Playlists">
+          {playlists.map((pl) => {
+            const info = parsePlaylistName(pl.name)
+            return (
+              <Card
+                key={pl.id}
+                title={info.name}
+                subtitle={info.artist ? `By ${info.artist}` : 'Playlist'}
+                href={`/playlist/${pl.id}`}
+              />
+            )
+          })}
+        </CardGrid>
       )}
     </div>
   )

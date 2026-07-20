@@ -84,3 +84,14 @@ def test_delete_track_cleans_up_audio(auth_client, db_session, sample_track):
 
     assert response.status_code == 204
     mock_delete.assert_called_once_with("tracks/1/old.mp3")
+
+
+def test_play_track_audio_redirects_to_signed_url(auth_client, db_session, sample_track):
+    sample_track.audio_file_key = "tracks/1/test.mp3"
+    db_session.commit()
+
+    with patch("app.services.tracks.get_audio_url", return_value="https://example.com/tracks/1/test.mp3"):
+        response = auth_client.get(f"/tracks/{sample_track.id}/audio/play", follow_redirects=False)
+
+        assert response.status_code == 307
+        assert response.headers["location"] == "https://example.com/tracks/1/test.mp3"

@@ -9,11 +9,12 @@ import PlayerControls from './PlayerControls'
 export default function NowPlayingBar() {
   const audioRef = useRef<HTMLAudioElement>(null)
   const shouldRestoreProgress = useRef(false)
-  const savedProgressSecRef = useRef(0)
+  const isInitialRestoring = useRef(true)
 
   const currentTrack = usePlayerStore((s) => s.currentTrack)
   const isPlaying = usePlayerStore((s) => s.isPlaying)
   const volume = usePlayerStore((s) => s.volume)
+  const progressMs = usePlayerStore((s) => s.progressMs)
   const shuffle = usePlayerStore((s) => s.shuffle)
   const repeatMode = usePlayerStore((s) => s.repeatMode)
 
@@ -36,8 +37,6 @@ export default function NowPlayingBar() {
             try {
               const track = await getTrack(state.track_id)
               if (track) {
-                // Store progress in ref BEFORE setting store state to avoid race condition
-                savedProgressSecRef.current = (state.progress_ms || 0) / 1000
                 shouldRestoreProgress.current = true
                 usePlayerStore.setState({
                   currentTrack: track,
@@ -62,6 +61,10 @@ export default function NowPlayingBar() {
         }
       } catch (err) {
         console.error('Failed to load initial player state:', err)
+      } finally {
+        setTimeout(() => {
+          isInitialRestoring.current = false
+        }, 1200)
       }
     }
 
@@ -70,13 +73,13 @@ export default function NowPlayingBar() {
 
   // Sync settings/playback changes back to the database (debounced by 1s)
   useEffect(() => {
-    if (!token || !currentTrack) return
+    if (!token || !currentTrack || isInitialRestoring.current) return
 
     const timer = setTimeout(() => {
       updatePlayerState({
         track_id: currentTrack.id,
         is_playing: isPlaying,
-        progress_ms: Math.round(usePlayerStore.getState().progressMs),
+        progress_ms: usePlayerStore.getState().progressMs,
         volume: volume,
         shuffle: shuffle,
         repeat_mode: repeatMode,
@@ -94,7 +97,7 @@ export default function NowPlayingBar() {
       updatePlayerState({
         track_id: currentTrack.id,
         is_playing: isPlaying,
-        progress_ms: Math.round(usePlayerStore.getState().progressMs),
+        progress_ms: usePlayerStore.getState().progressMs,
         volume: usePlayerStore.getState().volume,
         shuffle: usePlayerStore.getState().shuffle,
         repeat_mode: usePlayerStore.getState().repeatMode,
@@ -111,40 +114,23 @@ export default function NowPlayingBar() {
 
     let cancelled = false
 
+    // Immediately stop and unload the previous track to prevent it from continuing to play while fetching the new URL
+    audio.pause()
+    audio.removeAttribute('src')
+    audio.load()
+
     async function loadAudio() {
       let url = ''
       try {
         const res = await getTrackAudioUrl(currentTrack!.id)
         if (res && res.audio_url) {
-          const apiBase = import.meta.env.VITE_API_BASE ?? 'http://localhost:8001'
-          if (res.audio_url.includes('backblazeb2.com')) {
-            url = `${apiBase}/tracks/${currentTrack!.id}/audio/play`
-          } else {
-            url = res.audio_url.startsWith('http')
-              ? res.audio_url
-              : `${apiBase}${res.audio_url}`
-          }
+          url = res.audio_url
         }
-      } catch {
-        // fail silently and use fallback
+      } catch (err) {
+        console.error('Failed to get track audio URL:', err)
       }
 
-      if (!url) {
-        // Stable, high-quality audio fallback streams
-        const fallbackUrls = [
-          'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-          'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
-          'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
-          'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
-          'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3',
-          'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3',
-          'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3',
-          'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3',
-        ]
-        url = fallbackUrls[currentTrack!.id % fallbackUrls.length]
-      }
-
-      if (cancelled) return
+      if (!url || cancelled) return
 
       try {
         audio!.src = url
@@ -185,6 +171,20 @@ export default function NowPlayingBar() {
     }
   }, [volume])
 
+  // Sync playback play/pause state with store changes
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio || !audio.src) return
+
+    if (isPlaying) {
+      audio.play().catch((err) => {
+        console.warn('Playback fail or auto-play blocked:', err)
+      })
+    } else {
+      audio.pause()
+    }
+  }, [isPlaying])
+
   // Progress updates
   useEffect(() => {
     const audio = audioRef.current
@@ -201,16 +201,15 @@ export default function NowPlayingBar() {
         setDurationMs(audio.duration * 1000)
       }
       if (shouldRestoreProgress.current) {
-        const savedSec = savedProgressSecRef.current
-        if (savedSec > 0) {
+        const savedProgressMs = usePlayerStore.getState().progressMs
+        if (savedProgressMs > 0) {
           try {
-            audio.currentTime = savedSec
+            audio.currentTime = savedProgressMs / 1000
           } catch (err) {
             console.warn('Failed to restore playback position:', err)
           }
         }
         shouldRestoreProgress.current = false
-        savedProgressSecRef.current = 0
       }
     }
     const onEnded = () => {

@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 from app.middleware.rate_limiter import RateLimitMiddleware
 from app.core.cache import SimpleMemoryRateLimiter
+from app.core.config import settings
 
 
 @pytest.fixture
@@ -63,7 +64,7 @@ class TestGlobalRateLimiting:
         with patch('app.middleware.rate_limiter.get_redis', return_value=None), \
              patch('app.middleware.rate_limiter.get_memory_limiter') as mock_get_limiter:
             mock_limiter = MagicMock(spec=SimpleMemoryRateLimiter)
-            mock_limiter.incr.return_value = 61
+            mock_limiter.incr.return_value = settings.rate_limit_requests + 1
             mock_limiter.ttl.return_value = 30
             mock_get_limiter.return_value = mock_limiter
             
@@ -86,7 +87,7 @@ class TestGlobalRateLimiting:
         with patch('app.middleware.rate_limiter.get_redis', return_value=None), \
              patch('app.middleware.rate_limiter.get_memory_limiter') as mock_get_limiter:
             mock_limiter = MagicMock(spec=SimpleMemoryRateLimiter)
-            mock_limiter.incr.return_value = 61
+            mock_limiter.incr.return_value = settings.rate_limit_requests + 1
             mock_limiter.ttl.return_value = 15
             mock_get_limiter.return_value = mock_limiter
             

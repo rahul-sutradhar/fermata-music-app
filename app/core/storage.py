@@ -23,15 +23,22 @@ def _validate_b2_configuration() -> None:
         raise RuntimeError("B2 bucket name is not configured")
 
 
+_b2_client = None
+
+
 def get_b2_client():
+    global _b2_client
+    if _b2_client is not None:
+        return _b2_client
     _validate_b2_configuration()
-    return boto3.client(
+    _b2_client = boto3.client(
         "s3",
         endpoint_url=settings.b2_s3_endpoint_url,
         aws_access_key_id=settings.b2_access_key_id,
         aws_secret_access_key=settings.b2_secret_access_key,
         region_name=settings.b2_region_name,
     )
+    return _b2_client
 
 
 def upload_audio_file(file: UploadFile, object_key: str) -> str:

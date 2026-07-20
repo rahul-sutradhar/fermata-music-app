@@ -53,14 +53,15 @@ class RateLimitMiddleware:
 
         key = f"rl:{client_host}:{path}"
 
-        if self.redis is not None:
+        redis = get_redis()
+        if redis is not None:
             try:
                 # Use Redis INCR and EXPIRE atomically
-                count = self.redis.incr(key)
+                count = redis.incr(key)
                 if count == 1:
-                    self.redis.expire(key, window)
+                    redis.expire(key, window)
                 if count > limit:
-                    ttl = self.redis.ttl(key) or window
+                    ttl = redis.ttl(key) or window
                     # Log the violation
                     self.logger.warning(
                         "rate_limited redis key=%s path=%s client=%s count=%s limit=%s",
@@ -70,12 +71,13 @@ class RateLimitMiddleware:
                         count,
                         limit,
                     )
-                    return await self._rate_limited(send, ttl)
+                    return await self._rate_limited(scope, receive, send, ttl)
             except Exception:
                 # If redis has an issue, fall back to memory limiter
-                count = self.memory.incr(key, window)
+                memory = get_memory_limiter()
+                count = memory.incr(key, window)
                 if count > limit:
-                    ttl = self.memory.ttl(key)
+                    ttl = memory.ttl(key)
                     self.logger.warning(
                         "rate_limited memory key=%s path=%s client=%s count=%s limit=%s",
                         key,
@@ -84,11 +86,12 @@ class RateLimitMiddleware:
                         count,
                         limit,
                     )
-                    return await self._rate_limited(send, ttl)
+                    return await self._rate_limited(scope, receive, send, ttl)
         else:
-            count = self.memory.incr(key, window)
+            memory = get_memory_limiter()
+            count = memory.incr(key, window)
             if count > limit:
-                ttl = self.memory.ttl(key)
+                ttl = memory.ttl(key)
                 self.logger.warning(
                     "rate_limited memory key=%s path=%s client=%s count=%s limit=%s",
                     key,
@@ -97,12 +100,12 @@ class RateLimitMiddleware:
                     count,
                     limit,
                 )
-                return await self._rate_limited(send, ttl)
+                return await self._rate_limited(scope, receive, send, ttl)
 
         await self.app(scope, receive, send)
 
-    async def _rate_limited(self, send: Callable, retry_after: int):
+    async def _rate_limited(self, scope, receive, send: Callable, retry_after: int):
         body = {"detail": "Too Many Requests"}
         headers = {"retry-after": str(int(retry_after))}
         response = JSONResponse(status_code=status.HTTP_429_TOO_MANY_REQUESTS, content=body, headers=headers)
-        await response(scope={"type": "http"}, receive=lambda: None, send=send)
+        await response(scope, receive, send)

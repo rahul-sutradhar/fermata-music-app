@@ -1,9 +1,4 @@
-// Automatically picks the right API base depending on how Vite was invoked:
-//   npm run dev   → MODE = 'development' → uses VITE_API_BASE (localhost)
-//   npm run build → MODE = 'production'  → uses VITE_API_BASE_PROD (hosted server)
-const API_BASE = import.meta.env.MODE === 'production'
-  ? (import.meta.env.VITE_API_BASE_PROD || 'https://fermata-backend.onrender.com')
-  : (import.meta.env.VITE_API_BASE || 'http://localhost:8000')
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8001'
 
 export class ApiError extends Error {
   status: number
@@ -40,6 +35,50 @@ function getRefreshToken(): string | null {
   return null
 }
 
+let refreshPromise: Promise<string | null> | null = null
+
+function doTokenRefresh(): Promise<string | null> {
+  if (refreshPromise) return refreshPromise
+
+  refreshPromise = (async () => {
+    const rToken = getRefreshToken()
+    if (!rToken) return null
+
+    try {
+      const refreshResponse = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: rToken }),
+      })
+      if (refreshResponse.ok) {
+        const refreshData = await refreshResponse.json()
+        const newAccessToken = refreshData.access_token
+        if (newAccessToken) {
+          const stored = localStorage.getItem('fermata-auth')
+          if (stored) {
+            const parsed = JSON.parse(stored)
+            if (parsed.state) {
+              parsed.state.token = newAccessToken
+              localStorage.setItem('fermata-auth', JSON.stringify(parsed))
+            }
+          }
+          return newAccessToken
+        }
+      }
+    } catch (err) {
+      console.error('Failed to auto-refresh token:', err)
+    }
+
+    localStorage.removeItem('fermata-auth')
+    window.location.hash = '/login'
+    return null
+  })().finally(() => {
+    refreshPromise = null
+  })
+
+  return refreshPromise
+}
+
 export async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {},
@@ -63,49 +102,15 @@ export async function apiRequest<T>(
     headers,
   })
 
-  // Automatic JWT access token refresh interceptor.
-  // If any request gets a 401, try silently refreshing the access token and retrying once.
+  // Automatic JWT access token refresh interceptor
   if (response.status === 401 && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/refresh')) {
-    const rToken = getRefreshToken()
-    if (rToken) {
-      try {
-        const refreshResponse = await fetch(`${API_BASE}/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refresh_token: rToken }),
-        })
-        if (refreshResponse.ok) {
-          const refreshData = await refreshResponse.json()
-          const newAccessToken = refreshData.access_token
-          if (newAccessToken) {
-            // Patch localStorage so all subsequent requests use the new token
-            const stored = localStorage.getItem('fermata-auth')
-            if (stored) {
-              const parsed = JSON.parse(stored)
-              if (parsed.state) {
-                parsed.state.token = newAccessToken
-                localStorage.setItem('fermata-auth', JSON.stringify(parsed))
-              }
-            }
-            // Retry original request with new token
-            headers['Authorization'] = `Bearer ${newAccessToken}`
-            response = await fetch(`${API_BASE}${endpoint}`, {
-              ...options,
-              headers,
-            })
-          }
-        } else {
-          // Refresh token itself is expired → force logout
-          localStorage.removeItem('fermata-auth')
-          window.location.hash = '/login'
-        }
-      } catch (err) {
-        console.error('Failed to auto-refresh token:', err)
-      }
-    } else {
-      // No refresh token stored → force logout
-      localStorage.removeItem('fermata-auth')
-      window.location.hash = '/login'
+    const newAccessToken = await doTokenRefresh()
+    if (newAccessToken) {
+      headers['Authorization'] = `Bearer ${newAccessToken}`
+      response = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers,
+      })
     }
   }
 
