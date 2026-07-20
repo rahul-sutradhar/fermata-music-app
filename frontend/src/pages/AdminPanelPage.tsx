@@ -5,11 +5,13 @@ import { listUsers, createUser, updateUser, deleteUser } from '@/api/admin'
 import { listArtists, createArtist, updateArtist, deleteArtist } from '@/api/artists'
 import { listAlbums, createAlbum, updateAlbum, deleteAlbum } from '@/api/albums'
 import type { Track, User as UserType, Artist, Album } from '@/types'
+import { useAuthStore } from '@/store/authStore'
 import TrackFormModal from '@/components/TrackFormModal'
 
 type TabType = 'users' | 'artists' | 'admins' | 'albums' | 'tracks'
 
 export default function AdminPanelPage() {
+  const currentUser = useAuthStore((s) => s.user)
   const [activeTab, setActiveTab] = useState<TabType>('tracks')
   const [searchQ, setSearchQ] = useState('')
   const [loading, setLoading] = useState(true)
@@ -780,12 +782,20 @@ export default function AdminPanelPage() {
               <select
                 value={userForm.role}
                 onChange={e => setUserForm({ ...userForm, role: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors uppercase font-semibold cursor-pointer"
+                disabled={editingUser != null && editingUser.id === currentUser?.id}
+                className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors uppercase font-semibold ${
+                  editingUser != null && editingUser.id === currentUser?.id
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'cursor-pointer'
+                }`}
               >
                 <option value="user">USER</option>
                 <option value="artist">ARTIST</option>
                 <option value="admin">ADMIN</option>
               </select>
+              {editingUser != null && editingUser.id === currentUser?.id && (
+                <p className="text-xs text-amber-400 mt-1">You cannot change your own role</p>
+              )}
             </div>
             <div className="flex gap-3 pt-2">
               <button

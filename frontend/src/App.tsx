@@ -14,6 +14,7 @@ import PlaylistPage from '@/pages/PlaylistPage'
 import ShowPage from '@/pages/ShowPage'
 import AudiobookPage from '@/pages/AudiobookPage'
 import ProfilePage from '@/pages/ProfilePage'
+import AdminRoute from '@/components/AdminRoute'
 import AdminPanelPage from '@/pages/AdminPanelPage'
 import RecentsPage from '@/pages/RecentsPage'
 import NotFound from '@/pages/NotFound'
@@ -48,6 +49,9 @@ export default function App() {
           <Route path="library" element={<LibraryPage />} />
           <Route path="recents" element={<RecentsPage />} />
           <Route path="profile" element={<ProfilePage />} />
+        </Route>
+
+        <Route element={<AdminRoute />}>
           <Route path="admin" element={<AdminPanelPage />} />
         </Route>
 

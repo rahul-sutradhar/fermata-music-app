@@ -144,6 +144,10 @@ def admin_update_user(
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User {user_id} not found")
 
+    # Prevent admin from changing their own role
+    if payload.role is not None and payload.role != user.role and user_id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot change your own role")
+
     # Protection for master admin
     if user.username == "admin":
         if payload.role is not None and payload.role != "admin":
