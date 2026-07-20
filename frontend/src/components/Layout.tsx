@@ -53,7 +53,9 @@ export default function Layout() {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar />
+        <div className="hidden md:flex w-72 shrink-0">
+          <Sidebar />
+        </div>
         <main className="flex-1 overflow-y-auto bg-surface">
           <div className="p-4 md:p-6 pb-40 md:pb-32">
             <Outlet />
