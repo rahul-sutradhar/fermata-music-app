@@ -259,7 +259,7 @@ export default function NowPlayingBar() {
       </div>
 
       {/* Controls — Center */}
-      <div className="flex-1 md:flex-initial flex justify-center">
+      <div className="flex-initial md:flex-1 flex justify-center">
         <PlayerControls audioRef={audioRef} />
       </div>
 
