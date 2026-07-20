@@ -213,6 +213,7 @@ Notes / Next steps:
 - [x] Upload size limits and content-type validation
 - [x] Lifecycle policy / cleanup for old files
 - [x] End-to-end upload/download tests
+- [ ] (Future) Encrypted HLS (HTTP Live Streaming) conversion using client-side WebAssembly (FFmpeg.wasm) to protect raw audio files from direct browser download/access without overloading Render Free Tier CPU.
 
 ---
 
