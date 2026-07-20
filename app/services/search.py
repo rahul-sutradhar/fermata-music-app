@@ -23,28 +23,67 @@ def _artist_row_to_item(artist: Artist) -> SearchResultItem:
 
 
 def search(*, db: Session, q: str, limit: int = 10) -> SearchResponse:
-    q_like = f"%{q}%"
+    from sqlalchemy import and_
 
-    # include tracks that match the query directly or belong to albums/artists that match
+    words = [w.strip() for w in q.split() if w.strip()]
+    if not words:
+        return SearchResponse(
+            q=q,
+            limit=limit,
+            results=[],
+            tracks=[],
+            albums=[],
+            artists=[],
+        )
+
+    # 1. Tracks Search (join Album and Artist to match all keywords anywhere in the track metadata)
+    track_conditions = []
+    for word in words:
+        word_like = f"%{word}%"
+        track_conditions.append(
+            or_(
+                Track.title.ilike(word_like),
+                Album.title.ilike(word_like),
+                Artist.name.ilike(word_like),
+            )
+        )
     tracks = db.scalars(
         select(Track)
         .join(Album)
         .join(Artist)
-        .where(
-            or_(
-                Track.title.ilike(q_like),
-                Album.title.ilike(q_like),
-                Artist.name.ilike(q_like),
-            )
-        )
+        .where(and_(*track_conditions))
         .order_by(Track.id)
         .limit(limit)
     ).all()
+
+    # 2. Albums Search (join Artist to match keywords in album title or artist name)
+    album_conditions = []
+    for word in words:
+        word_like = f"%{word}%"
+        album_conditions.append(
+            or_(
+                Album.title.ilike(word_like),
+                Artist.name.ilike(word_like),
+            )
+        )
     albums = db.scalars(
-        select(Album).where(Album.title.ilike(q_like)).order_by(Album.id).limit(limit)
+        select(Album)
+        .join(Artist)
+        .where(and_(*album_conditions))
+        .order_by(Album.id)
+        .limit(limit)
     ).all()
+
+    # 3. Artists Search (match all keywords in artist name)
+    artist_conditions = []
+    for word in words:
+        word_like = f"%{word}%"
+        artist_conditions.append(Artist.name.ilike(word_like))
     artists = db.scalars(
-        select(Artist).where(Artist.name.ilike(q_like)).order_by(Artist.id).limit(limit)
+        select(Artist)
+        .where(and_(*artist_conditions))
+        .order_by(Artist.id)
+        .limit(limit)
     ).all()
 
     items: list[SearchResultItem] = []
