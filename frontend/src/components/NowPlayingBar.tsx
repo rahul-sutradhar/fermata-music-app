@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useCallback, useState } from 'react'
 import { Volume2, VolumeX, Music } from 'lucide-react'
 import { usePlayerStore } from '@/store/playerStore'
 import { getTrackAudioUrl, getTrack } from '@/api/tracks'
@@ -10,6 +10,7 @@ export default function NowPlayingBar() {
   const audioRef = useRef<HTMLAudioElement>(null)
   const shouldRestoreProgress = useRef(false)
   const isInitialRestoring = useRef(true)
+  const [showMobileVolume, setShowMobileVolume] = useState(false)
 
   const currentTrack = usePlayerStore((s) => s.currentTrack)
   const isPlaying = usePlayerStore((s) => s.isPlaying)
@@ -263,10 +264,17 @@ export default function NowPlayingBar() {
       </div>
 
       {/* Volume — Right */}
-      <div className="hidden md:flex items-center gap-2 w-[160px] justify-end">
+      <div className="flex items-center gap-2 md:w-[160px] justify-end relative">
         <button
-          onClick={toggleMute}
-          className="p-1 text-subtext hover:text-primary transition-colors"
+          onClick={() => {
+            if (window.innerWidth < 768) {
+              setShowMobileVolume(!showMobileVolume)
+            } else {
+              toggleMute()
+            }
+          }}
+          className="p-1 text-subtext hover:text-primary transition-colors cursor-pointer"
+          title="Volume Control"
         >
           {volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
         </button>
@@ -276,8 +284,28 @@ export default function NowPlayingBar() {
           max={100}
           value={volume}
           onChange={(e) => setVolume(Number(e.target.value))}
-          className="w-24 accent-spotify-green h-1 cursor-pointer"
+          className="hidden md:block w-24 accent-spotify-green h-1 cursor-pointer"
         />
+
+        {/* Mobile floating volume slider popup */}
+        {showMobileVolume && (
+          <div className="absolute bottom-14 right-0 bg-surface-elevated border border-surface-highlight p-3 rounded-lg shadow-2xl flex items-center gap-2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
+            <button
+              onClick={toggleMute}
+              className="text-subtext hover:text-primary transition-colors cursor-pointer"
+            >
+              {volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={volume}
+              onChange={(e) => setVolume(Number(e.target.value))}
+              className="w-20 accent-spotify-green h-1 cursor-pointer"
+            />
+          </div>
+        )}
       </div>
     </div>
   )

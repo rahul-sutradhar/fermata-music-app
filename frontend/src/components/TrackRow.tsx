@@ -76,6 +76,10 @@ export default function TrackRow({ track, index, tracks, onPlay }: Props) {
         </p>
         <p className="text-xs text-subtext truncate">
           {track.artist_name || 'Unknown Artist'}
+          <span className="md:hidden">
+            {track.album_title ? ` • ${track.album_title}` : ''}
+            {track.duration_seconds ? ` • ${formatDuration(track.duration_seconds)}` : ''}
+          </span>
         </p>
       </div>
 
@@ -94,7 +98,7 @@ export default function TrackRow({ track, index, tracks, onPlay }: Props) {
             e.stopPropagation()
             setShowMenu(!showMenu)
           }}
-          className="p-1 rounded-full text-subtext opacity-0 group-hover:opacity-100 hover:text-primary transition-all"
+          className="p-1 rounded-full text-subtext md:opacity-0 md:group-hover:opacity-100 hover:text-primary transition-all"
         >
           <MoreHorizontal size={16} />
         </button>
