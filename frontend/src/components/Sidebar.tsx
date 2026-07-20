@@ -129,7 +129,7 @@ export default function Sidebar() {
     }`
 
   return (
-    <aside className="flex flex-col bg-base h-full w-full shrink-0">
+    <aside className="flex flex-col bg-base h-full w-full md:pb-20 shrink-0">
       {/* Logo */}
       <div className="p-6 pb-2">
         <div className="flex items-center gap-2">
