@@ -61,7 +61,7 @@ export default function Layout() {
           {/* Key on path forces re-trigger of entry animation on navigation */}
           <div 
             key={location.pathname} 
-            className="p-4 md:p-6 pb-40 md:pb-32 animate-in fade-in slide-in-from-bottom-2 duration-300"
+            className="p-4 md:p-6 pb-40 md:pb-32 page-transition"
           >
             <Outlet />
           </div>
