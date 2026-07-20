@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { Home, Search, Library, X, Sun, Moon, User, Plus } from 'lucide-react'
 import Sidebar from './Sidebar'
 import NowPlayingBar from './NowPlayingBar'
@@ -12,6 +12,7 @@ export default function Layout() {
   const { theme, toggleTheme } = useThemeStore()
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
 
   const handleCreateClick = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -57,41 +58,51 @@ export default function Layout() {
           <Sidebar />
         </div>
         <main className="flex-1 overflow-y-auto bg-surface">
-          <div className="p-4 md:p-6 pb-40 md:pb-32">
+          {/* Key on path forces re-trigger of entry animation on navigation */}
+          <div 
+            key={location.pathname} 
+            className="p-4 md:p-6 pb-40 md:pb-32 animate-in fade-in slide-in-from-bottom-2 duration-300"
+          >
             <Outlet />
           </div>
         </main>
       </div>
       
-      {/* Mobile Sidebar Drawer Overlay */}
-      {isMobileSidebarOpen && (
-        <div className="fixed inset-0 z-50 flex md:hidden h-screen h-[100dvh]">
-          {/* Backdrop blur overlay */}
-          <div 
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setIsMobileSidebarOpen(false)}
-          />
+      {/* Mobile Sidebar Drawer Overlay (Transitions smooth sliding and backdrop fading) */}
+      <div 
+        className={`fixed inset-0 z-50 flex md:hidden h-screen h-[100dvh] transition-all duration-300 ${
+          isMobileSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
+      >
+        {/* Backdrop blur overlay */}
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+        
+        {/* Drawer Content */}
+        <div 
+          className={`z-10 relative flex flex-col w-72 h-screen h-[100dvh] bg-base shadow-2xl transition-transform duration-300 ease-in-out ${
+            isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
+          {/* Close Button */}
+          <div className="absolute top-4 right-4 z-10">
+            <button 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              className="p-2 rounded-full hover:bg-surface-highlight text-subtext hover:text-primary transition-colors cursor-pointer"
+              title="Close Menu"
+            >
+              <X size={20} />
+            </button>
+          </div>
           
-          {/* Drawer Content */}
-          <div className="z-10 relative flex flex-col w-72 h-screen h-[100dvh] bg-base shadow-2xl animate-in slide-in-from-left duration-200">
-            {/* Close Button */}
-            <div className="absolute top-4 right-4 z-10">
-              <button 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                className="p-2 rounded-full hover:bg-surface-highlight text-subtext hover:text-primary transition-colors"
-                title="Close Menu"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            
-            {/* Sidebar content (closes menu on item click) */}
-            <div className="h-full" onClick={() => setIsMobileSidebarOpen(false)}>
-              <Sidebar />
-            </div>
+          {/* Sidebar content (closes menu on item click) */}
+          <div className="h-full" onClick={() => setIsMobileSidebarOpen(false)}>
+            <Sidebar />
           </div>
         </div>
-      )}
+      </div>
 
       {/* Footer controls & Mobile navigation container */}
       <div className="fixed bottom-0 left-0 right-0 z-40 flex flex-col bg-base shrink-0">
