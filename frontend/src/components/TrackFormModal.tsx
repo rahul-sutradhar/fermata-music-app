@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, Upload, Music, Image as ImageIcon } from 'lucide-react'
-import type { Track, Album } from '@/types'
+import type { Track, Album, Artist } from '@/types'
 import { listAlbums } from '@/api/albums'
+import { listArtists } from '@/api/artists'
 import ImageCropperModal from './ImageCropperModal'
 
 interface Props {
@@ -17,12 +18,22 @@ interface Props {
   }) => void
   initialData?: Track | null
   availableAlbums?: Album[]
+  availableArtists?: Artist[]
   artistId?: number | null
 }
 
-export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData, availableAlbums, artistId }: Props) {
+export default function TrackFormModal({
+  isOpen,
+  onClose,
+  onSubmit,
+  initialData,
+  availableAlbums,
+  availableArtists,
+  artistId,
+}: Props) {
   const [title, setTitle] = useState('')
-  const [albumId, setAlbumId] = useState<string>('')
+  const [albumId, setAlbumId] = useState<string>('single')
+  const [selectedArtistId, setSelectedArtistId] = useState<string>('unknown')
   const [duration, setDuration] = useState('')
   const [audioFile, setAudioFile] = useState<File | null>(null)
   const [fileName, setFileName] = useState('')
@@ -40,12 +51,25 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
   const [albumsList, setAlbumsList] = useState<Album[]>([])
   const [albumSearch, setAlbumSearch] = useState('')
   const [showAlbumDropdown, setShowAlbumDropdown] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
+  const albumDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Searchable artist dropdown states
+  const [artistsList, setArtistsList] = useState<Artist[]>([])
+  const [artistSearch, setArtistSearch] = useState('')
+  const [showArtistDropdown, setShowArtistDropdown] = useState(false)
+  const artistDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (initialData) {
       setTitle(initialData.title)
       setAlbumId(initialData.album_id ? String(initialData.album_id) : 'single')
+      setSelectedArtistId(
+        initialData.artist_id
+          ? String(initialData.artist_id)
+          : artistId
+          ? String(artistId)
+          : 'unknown'
+      )
       setDuration(initialData.duration_seconds ? String(initialData.duration_seconds) : '')
       setAudioFile(null)
       setFileName('')
@@ -53,33 +77,44 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
       setCoverPreview(initialData.cover_url || null)
     } else {
       setTitle('')
-      setAlbumId('single') // Default to Single Track for easy uploading
+      setAlbumId('single')
+      setSelectedArtistId(artistId ? String(artistId) : 'unknown')
       setDuration('')
       setAudioFile(null)
       setFileName('')
       setCoverFile(null)
       setCoverPreview(null)
     }
-  }, [initialData, isOpen])
+  }, [initialData, isOpen, artistId])
 
   useEffect(() => {
     if (isOpen) {
       if (availableAlbums) {
         setAlbumsList(availableAlbums)
       } else {
-        listAlbums(0, 200)
+        listAlbums(0, 100)
           .then(setAlbumsList)
           .catch(console.error)
       }
+
+      if (availableArtists) {
+        setArtistsList(availableArtists)
+      } else {
+        listArtists(0, 100)
+          .then(setArtistsList)
+          .catch(console.error)
+      }
     }
-  }, [isOpen, availableAlbums])
+  }, [isOpen, availableAlbums, availableArtists])
 
-
-  // Handle click outside to close dropdown
+  // Handle click outside to close dropdowns
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (albumDropdownRef.current && !albumDropdownRef.current.contains(event.target as Node)) {
         setShowAlbumDropdown(false)
+      }
+      if (artistDropdownRef.current && !artistDropdownRef.current.contains(event.target as Node)) {
+        setShowArtistDropdown(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -95,13 +130,11 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
     setAudioFile(file)
     setFileName(file.name)
 
-    // Automatically set title if empty
     if (!title) {
       const nameWithoutExt = file.name.substring(0, file.name.lastIndexOf('.')) || file.name
       setTitle(nameWithoutExt)
     }
 
-    // Auto-detect duration using the Web Audio/HTMLAudioElement trick
     const objectUrl = URL.createObjectURL(file)
     const audio = new Audio(objectUrl)
     audio.addEventListener('loadedmetadata', () => {
@@ -119,23 +152,54 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
     e.target.value = ''
   }
 
+  const handleSelectAlbum = (selectedId: string) => {
+    setAlbumId(selectedId)
+    setShowAlbumDropdown(false)
+    setAlbumSearch('')
+
+    if (selectedId !== 'single' && selectedId !== '') {
+      const selAlbum = albumsList.find((a) => String(a.id) === String(selectedId))
+      if (selAlbum) {
+        // Automatically sync track's artist to match album's artist
+        setSelectedArtistId(selAlbum.artist_id ? String(selAlbum.artist_id) : 'unknown')
+      }
+    }
+  }
+
+  const handleSelectArtist = (selectedId: string) => {
+    setSelectedArtistId(selectedId)
+    setShowArtistDropdown(false)
+    setArtistSearch('')
+
+    // If an album is currently selected, verify artist consistency
+    if (albumId !== 'single' && albumId !== '') {
+      const selAlbum = albumsList.find((a) => String(a.id) === String(albumId))
+      if (selAlbum) {
+        const albumArtistId = selAlbum.artist_id ? String(selAlbum.artist_id) : 'unknown'
+        if (albumArtistId !== selectedId) {
+          // Reset album to single if track's artist does not match album's artist
+          setAlbumId('single')
+        }
+      }
+    }
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
     const finalAlbumId = albumId === 'single' || !albumId ? null : Number(albumId)
+    const finalArtistId =
+      selectedArtistId === 'unknown' || !selectedArtistId ? null : Number(selectedArtistId)
 
     onSubmit({
       title,
       album_id: finalAlbumId,
-      artist_id: artistId ?? initialData?.artist_id,
+      artist_id: finalArtistId,
       duration_seconds: duration ? Number(duration) : undefined,
       audioFile: audioFile || undefined,
       coverFile: coverFile || undefined,
     })
   }
-
-
 
   const formatDuration = (secStr: string) => {
     const sec = Number(secStr)
@@ -144,6 +208,16 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
     const s = sec % 60
     return `${m}:${s.toString().padStart(2, '0')}`
   }
+
+  const filteredAlbums = albumsList.filter((a) => {
+    const matchesSearch = a.title.toLowerCase().includes(albumSearch.toLowerCase())
+    if (!matchesSearch) return false
+    // If an artist is selected (and not unknown), only show albums by that artist
+    if (selectedArtistId && selectedArtistId !== 'unknown') {
+      return String(a.artist_id) === String(selectedArtistId)
+    }
+    return true
+  })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -160,7 +234,7 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 text-left">
           {/* Cover Photo attachment */}
           <div>
             <label className="block text-sm font-medium text-subtext mb-1.5">
@@ -168,7 +242,7 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
             </label>
             <div
               onClick={() => coverInputRef.current?.click()}
-              className="relative aspect-square w-full max-h-56 mx-auto rounded-xl border-2 border-dashed border-surface-highlight hover:border-spotify-green/50 transition-colors flex flex-col items-center justify-center cursor-pointer overflow-hidden group bg-surface-highlight/20 shadow-md"
+              className="relative aspect-square w-full max-h-48 mx-auto rounded-xl border-2 border-dashed border-surface-highlight hover:border-spotify-green/50 transition-colors flex flex-col items-center justify-center cursor-pointer overflow-hidden group bg-surface-highlight/20 shadow-md"
             >
               {coverPreview ? (
                 <>
@@ -184,7 +258,7 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
                 </>
               ) : (
                 <div className="flex flex-col items-center gap-2 text-subtext group-hover:text-primary transition-colors p-4 text-center">
-                  <ImageIcon size={32} />
+                  <ImageIcon size={28} />
                   <span className="text-xs font-medium">
                     {coverFile ? coverFile.name : 'Click to attach track photo'}
                   </span>
@@ -203,20 +277,20 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
             </div>
           </div>
 
-          {/* File attachment */}
+          {/* Audio File attachment */}
           <div>
             <label className="block text-sm font-medium text-subtext mb-1.5">
               {initialData ? 'Replace Audio File (Optional)' : 'Attach Audio File'}
             </label>
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="w-full border-2 border-dashed border-surface-highlight hover:border-spotify-green/50 rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition-colors"
+              className="w-full border-2 border-dashed border-surface-highlight hover:border-spotify-green/50 rounded-lg p-3 flex flex-col items-center justify-center cursor-pointer transition-colors"
             >
-              <Upload size={24} className="text-subtext mb-2 animate-bounce" />
-              <span className="text-sm font-medium text-primary">
+              <Upload size={20} className="text-subtext mb-1 animate-bounce" />
+              <span className="text-xs font-medium text-primary">
                 {fileName || (initialData ? 'Click to replace audio file...' : 'Choose an audio file...')}
               </span>
-              <span className="text-xs text-subtext mt-1">
+              <span className="text-[10px] text-subtext mt-0.5">
                 Duration will be auto-calculated
               </span>
               <input
@@ -228,7 +302,6 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
               />
             </div>
           </div>
-
 
           <div>
             <label className="block text-sm font-medium text-subtext mb-1.5">
@@ -244,8 +317,71 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
             />
           </div>
 
+          {/* Searchable Artist Dropdown */}
+          <div className="relative" ref={artistDropdownRef}>
+            <label className="block text-sm font-medium text-subtext mb-1.5">
+              Artist
+            </label>
+            <div
+              onClick={() => setShowArtistDropdown(!showArtistDropdown)}
+              className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary cursor-pointer border-2 border-transparent hover:border-spotify-green/50 flex justify-between items-center transition-colors"
+            >
+              <span className="truncate font-medium">
+                {selectedArtistId === 'unknown' || !selectedArtistId
+                  ? '🎤 Unknown Artist'
+                  : artistsList.find((a) => String(a.id) === String(selectedArtistId))?.name ||
+                    `Artist ID: ${selectedArtistId}`}
+              </span>
+              <span className="text-xs text-subtext select-none">▼</span>
+            </div>
+
+            {showArtistDropdown && (
+              <div className="absolute left-0 right-0 mt-1 bg-surface-elevated border border-surface-highlight rounded-lg shadow-2xl z-50 p-2 space-y-2">
+                <input
+                  type="text"
+                  placeholder="Search artist..."
+                  value={artistSearch}
+                  onChange={(e) => setArtistSearch(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-md bg-surface-highlight text-xs text-primary outline-none border border-transparent focus:border-spotify-green/30"
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <div className="max-h-40 overflow-y-auto space-y-0.5 scrollbar-thin">
+                  {/* Unknown Artist Option */}
+                  <div
+                    onClick={() => handleSelectArtist('unknown')}
+                    className={`px-3 py-2 text-xs rounded-md cursor-pointer truncate flex justify-between items-center ${
+                      selectedArtistId === 'unknown' || !selectedArtistId
+                        ? 'bg-spotify-green/20 text-spotify-green font-semibold'
+                        : 'hover:bg-surface-highlight text-primary'
+                    }`}
+                  >
+                    <span>🎤 Unknown Artist</span>
+                    <span className="text-[10px] text-subtext">Default</span>
+                  </div>
+
+                  {artistsList
+                    .filter((a) => a.name.toLowerCase().includes(artistSearch.toLowerCase()))
+                    .map((a) => (
+                      <div
+                        key={a.id}
+                        onClick={() => handleSelectArtist(String(a.id))}
+                        className={`px-3 py-2 text-xs rounded-md cursor-pointer truncate flex justify-between items-center ${
+                          selectedArtistId === String(a.id)
+                            ? 'bg-spotify-green/20 text-spotify-green font-semibold'
+                            : 'hover:bg-surface-highlight text-primary'
+                        }`}
+                      >
+                        <span className="truncate mr-2">{a.name}</span>
+                        <span className="text-[10px] text-subtext shrink-0">ID: {a.id}</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Searchable Album Dropdown */}
-          <div className="relative" ref={dropdownRef}>
+          <div className="relative" ref={albumDropdownRef}>
             <label className="block text-sm font-medium text-subtext mb-1.5">
               Album
             </label>
@@ -256,7 +392,8 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
               <span className="truncate font-medium">
                 {albumId === 'single' || !albumId
                   ? '🎵 Single Track (No Album)'
-                  : albumsList.find((a) => a.id === Number(albumId))?.title || `Album ID: ${albumId}`}
+                  : albumsList.find((a) => String(a.id) === String(albumId))?.title ||
+                    `Album ID: ${albumId}`}
               </span>
               <span className="text-xs text-subtext select-none">▼</span>
             </div>
@@ -271,14 +408,10 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
                   className="w-full px-3 py-1.5 rounded-md bg-surface-highlight text-xs text-primary outline-none border border-transparent focus:border-spotify-green/30"
                   onClick={(e) => e.stopPropagation()}
                 />
-                <div className="max-h-48 overflow-y-auto space-y-0.5 scrollbar-thin">
+                <div className="max-h-40 overflow-y-auto space-y-0.5 scrollbar-thin">
                   {/* Standalone Single Option */}
                   <div
-                    onClick={() => {
-                      setAlbumId('single')
-                      setShowAlbumDropdown(false)
-                      setAlbumSearch('')
-                    }}
+                    onClick={() => handleSelectAlbum('single')}
                     className={`px-3 py-2 text-xs rounded-md cursor-pointer truncate flex justify-between items-center ${
                       albumId === 'single' || !albumId
                         ? 'bg-spotify-green/20 text-spotify-green font-semibold'
@@ -289,36 +422,28 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
                     <span className="text-[10px] text-subtext">Single</span>
                   </div>
 
-                  {albumsList
-                    .filter((a) =>
-                      a.title.toLowerCase().includes(albumSearch.toLowerCase())
-                    )
-                    .map((a) => (
-                      <div
-                        key={a.id}
-                        onClick={() => {
-                          setAlbumId(String(a.id))
-                          setShowAlbumDropdown(false)
-                          setAlbumSearch('')
-                        }}
-                        className={`px-3 py-2 text-xs rounded-md cursor-pointer truncate flex justify-between items-center ${
-                          albumId === String(a.id)
-                            ? 'bg-spotify-green/20 text-spotify-green font-semibold'
-                            : 'hover:bg-surface-highlight text-primary'
-                        }`}
-                      >
-                        <span className="truncate mr-2">{a.title}</span>
-                        <span className="text-[10px] text-subtext shrink-0">Album ID: {a.id}</span>
-                      </div>
-                    ))}
+                  {filteredAlbums.map((a) => (
+                    <div
+                      key={a.id}
+                      onClick={() => handleSelectAlbum(String(a.id))}
+                      className={`px-3 py-2 text-xs rounded-md cursor-pointer truncate flex justify-between items-center ${
+                        albumId === String(a.id)
+                          ? 'bg-spotify-green/20 text-spotify-green font-semibold'
+                          : 'hover:bg-surface-highlight text-primary'
+                      }`}
+                    >
+                      <span className="truncate mr-2">{a.title}</span>
+                      <span className="text-[10px] text-subtext shrink-0">
+                        {artistsList.find((art) => art.id === a.artist_id)?.name || `ID: ${a.id}`}
+                      </span>
+                    </div>
+                  ))}
 
-                  {albumsList.filter((a) =>
-                    a.title.toLowerCase().includes(albumSearch.toLowerCase())
-                  ).length === 0 && (
-                      <div className="px-3 py-2 text-xs text-subtext text-center">
-                        No albums found
-                      </div>
-                    )}
+                  {filteredAlbums.length === 0 && (
+                    <div className="px-3 py-2 text-xs text-subtext text-center">
+                      No matching albums found
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -373,4 +498,3 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
     </div>
   )
 }
-

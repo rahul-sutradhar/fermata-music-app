@@ -482,23 +482,31 @@ export default function AdminPanelPage() {
     setAlbumCoverFile(null)
     setAlbumCoverPreview(album?.cover_url || null)
     if (album) {
-      setAlbumForm({ title: album.title, artist_id: String(album.artist_id) })
+      setAlbumForm({
+        title: album.title,
+        artist_id: album.artist_id ? String(album.artist_id) : 'unknown',
+      })
     } else {
-      setAlbumForm({ title: '', artist_id: '' })
+      setAlbumForm({
+        title: '',
+        artist_id: 'unknown', // Default to Unknown Artist for album creation!
+      })
     }
     setAlbumModalOpen(true)
   }
 
   const handleAlbumSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!albumForm.artist_id) {
-      alert('Please select an artist for the album')
-      return
+
+    let targetArtistId = Number(albumForm.artist_id)
+    if (!albumForm.artist_id || albumForm.artist_id === 'unknown' || isNaN(targetArtistId)) {
+      const unknownArtist = allArtistsList.find((a) => (a.name || '').toLowerCase().includes('unknown'))
+      targetArtistId = unknownArtist ? unknownArtist.id : (allArtistsList[0]?.id || 1)
     }
 
     const payload = {
       title: albumForm.title,
-      artist_id: Number(albumForm.artist_id),
+      artist_id: targetArtistId,
     }
 
     try {
@@ -522,6 +530,7 @@ export default function AdminPanelPage() {
       setUploadingForId(null)
     }
   }
+
 
   const handleUploadAlbumCover = async (albumId: number, file: File) => {
     setUploadingForId(albumId)
@@ -1348,7 +1357,9 @@ export default function AdminPanelPage() {
         onSubmit={handleTrackSubmit}
         initialData={editingTrack}
         availableAlbums={albums}
+        availableArtists={allArtistsList}
       />
+
 
       {/* USER FORM MODAL */}
       {userModalOpen && (
@@ -1644,9 +1655,9 @@ export default function AdminPanelPage() {
                 className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary cursor-pointer border-2 border-transparent hover:border-spotify-green/50 flex justify-between items-center transition-colors"
               >
                 <span className="truncate">
-                  {albumForm.artist_id
-                    ? allArtistsList.find((a) => a.id === Number(albumForm.artist_id))?.name || `Artist ID: ${albumForm.artist_id}`
-                    : 'Select Artist...'}
+                  {albumForm.artist_id === 'unknown' || !albumForm.artist_id
+                    ? '🎤 Unknown Artist'
+                    : allArtistsList.find((a) => a.id === Number(albumForm.artist_id))?.name || `Artist ID: ${albumForm.artist_id}`}
                 </span>
                 <span className="text-xs text-subtext select-none">▼</span>
               </div>
@@ -1662,6 +1673,17 @@ export default function AdminPanelPage() {
                     onClick={(e) => e.stopPropagation()}
                   />
                   <div className="flex-1 overflow-y-auto space-y-0.5 scrollbar-thin">
+                    <div
+                      onClick={() => {
+                        setAlbumForm({ ...albumForm, artist_id: 'unknown' })
+                        setShowArtistSelectDropdown(false)
+                        setArtistSelectSearch('')
+                      }}
+                      className="px-3 py-2 text-xs hover:bg-surface-highlight rounded-md cursor-pointer truncate text-spotify-green font-semibold"
+                    >
+                      🎤 Unknown Artist (Default)
+                    </div>
+
                     {allArtistsList
                       .filter((a) =>
                         (a.name || '').toLowerCase().includes(artistSelectSearch.toLowerCase())
@@ -1680,6 +1702,7 @@ export default function AdminPanelPage() {
                           <span className="text-[10px] text-subtext shrink-0">ID: {a.id}</span>
                         </div>
                       ))}
+
                     {allArtistsList.filter((a) =>
                       (a.name || '').toLowerCase().includes(artistSelectSearch.toLowerCase())
                     ).length === 0 && (
