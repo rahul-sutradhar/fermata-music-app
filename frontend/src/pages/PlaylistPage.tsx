@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { Play, Music } from 'lucide-react'
-import { getPlaylistItems, getMyPlaylists } from '@/api/playlists'
+import { useParams, useNavigate } from 'react-router-dom'
+import { Play, Music, Trash2 } from 'lucide-react'
+import { getPlaylistItems, getMyPlaylists, deletePlaylist } from '@/api/playlists'
 import { usePlayerStore } from '@/store/playerStore'
 import type { Track, PlaylistItem } from '@/types'
 import TrackList from '@/components/TrackList'
@@ -9,6 +9,7 @@ import { parsePlaylistName } from '@/components/Sidebar'
 
 export default function PlaylistPage() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const [items, setItems] = useState<PlaylistItem[]>([])
   const [loading, setLoading] = useState(true)
   const [playlistInfo, setPlaylistInfo] = useState({ name: '', artist: '', description: '' })
@@ -52,6 +53,18 @@ export default function PlaylistPage() {
     }
   }
 
+  const handleDeletePlaylist = async () => {
+    if (!id) return
+    if (!confirm(`Are you sure you want to delete "${playlistInfo.name}"?`)) return
+    try {
+      await deletePlaylist(Number(id))
+      window.dispatchEvent(new Event('playlist-updated'))
+      navigate('/')
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete playlist')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -88,8 +101,17 @@ export default function PlaylistPage() {
           onClick={handlePlayAll}
           className="w-12 h-12 bg-spotify-green rounded-full flex items-center justify-center hover:scale-105 hover:bg-spotify-green-hover transition-all shadow-lg"
           disabled={tracks.length === 0}
+          title="Play Playlist"
         >
           <Play size={22} className="text-black ml-0.5" fill="currentColor" />
+        </button>
+
+        <button
+          onClick={handleDeletePlaylist}
+          className="p-3 rounded-full bg-surface-highlight text-subtext hover:text-red-400 hover:bg-surface-highlight/80 transition-all shadow"
+          title="Delete Playlist"
+        >
+          <Trash2 size={20} />
         </button>
       </div>
 

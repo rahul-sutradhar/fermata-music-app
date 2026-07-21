@@ -15,11 +15,12 @@ import {
   UserCheck,
   History,
   Radio,
+  Trash2,
 } from 'lucide-react'
 
 import { useAuthStore } from '@/store/authStore'
 import { useThemeStore } from '@/store/themeStore'
-import { getMyPlaylists, createPlaylist } from '@/api/playlists'
+import { getMyPlaylists, createPlaylist, deletePlaylist } from '@/api/playlists'
 import { listArtists } from '@/api/artists'
 import type { Playlist, Artist } from '@/types'
 
@@ -59,12 +60,19 @@ export default function Sidebar() {
   const [showArtistDropdown, setShowArtistDropdown] = useState(false)
   const artistDropdownRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
+  const fetchPlaylists = () => {
     if (token) {
       getMyPlaylists()
         .then(setPlaylists)
         .catch(() => { })
     }
+  }
+
+  useEffect(() => {
+    fetchPlaylists()
+    const handleRefresh = () => fetchPlaylists()
+    window.addEventListener('playlist-updated', handleRefresh)
+    return () => window.removeEventListener('playlist-updated', handleRefresh)
   }, [token])
 
   useEffect(() => {
@@ -115,6 +123,22 @@ export default function Sidebar() {
       navigate(`/playlist/${pl.id}`)
     } catch {
       // silent
+    }
+  }
+
+  const handleDeleteSidebarPlaylist = async (e: React.MouseEvent, pl: Playlist) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const info = parsePlaylistName(pl.name)
+    if (!confirm(`Are you sure you want to delete "${info.name}"?`)) return
+    try {
+      await deletePlaylist(pl.id)
+      setPlaylists((prev) => prev.filter((p) => p.id !== pl.id))
+      if (window.location.hash.includes(`/playlist/${pl.id}`)) {
+        navigate('/')
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete playlist')
     }
   }
 
@@ -184,23 +208,32 @@ export default function Sidebar() {
             {playlists.map((pl) => {
               const info = parsePlaylistName(pl.name)
               return (
-                <NavLink
-                  key={pl.id}
-                  to={`/playlist/${pl.id}`}
-                  className={({ isActive }) =>
-                    `block px-3 py-2 rounded-lg text-sm truncate transition-colors duration-150 ${isActive
-                      ? 'bg-surface-highlight text-primary'
-                      : 'text-subtext hover:text-primary hover:bg-surface-highlight/50'
-                    }`
-                  }
-                >
-                  {info.name}
-                </NavLink>
+                <div key={pl.id} className="group/item flex items-center justify-between">
+                  <NavLink
+                    to={`/playlist/${pl.id}`}
+                    className={({ isActive }) =>
+                      `flex-1 px-3 py-2 rounded-lg text-sm truncate transition-colors duration-150 ${isActive
+                        ? 'bg-surface-highlight text-primary'
+                        : 'text-subtext hover:text-primary hover:bg-surface-highlight/50'
+                      }`
+                    }
+                  >
+                    {info.name}
+                  </NavLink>
+                  <button
+                    onClick={(e) => handleDeleteSidebarPlaylist(e, pl)}
+                    className="p-1.5 opacity-0 group-hover/item:opacity-100 text-subtext hover:text-red-400 transition-all rounded shrink-0 mr-1"
+                    title="Delete Playlist"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               )
             })}
           </div>
         </div>
       )}
+
 
       {/* Footer */}
       <div className="p-3 mt-auto border-t border-surface-highlight space-y-1">

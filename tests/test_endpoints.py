@@ -121,3 +121,17 @@ def test_get_artist_singles(client, db_session):
     assert singles[0]["album_id"] is None
     assert singles[0]["artist_id"] == artist.id
 
+
+def test_delete_playlist(auth_client, db_session):
+    from app.models.playlist import Playlist
+    playlist = Playlist(name="Test Playlist to Delete", user_id=1)
+    db_session.add(playlist)
+    db_session.commit()
+
+    response = auth_client.delete(f"/playlists/{playlist.id}")
+    assert response.status_code == 204
+
+    deleted = db_session.get(Playlist, playlist.id)
+    assert deleted is None
+
+

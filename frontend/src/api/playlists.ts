@@ -44,3 +44,10 @@ export function uploadPlaylistCover(playlistId: number, file: File) {
     body: formData,
   })
 }
+
+export function deletePlaylist(playlistId: number) {
+  return apiRequest<void>(`/playlists/${playlistId}`, {
+    method: 'DELETE',
+  })
+}
+

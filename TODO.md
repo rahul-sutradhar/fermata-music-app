@@ -86,7 +86,9 @@ _____________________________________________________________________
   - [x] full CRUD via `/playlists/{id}/items`
   - [x] `GET /me/playlists`
   - [x] `POST /me/playlists`
+  - [x] `DELETE /playlists/{id}` (Playlist deletion flow)
   - [x] cover image upload
+
 - Library
   - [x] `PUT /me/library`
   - [x] `DELETE /me/library`

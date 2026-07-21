@@ -222,4 +222,16 @@ def save_playlist_cover(
     return CoverUploadResponse(filename=cover_path.name, path=str(cover_path))
 
 
+from app.models.user import User
+
+def delete_playlist(*, db: Session, playlist_id: int, user: User) -> None:
+    playlist = _get_playlist_or_404(db, playlist_id)
+    if user.role != "admin":
+        _ensure_playlist_owner(playlist, user.id)
+
+    db.delete(playlist)
+    db.commit()
+
+
+
 

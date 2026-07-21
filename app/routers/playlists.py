@@ -127,3 +127,18 @@ def upload_playlist_cover(
         cover_file=cover_file,
         user_id=current_user.id,
     )
+
+
+@router.delete(
+    "/playlists/{playlist_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={403: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+)
+def delete_playlist(
+    playlist_id: int,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> None:
+    """Delete a playlist owned by the current user (or Admin)."""
+    playlist_service.delete_playlist(db=db, playlist_id=playlist_id, user=current_user)
+
