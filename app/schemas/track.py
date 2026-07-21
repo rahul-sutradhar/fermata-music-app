@@ -16,18 +16,13 @@ class TrackCreate(BaseModel):
 
 class TrackUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=255)
-    album_id: int | None = Field(default=None, gt=0)
-    artist_id: int | None = Field(default=None, gt=0)
-    duration_seconds: int | None = Field(default=None, gt=0)
+    album_id: int | None = Field(default=None)
+    artist_id: int | None = Field(default=None)
+    duration_seconds: int | None = Field(default=None)
 
     @model_validator(mode="after")
     def require_at_least_one_field(self) -> "TrackUpdate":
-        if (
-            self.title is None
-            and self.album_id is None
-            and self.artist_id is None
-            and self.duration_seconds is None
-        ):
+        if not self.model_fields_set:
             raise ValueError("At least one field must be provided")
         return self
 

@@ -239,6 +239,9 @@ def update_track(
             album = db.get(Album, new_album_id)
             if album:
                 updates["artist_id"] = album.artist_id
+        else:
+            if "artist_id" not in updates and track.effective_artist_id:
+                updates["artist_id"] = track.effective_artist_id
 
     if "title" in updates:
         _ensure_unique_title(db, updates["title"], exclude_id=track_id)
