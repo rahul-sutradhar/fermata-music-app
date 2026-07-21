@@ -34,6 +34,8 @@ def test_get_album_by_id(client, db_session):
         "artist_id": album.artist_id,
         "artist_name": artist.name,
         "cover_url": None,
+        "created_at": None,
+        "updated_at": None,
     }
 
 
@@ -54,7 +56,13 @@ def test_get_artist_by_id(client, db_session):
     response = client.get(f"/artists/{artist.id}")
 
     assert response.status_code == 200
-    assert response.json() == {"id": artist.id, "name": artist.name, "user_id": artist.id}
+    assert response.json() == {
+        "id": artist.id,
+        "name": artist.name,
+        "user_id": artist.id,
+        "created_at": None,
+        "updated_at": None,
+    }
 
 
 def test_get_artist_albums(client, db_session):
@@ -64,8 +72,17 @@ def test_get_artist_albums(client, db_session):
 
     assert response.status_code == 200
     assert response.json() == [
-        {"id": album.id, "title": album.title, "artist_id": artist.id, "artist_name": artist.name, "cover_url": None}
+        {
+            "id": album.id,
+            "title": album.title,
+            "artist_id": artist.id,
+            "artist_name": artist.name,
+            "cover_url": None,
+            "created_at": None,
+            "updated_at": None,
+        }
     ]
+
 
 
 
