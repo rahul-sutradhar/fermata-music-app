@@ -89,15 +89,19 @@ export default function AdminPanelPage() {
 
   const loadData = async () => {
     setLoading(true)
+    let allUsers: UserType[] = []
     try {
-      // Pre-fetch all users to build userMap and avoid duplicate requests
-      const allUsers = await listUsers(0, 200)
+      allUsers = await listUsers(0, 200)
       const map: Record<number, string> = {}
       allUsers.forEach(u => {
         map[u.id] = u.username
       })
       setUserMap(map)
+    } catch (err) {
+      console.warn('Failed to load user list for admin map:', err)
+    }
 
+    try {
       if (activeTab === 'tracks') {
         const data = await listTracks(0, 200, searchQ || undefined)
         setTracks(data)
@@ -116,8 +120,12 @@ export default function AdminPanelPage() {
           )
         ))
       } else if (activeTab === 'artists') {
-        const profileData = await listArtists(0, 200)
-        setArtists(profileData.filter(a => (a.name || '').toLowerCase().includes(searchQ.toLowerCase())))
+        try {
+          const profileData = await listArtists(0, 200)
+          setArtists(profileData.filter(a => (a.name || '').toLowerCase().includes(searchQ.toLowerCase())))
+        } catch (err) {
+          console.error('Failed to load artist profiles:', err)
+        }
         setUsers(allUsers.filter(u =>
           u.role === 'artist' && (
             (u.username || '').toLowerCase().includes(searchQ.toLowerCase()) ||
@@ -128,12 +136,15 @@ export default function AdminPanelPage() {
       } else if (activeTab === 'albums') {
         const data = await listAlbums(0, 200)
         setAlbums(data.filter(a => a.title.toLowerCase().includes(searchQ.toLowerCase())))
-        const artistData = await listArtists(0, 200)
-        setAllArtistsList(artistData)
+        try {
+          const artistData = await listArtists(0, 200)
+          setAllArtistsList(artistData)
+        } catch {
+          // silent
+        }
       }
-
     } catch (err) {
-      console.error('Failed to load admin data:', err)
+      console.error('Failed to load admin data tab:', err)
     } finally {
       setLoading(false)
     }

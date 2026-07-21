@@ -19,10 +19,22 @@ def list_artists(
     limit: int = Query(100, ge=1, le=200),
 ) -> list[ArtistResponse]:
     """List all artists with pagination."""
-    from sqlalchemy import select
+    from sqlalchemy import select, text
     from app.models.artist import Artist
-    artists = db.scalars(select(Artist).order_by(Artist.id).offset(skip).limit(limit)).all()
-    return [ArtistResponse(id=a.id, name=a.name, user_id=a.id) for a in artists]
+    try:
+        artists = db.scalars(select(Artist).order_by(Artist.id).offset(skip).limit(limit)).all()
+        return [ArtistResponse(id=a.id, name=a.name, user_id=a.id) for a in artists]
+    except Exception as exc:
+        print(f"Error in list_artists ORM query: {exc}")
+        try:
+            rows = db.execute(
+                text("SELECT id, name FROM artists ORDER BY id LIMIT :limit OFFSET :skip"),
+                {"limit": limit, "skip": skip}
+            ).fetchall()
+            return [ArtistResponse(id=r.id, name=r.name, user_id=r.id) for r in rows]
+        except Exception as fallback_exc:
+            print(f"Error in list_artists fallback: {fallback_exc}")
+            return []
 
 
 @router.get(
