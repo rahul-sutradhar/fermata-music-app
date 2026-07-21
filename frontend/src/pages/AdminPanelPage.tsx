@@ -1,15 +1,46 @@
 import { useEffect, useState, useRef } from 'react'
-import { Plus, Pencil, Trash2, Upload, Search, User, Music, Disc, Radio, Shield, Image as ImageIcon } from 'lucide-react'
-import { listTracks, createTrack, updateTrack, deleteTrack, uploadTrackAudio, uploadTrackCover } from '@/api/tracks'
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Upload,
+  Search,
+  User,
+  Music,
+  Disc,
+  Radio,
+  Shield,
+  Image as ImageIcon,
+  Play,
+  ChevronDown,
+  ChevronRight,
+  FolderMinus,
+} from 'lucide-react'
+import {
+  listTracks,
+  createTrack,
+  updateTrack,
+  deleteTrack,
+  uploadTrackAudio,
+  uploadTrackCover,
+} from '@/api/tracks'
 import { listUsers, createUser, updateUser, deleteUser } from '@/api/admin'
 import { listArtists, createArtist, updateArtist, deleteArtist } from '@/api/artists'
-import { listAlbums, createAlbum, updateAlbum, deleteAlbum, uploadAlbumCover } from '@/api/albums'
+import {
+  listAlbums,
+  createAlbum,
+  updateAlbum,
+  deleteAlbum,
+  uploadAlbumCover,
+  getAlbumTracks,
+} from '@/api/albums'
 import type { Track, User as UserType, Artist, Album } from '@/types'
 import { useAuthStore } from '@/store/authStore'
+import { usePlayerStore } from '@/store/playerStore'
 import TrackFormModal from '@/components/TrackFormModal'
+import ImageCropperModal from '@/components/ImageCropperModal'
 
-
-type TabType = 'users' | 'artists' | 'admins' | 'albums' | 'tracks'
+type TabType = 'tracks' | 'albums' | 'users' | 'artists' | 'admins'
 
 export default function AdminPanelPage() {
   const currentUser = useAuthStore((s) => s.user)
@@ -17,12 +48,22 @@ export default function AdminPanelPage() {
   const [searchQ, setSearchQ] = useState('')
   const [loading, setLoading] = useState(true)
 
+  // Player store integration
+  const setTrack = usePlayerStore((s) => s.setTrack)
+  const setQueue = usePlayerStore((s) => s.setQueue)
+  const setIsPlaying = usePlayerStore((s) => s.setIsPlaying)
+  const currentTrack = usePlayerStore((s) => s.currentTrack)
+  const isPlaying = usePlayerStore((s) => s.isPlaying)
+
   // Data states
   const [tracks, setTracks] = useState<Track[]>([])
   const [users, setUsers] = useState<UserType[]>([])
   const [artists, setArtists] = useState<Artist[]>([])
   const [albums, setAlbums] = useState<Album[]>([])
   const [userMap, setUserMap] = useState<Record<number, string>>({})
+
+  // Accordion state for albums expansion
+  const [expandedAlbumIds, setExpandedAlbumIds] = useState<Set<number>>(new Set())
 
   // Modal control states
   const [trackModalOpen, setTrackModalOpen] = useState(false)
@@ -43,6 +84,17 @@ export default function AdminPanelPage() {
   const [albumCoverPreview, setAlbumCoverPreview] = useState<string | null>(null)
   const albumCoverInputRef = useRef<HTMLInputElement>(null)
 
+  // Cropper modal state
+  const [cropperOpen, setCropperOpen] = useState(false)
+  const [cropperFile, setCropperFile] = useState<File | null>(null)
+  const [cropCallback, setCropCallback] = useState<((file: File) => void) | null>(null)
+
+  const openImageCropper = (file: File, callback: (croppedFile: File) => void) => {
+    setCropperFile(file)
+    setCropCallback(() => callback)
+    setCropperOpen(true)
+  }
+
   // Audio / Cover upload state
   const [uploadingForId, setUploadingForId] = useState<number | null>(null)
 
@@ -57,6 +109,20 @@ export default function AdminPanelPage() {
   const [artistAccountSearch, setArtistAccountSearch] = useState('')
   const [showArtistAccountDropdown, setShowArtistAccountDropdown] = useState(false)
   const artistAccountDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Toggle album expanded state
+  const toggleAlbumExpand = (albumId: number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    setExpandedAlbumIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(albumId)) {
+        next.delete(albumId)
+      } else {
+        next.add(albumId)
+      }
+      return next
+    })
+  }
 
   useEffect(() => {
     if (albumModalOpen) {
@@ -102,10 +168,22 @@ export default function AdminPanelPage() {
     }
 
     try {
-      if (activeTab === 'tracks') {
-        const data = await listTracks(0, 200, searchQ || undefined)
-        setTracks(data)
-      } else if (activeTab === 'users') {
+      // Load all tracks, albums, artists for platform-wide management across all users
+      const [allTracksData, allAlbumsData, allArtistsData] = await Promise.all([
+        listTracks(0, 200, searchQ || undefined).catch(() => [] as Track[]),
+        listAlbums(0, 200).catch(() => [] as Album[]),
+        listArtists(0, 200).catch(() => [] as Artist[]),
+      ])
+
+      // Sort platform-wide tracks and albums by ID / date descending
+      const sortedTracks = [...allTracksData].sort((a, b) => b.id - a.id)
+      const sortedAlbums = [...allAlbumsData].sort((a, b) => b.id - a.id)
+
+      setTracks(sortedTracks)
+      setAlbums(sortedAlbums.filter(a => a.title.toLowerCase().includes(searchQ.toLowerCase())))
+      setAllArtistsList(allArtistsData)
+
+      if (activeTab === 'users') {
         setUsers(allUsers.filter(u =>
           u.role === 'user' && (
             (u.username || '').toLowerCase().includes(searchQ.toLowerCase()) ||
@@ -120,12 +198,7 @@ export default function AdminPanelPage() {
           )
         ))
       } else if (activeTab === 'artists') {
-        try {
-          const profileData = await listArtists(0, 200)
-          setArtists(profileData.filter(a => (a.name || '').toLowerCase().includes(searchQ.toLowerCase())))
-        } catch (err) {
-          console.error('Failed to load artist profiles:', err)
-        }
+        setArtists(allArtistsData.filter(a => (a.name || '').toLowerCase().includes(searchQ.toLowerCase())))
         setUsers(allUsers.filter(u =>
           u.role === 'artist' && (
             (u.username || '').toLowerCase().includes(searchQ.toLowerCase()) ||
@@ -133,15 +206,6 @@ export default function AdminPanelPage() {
           )
         ))
         setArtistAccountsList(allUsers.filter(u => u.role === 'artist'))
-      } else if (activeTab === 'albums') {
-        const data = await listAlbums(0, 200)
-        setAlbums(data.filter(a => a.title.toLowerCase().includes(searchQ.toLowerCase())))
-        try {
-          const artistData = await listArtists(0, 200)
-          setAllArtistsList(artistData)
-        } catch {
-          // silent
-        }
       }
     } catch (err) {
       console.error('Failed to load admin data tab:', err)
@@ -153,6 +217,48 @@ export default function AdminPanelPage() {
   useEffect(() => {
     loadData()
   }, [activeTab, searchQ])
+
+  // Play track helper
+  const handlePlayTrack = (track: Track, trackList: Track[], e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    if (!track.audio_url) {
+      alert('No audio file has been uploaded for this track yet.')
+      return
+    }
+    setQueue(trackList)
+    setTrack(track)
+    setIsPlaying(true)
+  }
+
+  // Play entire album helper
+  const handlePlayAlbum = (album: Album, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    const albumTracks = tracks.filter((t) => Number(t.album_id) === Number(album.id))
+    if (albumTracks.length === 0) {
+      alert('This album has no tracks yet.')
+      return
+    }
+    const playableTracks = albumTracks.filter((t) => t.audio_url)
+    if (playableTracks.length === 0) {
+      alert('None of the tracks in this album have audio uploaded yet.')
+      return
+    }
+    setQueue(playableTracks)
+    setTrack(playableTracks[0])
+    setIsPlaying(true)
+  }
+
+  // Remove track from album (Convert to Single)
+  const handleRemoveTrackFromAlbum = async (trackId: number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    if (!confirm('Remove this track from the album? (It will become a standalone Single track)')) return
+    try {
+      await updateTrack(trackId, { album_id: null })
+      loadData()
+    } catch (err: any) {
+      alert(err.message || 'Failed to remove track from album')
+    }
+  }
 
   // Track CRUD Actions
   const handleTrackSubmit = async (data: {
@@ -170,12 +276,11 @@ export default function AdminPanelPage() {
           title: data.title,
           album_id: data.album_id,
           artist_id: data.artist_id,
-          duration_seconds: data.duration_seconds
+          duration_seconds: data.duration_seconds,
         })
       } else {
         targetTrack = await createTrack(data.title, data.album_id, data.duration_seconds, data.artist_id)
       }
-
 
       if (data.audioFile) {
         setUploadingForId(targetTrack.id)
@@ -224,15 +329,14 @@ export default function AdminPanelPage() {
       await uploadTrackCover(trackId, file)
       loadData()
     } catch (err: any) {
-      alert(err.message || 'Failed to upload track cover')
+      alert(err.message || 'Failed to upload cover photo')
     } finally {
       setUploadingForId(null)
     }
   }
 
-
   // User CRUD Actions
-  const openUserModal = (user: UserType | null = null, defaultRole: string = 'user') => {
+  const openUserModal = (user: UserType | null = null, defaultRole: 'user' | 'artist' | 'admin' = 'user') => {
     setEditingUser(user)
     if (user) {
       setUserForm({ username: user.username, email: user.email, password: '', role: user.role || defaultRole })
@@ -246,17 +350,38 @@ export default function AdminPanelPage() {
     e.preventDefault()
     try {
       if (editingUser) {
-        await updateUser(editingUser.id, {
-          username: userForm.username,
-          email: userForm.email,
-          role: userForm.role
-        })
-      } else {
-        if (!userForm.password) {
-          alert('Password is required for new users')
+        if (Number(editingUser.id) === 1 || editingUser.username.toLowerCase() === 'admin') {
+          alert('Master Admin profile is read-only and cannot be updated.')
+          setUserModalOpen(false)
           return
         }
-        await createUser(userForm)
+
+        if (currentUser?.role === 'admin' && Number(currentUser.id) !== 1 && Number(editingUser.id) !== Number(currentUser.id)) {
+          alert('Secondary admins cannot modify details of other admin accounts.')
+          setUserModalOpen(false)
+          return
+        }
+
+        const payload: { username?: string; email?: string; password?: string; role?: 'user' | 'artist' | 'admin' } = {
+          username: userForm.username,
+          email: userForm.email,
+          role: userForm.role as 'user' | 'artist' | 'admin',
+        }
+        if (userForm.password) {
+          payload.password = userForm.password
+        }
+        await updateUser(editingUser.id, payload)
+      } else {
+        if (!userForm.password) {
+          alert('Password is required for creating a new user')
+          return
+        }
+        await createUser({
+          username: userForm.username,
+          email: userForm.email,
+          password: userForm.password,
+          role: userForm.role as 'user' | 'artist' | 'admin',
+        })
       }
       setUserModalOpen(false)
       loadData()
@@ -266,7 +391,20 @@ export default function AdminPanelPage() {
   }
 
   const handleUserDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this user?')) return
+    if (id === 1) {
+      alert('Master Admin account cannot be deleted')
+      return
+    }
+
+    if (currentUser?.role === 'admin' && Number(currentUser.id) !== 1 && Number(id) !== Number(currentUser.id)) {
+      const targetUser = users.find(u => Number(u.id) === Number(id))
+      if (targetUser?.role === 'admin') {
+        alert('Secondary admins cannot delete other admin accounts. Only Master Admin can delete secondary admins.')
+        return
+      }
+    }
+
+    if (!confirm('Are you sure you want to delete this account?')) return
     try {
       await deleteUser(id)
       loadData()
@@ -275,7 +413,7 @@ export default function AdminPanelPage() {
     }
   }
 
-  // Artist CRUD Actions
+  // Artist Catalog Profile Actions
   const openArtistModal = (artist: Artist | null = null) => {
     setEditingArtist(artist)
     if (artist) {
@@ -288,11 +426,11 @@ export default function AdminPanelPage() {
 
   const handleArtistSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const payload = {
-      name: artistForm.name,
-      user_id: artistForm.user_id ? Number(artistForm.user_id) : null
-    }
     try {
+      const payload = {
+        name: artistForm.name,
+        user_id: artistForm.user_id ? Number(artistForm.user_id) : null,
+      }
       if (editingArtist) {
         await updateArtist(editingArtist.id, payload)
       } else {
@@ -301,17 +439,17 @@ export default function AdminPanelPage() {
       setArtistModalOpen(false)
       loadData()
     } catch (err: any) {
-      alert(err.message || 'Failed to save artist')
+      alert(err.message || 'Failed to save artist profile')
     }
   }
 
   const handleArtistDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this artist?')) return
+    if (!confirm('Are you sure you want to delete this artist profile?')) return
     try {
       await deleteArtist(id)
       loadData()
     } catch (err: any) {
-      alert(err.message || 'Failed to delete artist')
+      alert(err.message || 'Failed to delete artist profile')
     }
   }
 
@@ -330,10 +468,16 @@ export default function AdminPanelPage() {
 
   const handleAlbumSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!albumForm.artist_id) {
+      alert('Please select an artist for the album')
+      return
+    }
+
     const payload = {
       title: albumForm.title,
-      artist_id: Number(albumForm.artist_id)
+      artist_id: Number(albumForm.artist_id),
     }
+
     try {
       let savedAlbum: Album
       if (editingAlbum) {
@@ -341,10 +485,12 @@ export default function AdminPanelPage() {
       } else {
         savedAlbum = await createAlbum(payload)
       }
+
       if (albumCoverFile) {
         setUploadingForId(savedAlbum.id)
         await uploadAlbumCover(savedAlbum.id, albumCoverFile)
       }
+
       setAlbumModalOpen(false)
       loadData()
     } catch (err: any) {
@@ -367,7 +513,7 @@ export default function AdminPanelPage() {
   }
 
   const handleAlbumDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this album?')) return
+    if (!confirm('Are you sure you want to delete this album and all its tracks?')) return
     try {
       await deleteAlbum(id)
       loadData()
@@ -376,21 +522,26 @@ export default function AdminPanelPage() {
     }
   }
 
-
   return (
     <div className="space-y-6">
-      {/* Title Header */}
-      <div className="flex items-center justify-between mb-2">
+      {/* Title Header & Action */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Admin Control Panel</h1>
-          <p className="text-sm text-subtext mt-1">Manage platform users, artists, discographies, and uploads</p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-3xl font-bold tracking-tight">Admin Console</h1>
+            <span className="px-2.5 py-0.5 rounded-full bg-spotify-green/20 text-spotify-green text-xs font-semibold uppercase">
+              {currentUser?.role || 'ADMIN'}
+            </span>
+          </div>
+          <p className="text-sm text-subtext mt-1">
+            Platform management control center for users, artists, tracks, and discographies
+          </p>
         </div>
 
-        {/* Global Tab Add Button */}
         {activeTab === 'tracks' && (
           <button
             onClick={() => { setEditingTrack(null); setTrackModalOpen(true) }}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-all hover:scale-[1.02]"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-all hover:scale-[1.02] shadow-lg shrink-0"
           >
             <Plus size={16} />
             Add Track
@@ -399,7 +550,7 @@ export default function AdminPanelPage() {
         {activeTab === 'users' && (
           <button
             onClick={() => openUserModal(null, 'user')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-all hover:scale-[1.02]"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-all hover:scale-[1.02] shadow-lg shrink-0"
           >
             <Plus size={16} />
             Add User
@@ -408,7 +559,7 @@ export default function AdminPanelPage() {
         {activeTab === 'admins' && (
           <button
             onClick={() => openUserModal(null, 'admin')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-all hover:scale-[1.02]"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-all hover:scale-[1.02] shadow-lg shrink-0"
           >
             <Plus size={16} />
             Add Admin
@@ -417,7 +568,7 @@ export default function AdminPanelPage() {
         {activeTab === 'albums' && (
           <button
             onClick={() => openAlbumModal()}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-all hover:scale-[1.02]"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-all hover:scale-[1.02] shadow-lg shrink-0"
           >
             <Plus size={16} />
             Add Album
@@ -426,46 +577,51 @@ export default function AdminPanelPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-surface-highlight mb-4 gap-2">
+      <div className="flex border-b border-surface-highlight mb-4 gap-2 overflow-x-auto scrollbar-none">
         <button
           onClick={() => { setActiveTab('tracks'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'tracks' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
-            }`}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
+            activeTab === 'tracks' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+          }`}
         >
           <Music size={16} />
-          Tracks
+          Tracks ({tracks.length})
+        </button>
+        <button
+          onClick={() => { setActiveTab('albums'); setSearchQ('') }}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
+            activeTab === 'albums' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+          }`}
+        >
+          <Disc size={16} />
+          Albums ({albums.length})
         </button>
         <button
           onClick={() => { setActiveTab('users'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'users' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
-            }`}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
+            activeTab === 'users' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+          }`}
         >
           <User size={16} />
           Users
         </button>
         <button
           onClick={() => { setActiveTab('artists'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'artists' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
-            }`}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
+            activeTab === 'artists' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+          }`}
         >
           <Radio size={16} />
           Artists
         </button>
         <button
           onClick={() => { setActiveTab('admins'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'admins' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
-            }`}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
+            activeTab === 'admins' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+          }`}
         >
           <Shield size={16} />
           Admins
-        </button>
-        <button
-          onClick={() => { setActiveTab('albums'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'albums' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
-            }`}
-        >
-          <Disc size={16} />
-          Albums
         </button>
       </div>
 
@@ -483,11 +639,12 @@ export default function AdminPanelPage() {
 
       {/* Loading state */}
       {loading ? (
-        <div className="flex items-center justify-center py-20">
+        <div className="flex flex-col items-center justify-center py-20 gap-3">
           <div className="w-8 h-8 border-2 border-spotify-green border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs text-subtext">Loading admin data...</p>
         </div>
       ) : activeTab === 'artists' ? (
-        /* ARTISTS TAB - CUSTOM DETAILED ROLE-SEPARATED DESIGN */
+        /* ARTISTS TAB - ROLE SEPARATED DESIGN */
         <div className="space-y-8 animate-in fade-in duration-200">
           {/* SECTION 1: ARTIST LOGIN ACCOUNTS */}
           <div className="space-y-3">
@@ -598,94 +755,161 @@ export default function AdminPanelPage() {
       ) : (
         /* STANDARD TAB VIEWS */
         <div className="rounded-xl border border-surface-highlight overflow-hidden bg-surface-elevated/40 animate-in fade-in duration-200">
-          {/* TRACKS TABLE */}
+          {/* TRACKS TABLE (ALL USERS, SORTED DESCENDING BY ID/DATE) */}
           {activeTab === 'tracks' && (
             <>
-              <div className="grid grid-cols-[60px_1fr_120px_120px_160px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[60px_1fr_160px_100px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>ID</span>
                 <span>Title</span>
-                <span>Album ID</span>
+                <span>Album</span>
                 <span>Duration</span>
                 <span className="text-right">Actions</span>
               </div>
               <div className="divide-y divide-surface-highlight/30">
                 {tracks.length === 0 ? (
-                  <div className="py-12 text-center text-subtext text-sm">No tracks found</div>
+                  <div className="py-16 text-center text-subtext text-sm">
+                    {searchQ ? 'No matching tracks found' : 'No tracks uploaded yet'}
+                  </div>
                 ) : (
-                  tracks.map((track) => (
-                    <div key={track.id} className="grid grid-cols-[60px_1fr_120px_120px_160px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
-                      <span className="text-sm font-semibold text-subtext tabular-nums">{track.id}</span>
-                      <div className="flex items-center gap-3 min-w-0">
-                        {track.cover_url ? (
-                          <img src={track.cover_url} alt={track.title} className="w-10 h-10 rounded-md object-cover shrink-0 shadow" />
-                        ) : (
-                          <div className="w-10 h-10 rounded-md bg-surface-highlight flex items-center justify-center shrink-0">
-                            <Music size={18} className="text-subtext/50" />
+                  tracks.map((track) => {
+                    const album = albums.find((a) => Number(a.id) === Number(track.album_id))
+                    const isCurrentPlaying = currentTrack?.id === track.id && isPlaying
+
+                    return (
+                      <div
+                        key={track.id}
+                        onClick={() => handlePlayTrack(track, tracks)}
+                        className={`grid grid-cols-[60px_1fr_160px_100px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${
+                          isCurrentPlaying
+                            ? 'bg-spotify-green/15 text-spotify-green font-semibold'
+                            : 'hover:bg-surface-highlight/20'
+                        }`}
+                      >
+                        <span className="text-sm font-semibold text-subtext tabular-nums">{track.id}</span>
+                        <div className="flex items-center gap-3 min-w-0">
+                          {track.cover_url ? (
+                            <img src={track.cover_url} alt={track.title} className="w-10 h-10 rounded-md object-cover shrink-0 shadow" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-md bg-surface-highlight flex items-center justify-center shrink-0">
+                              <Music size={18} className="text-subtext/50" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{track.title}</p>
+                            {track.artist_name && (
+                              <p className="text-xs text-subtext truncate">{track.artist_name}</p>
+                            )}
+                            {track.audio_url ? (
+                              <span className="text-[10px] text-spotify-green">Audio attached</span>
+                            ) : (
+                              <span className="text-[10px] text-subtext">No audio</span>
+                            )}
                           </div>
-                        )}
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{track.title}</p>
-                          {track.audio_url && <span className="text-[10px] text-spotify-green">Audio attached</span>}
+                        </div>
+
+                        {/* Album / Single badge */}
+                        <span className="text-sm truncate">
+                          {track.album_id ? (
+                            <span className="text-subtext font-medium">{album?.title || `Album #${track.album_id}`}</span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full bg-spotify-green/20 text-spotify-green text-xs font-semibold">
+                              Single
+                            </span>
+                          )}
+                        </span>
+
+                        <span className="text-sm text-subtext tabular-nums">
+                          {track.duration_seconds
+                            ? `${Math.floor(track.duration_seconds / 60)}:${(track.duration_seconds % 60).toString().padStart(2, '0')}`
+                            : '—'}
+                        </span>
+                        <div className="flex items-center gap-1 justify-end">
+                          {/* Play Track Button */}
+                          <button
+                            onClick={(e) => handlePlayTrack(track, tracks, e)}
+                            className="p-2 rounded-lg text-spotify-green hover:bg-spotify-green/20 transition-colors"
+                            title="Play Track"
+                          >
+                            <Play size={14} fill="currentColor" />
+                          </button>
+
+                          {/* Edit Track */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setEditingTrack(track)
+                              setTrackModalOpen(true)
+                            }}
+                            className="p-2 rounded-lg text-subtext hover:text-primary hover:bg-surface-highlight transition-colors"
+                            title="Edit Track"
+                          >
+                            <Pencil size={14} />
+                          </button>
+
+                          {/* Upload Cover */}
+                          <label
+                            onClick={(e) => e.stopPropagation()}
+                            className={`p-2 rounded-lg text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''}`}
+                            title="Upload Cover Image"
+                          >
+                            <ImageIcon size={14} />
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                if (file) openImageCropper(file, (croppedFile) => handleUploadTrackCover(track.id, croppedFile))
+                                e.target.value = ''
+                              }}
+                            />
+                          </label>
+
+                          {/* Upload Audio */}
+                          <label
+                            onClick={(e) => e.stopPropagation()}
+                            className={`p-2 rounded-lg text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''}`}
+                            title="Upload Audio File"
+                          >
+                            <Upload size={14} />
+                            <input
+                              type="file"
+                              accept="audio/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                if (file) handleUploadAudio(track.id, file)
+                                e.target.value = ''
+                              }}
+                            />
+                          </label>
+
+                          {/* Remove from Album (Convert to Single) */}
+                          {track.album_id && (
+                            <button
+                              onClick={(e) => handleRemoveTrackFromAlbum(track.id, e)}
+                              className="p-2 rounded-lg text-subtext hover:text-amber-400 hover:bg-surface-highlight transition-colors"
+                              title="Remove from Album (Convert to Single)"
+                            >
+                              <FolderMinus size={14} />
+                            </button>
+                          )}
+
+                          {/* Delete Track */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleTrackDelete(track.id)
+                            }}
+                            className="p-2 rounded-lg text-subtext hover:text-red-400 hover:bg-surface-highlight transition-colors"
+                            title="Delete Track"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                       </div>
-                      <span className="text-sm text-subtext">{track.album_id}</span>
-                      <span className="text-sm text-subtext tabular-nums">
-                        {track.duration_seconds
-                          ? `${Math.floor(track.duration_seconds / 60)}:${(track.duration_seconds % 60).toString().padStart(2, '0')}`
-                          : '—'}
-                      </span>
-                      <div className="flex items-center gap-1 justify-end">
-                        <button
-                          onClick={() => { setEditingTrack(track); setTrackModalOpen(true) }}
-                          className="p-2 rounded-lg text-subtext hover:text-primary hover:bg-surface-highlight transition-colors"
-                          title="Edit"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <label
-                          className={`p-2 rounded-lg text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''}`}
-                          title="Upload cover photo"
-                        >
-                          <ImageIcon size={14} />
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0]
-                              if (file) handleUploadTrackCover(track.id, file)
-                              e.target.value = ''
-                            }}
-                          />
-                        </label>
-                        <label
-                          className={`p-2 rounded-lg text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''
-                            }`}
-                          title="Upload audio"
-                        >
-                          <Upload size={14} />
-                          <input
-                            type="file"
-                            accept="audio/*"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0]
-                              if (file) handleUploadAudio(track.id, file)
-                              e.target.value = ''
-                            }}
-                          />
-                        </label>
-                        <button
-                          onClick={() => handleTrackDelete(track.id)}
-                          className="p-2 rounded-lg text-subtext hover:text-red-400 hover:bg-surface-highlight transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-
-                  ))
+                    )
+                  })
                 )}
               </div>
             </>
@@ -769,68 +993,282 @@ export default function AdminPanelPage() {
             </>
           )}
 
-          {/* ALBUMS TABLE */}
+          {/* ALBUMS TABLE WITH ACCORDION & SERIAL ID (ALL USERS, SORTED DESCENDING BY ID/DATE) */}
           {activeTab === 'albums' && (
             <>
-              <div className="grid grid-cols-[1fr_220px_160px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[60px_1fr_200px_110px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+                <span>ID</span>
                 <span>Album Title</span>
                 <span>Artist Profile</span>
+                <span>Tracks</span>
                 <span className="text-right">Actions</span>
               </div>
               <div className="divide-y divide-surface-highlight/30">
                 {albums.length === 0 ? (
-                  <div className="py-12 text-center text-subtext text-sm">No albums found</div>
+                  <div className="py-16 text-center text-subtext text-sm">
+                    {searchQ ? 'No matching albums found' : 'No albums created yet'}
+                  </div>
                 ) : (
-                  albums.map((al) => (
-                    <div key={al.id} className="grid grid-cols-[1fr_220px_160px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
-                      <div className="flex items-center gap-3 min-w-0">
-                        {al.cover_url ? (
-                          <img src={al.cover_url} alt={al.title} className="w-10 h-10 rounded-md object-cover shrink-0 shadow" />
-                        ) : (
-                          <div className="w-10 h-10 rounded-md bg-surface-highlight flex items-center justify-center shrink-0">
-                            <Disc size={18} className="text-subtext/50" />
+                  albums.map((al) => {
+                    const albumTracks = tracks.filter((t) => Number(t.album_id) === Number(al.id))
+                    const isExpanded = expandedAlbumIds.has(al.id)
+                    const artist = allArtistsList.find((a) => Number(a.id) === Number(al.artist_id))
+
+                    return (
+                      <div key={al.id} className="flex flex-col">
+                        {/* Album Row */}
+                        <div
+                          onClick={(e) => toggleAlbumExpand(al.id, e)}
+                          className={`grid grid-cols-[60px_1fr_200px_110px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${
+                            isExpanded ? 'bg-surface-highlight/40' : 'hover:bg-surface-highlight/20'
+                          }`}
+                        >
+                          {/* Serial ID */}
+                          <span className="text-sm font-semibold text-subtext tabular-nums">
+                            {al.id}
+                          </span>
+
+                          <div className="flex items-center gap-3 min-w-0">
+                            {/* Expand / Collapse Chevron */}
+                            <button
+                              onClick={(e) => toggleAlbumExpand(al.id, e)}
+                              className="text-subtext hover:text-primary transition-colors p-1"
+                              title={isExpanded ? 'Collapse Album' : 'Expand Album Tracks'}
+                            >
+                              {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                            </button>
+
+                            {al.cover_url ? (
+                              <img src={al.cover_url} alt={al.title} className="w-10 h-10 rounded-md object-cover shrink-0 shadow" />
+                            ) : (
+                              <div className="w-10 h-10 rounded-md bg-surface-highlight flex items-center justify-center shrink-0">
+                                <Disc size={18} className="text-subtext/50" />
+                              </div>
+                            )}
+                            <span className="text-sm font-medium truncate">{al.title}</span>
+                          </div>
+
+                          <span className="text-sm text-subtext truncate">
+                            {artist ? `${artist.name} (ID: ${artist.id})` : `Artist ID: ${al.artist_id}`}
+                          </span>
+
+                          <span className="text-sm text-subtext tabular-nums">
+                            {albumTracks.length} track{albumTracks.length === 1 ? '' : 's'}
+                          </span>
+
+                          <div className="flex items-center gap-1 justify-end">
+                            {/* Play Entire Album Button */}
+                            <button
+                              onClick={(e) => handlePlayAlbum(al, e)}
+                              className="p-2 rounded-lg text-spotify-green hover:bg-spotify-green/20 transition-colors"
+                              title="Play Entire Album"
+                            >
+                              <Play size={15} fill="currentColor" />
+                            </button>
+
+                            {/* Edit Album */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                openAlbumModal(al)
+                              }}
+                              className="p-2 rounded-lg text-subtext hover:text-primary hover:bg-surface-highlight transition-colors"
+                              title="Edit Album"
+                            >
+                              <Pencil size={14} />
+                            </button>
+
+                            {/* Upload Album Cover */}
+                            <label
+                              onClick={(e) => e.stopPropagation()}
+                              className={`p-2 rounded-lg text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${uploadingForId === al.id ? 'opacity-50 pointer-events-none' : ''}`}
+                              title="Upload Album Cover"
+                            >
+                              <ImageIcon size={14} />
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0]
+                                  if (file) openImageCropper(file, (croppedFile) => handleUploadAlbumCover(al.id, croppedFile))
+                                  e.target.value = ''
+                                }}
+                              />
+                            </label>
+
+                            {/* Delete Album */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleAlbumDelete(al.id)
+                              }}
+                              className="p-2 rounded-lg text-subtext hover:text-red-400 hover:bg-surface-highlight transition-colors"
+                              title="Delete Album"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Expanded Album Tracks Accordion Section */}
+                        {isExpanded && (
+                          <div className="bg-surface-highlight/10 border-t border-b border-surface-highlight/30 px-6 py-3 space-y-2">
+                            <div className="flex items-center justify-between pb-2 border-b border-surface-highlight/20 text-xs font-semibold text-subtext uppercase tracking-wider">
+                              <span>Tracks in "{al.title}"</span>
+                              <span>{albumTracks.length} tracks</span>
+                            </div>
+
+                            {albumTracks.length === 0 ? (
+                              <div className="py-6 text-center text-xs text-subtext">
+                                No tracks in this album yet. Click "+ Add Track" to add one!
+                              </div>
+                            ) : (
+                              <div className="divide-y divide-surface-highlight/20">
+                                {albumTracks.map((track, i) => {
+                                  const isActiveTrack = currentTrack?.id === track.id && isPlaying
+                                  return (
+                                    <div
+                                      key={track.id}
+                                      onClick={() => handlePlayTrack(track, albumTracks)}
+                                      className={`grid grid-cols-[30px_1fr_80px_180px] gap-3 items-center py-2 px-3 rounded-lg cursor-pointer transition-colors ${
+                                        isActiveTrack
+                                          ? 'bg-spotify-green/15 text-spotify-green font-semibold'
+                                          : 'hover:bg-surface-highlight/30 text-primary'
+                                      }`}
+                                    >
+                                      {/* Track Serial # */}
+                                      <span className="text-xs text-subtext tabular-nums text-center">
+                                        {i + 1}
+                                      </span>
+
+                                      {/* Track Details */}
+                                      <div className="flex items-center gap-2.5 min-w-0">
+                                        {track.cover_url || al.cover_url ? (
+                                          <img
+                                            src={track.cover_url || al.cover_url || ''}
+                                            alt={track.title}
+                                            className="w-7 h-7 rounded object-cover shrink-0 shadow"
+                                          />
+                                        ) : (
+                                          <div className="w-7 h-7 rounded bg-surface-highlight flex items-center justify-center shrink-0">
+                                            <Music size={14} className="text-subtext/50" />
+                                          </div>
+                                        )}
+                                        <div className="min-w-0">
+                                          <p className="text-xs font-medium truncate">{track.title}</p>
+                                          {track.audio_url ? (
+                                            <span className="text-[9px] text-spotify-green">Audio attached</span>
+                                          ) : (
+                                            <span className="text-[9px] text-subtext">No audio</span>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Duration */}
+                                      <span className="text-xs text-subtext tabular-nums">
+                                        {track.duration_seconds
+                                          ? `${Math.floor(track.duration_seconds / 60)}:${(track.duration_seconds % 60).toString().padStart(2, '0')}`
+                                          : '—'}
+                                      </span>
+
+                                      {/* Track Actions */}
+                                      <div className="flex items-center gap-1 justify-end">
+                                        {/* Play Track */}
+                                        <button
+                                          onClick={(e) => handlePlayTrack(track, albumTracks, e)}
+                                          className="p-1.5 rounded-md text-spotify-green hover:bg-spotify-green/20 transition-colors"
+                                          title="Play Track"
+                                        >
+                                          <Play size={13} fill="currentColor" />
+                                        </button>
+
+                                        {/* Edit Track */}
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            setEditingTrack(track)
+                                            setTrackModalOpen(true)
+                                          }}
+                                          className="p-1.5 rounded-md text-subtext hover:text-primary hover:bg-surface-highlight transition-colors"
+                                          title="Edit Track Details"
+                                        >
+                                          <Pencil size={13} />
+                                        </button>
+
+                                        {/* Upload Cover */}
+                                        <label
+                                          onClick={(e) => e.stopPropagation()}
+                                          className={`p-1.5 rounded-md text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${
+                                            uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''
+                                          }`}
+                                          title="Upload Cover Image"
+                                        >
+                                          <ImageIcon size={13} />
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                              const file = e.target.files?.[0]
+                                              if (file) openImageCropper(file, (croppedFile) => handleUploadTrackCover(track.id, croppedFile))
+                                              e.target.value = ''
+                                            }}
+                                          />
+                                        </label>
+
+                                        {/* Upload Audio */}
+                                        <label
+                                          onClick={(e) => e.stopPropagation()}
+                                          className={`p-1.5 rounded-md text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${
+                                            uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''
+                                          }`}
+                                          title="Upload Audio File"
+                                        >
+                                          <Upload size={13} />
+                                          <input
+                                            type="file"
+                                            accept="audio/*"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                              const file = e.target.files?.[0]
+                                              if (file) handleUploadAudio(track.id, file)
+                                              e.target.value = ''
+                                            }}
+                                          />
+                                        </label>
+
+                                        {/* Remove from Album (Convert to Single) */}
+                                        <button
+                                          onClick={(e) => handleRemoveTrackFromAlbum(track.id, e)}
+                                          className="p-1.5 rounded-md text-subtext hover:text-amber-400 hover:bg-surface-highlight transition-colors"
+                                          title="Remove from Album (Convert to Single)"
+                                        >
+                                          <FolderMinus size={13} />
+                                        </button>
+
+                                        {/* Delete Track */}
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleTrackDelete(track.id)
+                                          }}
+                                          className="p-1.5 rounded-md text-subtext hover:text-red-400 hover:bg-surface-highlight transition-colors"
+                                          title="Delete Track"
+                                        >
+                                          <Trash2 size={13} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )}
                           </div>
                         )}
-                        <span className="text-sm font-medium truncate">{al.title}</span>
                       </div>
-                      <span className="text-sm text-subtext">
-                        {al.artist_id ? (allArtistsList.find(a => a.id === al.artist_id)?.name ? `${allArtistsList.find(a => a.id === al.artist_id)?.name} (ID: ${al.artist_id})` : `ID: ${al.artist_id}`) : 'Unknown'}
-                      </span>
-                      <div className="flex items-center gap-1 justify-end">
-                        <button
-                          onClick={() => openAlbumModal(al)}
-                          className="p-2 rounded-lg text-subtext hover:text-primary hover:bg-surface-highlight transition-colors"
-                          title="Edit"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <label
-                          className={`p-2 rounded-lg text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${uploadingForId === al.id ? 'opacity-50 pointer-events-none' : ''}`}
-                          title="Upload album cover"
-                        >
-                          <ImageIcon size={14} />
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0]
-                              if (file) handleUploadAlbumCover(al.id, file)
-                              e.target.value = ''
-                            }}
-                          />
-                        </label>
-                        <button
-                          onClick={() => handleAlbumDelete(al.id)}
-                          className="p-2 rounded-lg text-subtext hover:text-red-400 hover:bg-surface-highlight transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-
-                  ))
+                    )
+                  })
                 )}
               </div>
             </>
@@ -841,163 +1279,166 @@ export default function AdminPanelPage() {
       {/* TRACK FORM MODAL */}
       <TrackFormModal
         isOpen={trackModalOpen}
-        onClose={() => { setTrackModalOpen(false); setEditingTrack(null) }}
+        onClose={() => {
+          setTrackModalOpen(false)
+          setEditingTrack(null)
+        }}
         onSubmit={handleTrackSubmit}
         initialData={editingTrack}
+        availableAlbums={albums}
       />
 
       {/* USER FORM MODAL */}
       {userModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <form onSubmit={handleUserSubmit} className="bg-surface-elevated rounded-xl p-6 w-full max-w-md shadow-2xl border border-surface-highlight space-y-4 text-left">
-            {(() => {
-              const isMasterAdmin = currentUser?.username === 'admin' || currentUser?.id === 1
-              const isMasterTarget = editingUser != null && (editingUser.username === 'admin' || editingUser.id === 1)
-              const isTargetAdmin = editingUser != null && editingUser.role === 'admin'
-              const isSelf = editingUser != null && editingUser.id === currentUser?.id
-              const isOtherAdmin = isTargetAdmin && !isSelf
-              const isReadOnlyModal = isMasterTarget || isOtherAdmin
+          {(() => {
+            const isMasterAdminTarget = editingUser && (Number(editingUser.id) === 1 || editingUser.username.toLowerCase() === 'admin')
+            const isSecondaryAdminEditingOtherAdmin =
+              editingUser &&
+              currentUser?.role === 'admin' &&
+              Number(currentUser.id) !== 1 &&
+              Number(editingUser.id) !== Number(currentUser.id) &&
+              editingUser.role === 'admin'
 
-              const canChangeRole = !isSelf && !isMasterTarget && !isOtherAdmin && (isMasterAdmin || !isTargetAdmin)
+            const isReadOnlyModal = Boolean(isMasterAdminTarget || isSecondaryAdminEditingOtherAdmin)
+            const canChangeRole = Boolean(!isReadOnlyModal && (Number(currentUser?.id) === 1 || editingUser?.id === currentUser?.id))
 
-              return (
-                <>
+            return (
+              <form onSubmit={handleUserSubmit} className="bg-surface-elevated rounded-xl p-6 w-full max-w-md shadow-2xl border border-surface-highlight space-y-4 text-left">
+                <div className="flex items-center justify-between">
                   <h2 className="text-lg font-bold">
-                    {isReadOnlyModal
-                      ? (isMasterTarget ? 'View Master Admin (Read-Only)' : 'View Administrator Profile (Read-Only)')
-                      : editingUser
-                        ? `Edit ${userForm.role.toUpperCase()}`
-                        : `Create ${userForm.role.toUpperCase()}`}
+                    {editingUser ? (isReadOnlyModal ? 'View Account Details (Read Only)' : 'Edit User') : 'Create User'}
                   </h2>
-
-                  <div>
-                    <label className="block text-sm font-medium text-subtext mb-1">Username</label>
-                    <input
-                      type="text"
-                      required
-                      disabled={isReadOnlyModal}
-                      readOnly={isReadOnlyModal}
-                      value={userForm.username}
-                      onChange={e => setUserForm({ ...userForm, username: e.target.value })}
-                      className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${isReadOnlyModal ? 'opacity-50 cursor-not-allowed' : ''
-                        }`}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-subtext mb-1">Email</label>
-                    <input
-                      type="email"
-                      required
-                      disabled={isReadOnlyModal}
-                      readOnly={isReadOnlyModal}
-                      value={userForm.email}
-                      onChange={e => setUserForm({ ...userForm, email: e.target.value })}
-                      className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${isReadOnlyModal ? 'opacity-50 cursor-not-allowed' : ''
-                        }`}
-                    />
-                  </div>
-
-                  {!editingUser && (
-                    <div>
-                      <label className="block text-sm font-medium text-subtext mb-1">Password</label>
-                      <input
-                        type="password"
-                        required
-                        value={userForm.password}
-                        onChange={e => setUserForm({ ...userForm, password: e.target.value })}
-                        className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors"
-                      />
-                    </div>
+                  {isReadOnlyModal && (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 uppercase">
+                      Read Only
+                    </span>
                   )}
+                </div>
 
+                {isReadOnlyModal && (
+                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 space-y-1">
+                    <p className="font-semibold">Access Restriction:</p>
+                    {isMasterAdminTarget ? (
+                      <p>Master Admin profile details are 100% read-only for security reasons.</p>
+                    ) : (
+                      <p>Admins are only permitted to edit their own profile details.</p>
+                    )}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-subtext mb-1">Username</label>
+                  <input
+                    type="text"
+                    required
+                    readOnly={isReadOnlyModal}
+                    value={userForm.username}
+                    onChange={e => setUserForm({ ...userForm, username: e.target.value })}
+                    className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${
+                      isReadOnlyModal ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-subtext mb-1">Email</label>
+                  <input
+                    type="email"
+                    required
+                    readOnly={isReadOnlyModal}
+                    value={userForm.email}
+                    onChange={e => setUserForm({ ...userForm, email: e.target.value })}
+                    className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${
+                      isReadOnlyModal ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  />
+                </div>
+
+                {!isReadOnlyModal && (
                   <div>
-                    <label className="block text-sm font-medium text-subtext mb-1">Assigned Account Role</label>
-                    <select
-                      value={userForm.role}
-                      onChange={e => setUserForm({ ...userForm, role: e.target.value })}
-                      disabled={!canChangeRole}
-                      className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors uppercase font-semibold ${!canChangeRole ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                        }`}
-                    >
-                      <option value="user">USER</option>
-                      <option value="artist">ARTIST</option>
-                      {isMasterAdmin && <option value="admin">ADMIN</option>}
-                    </select>
-
-                    {isMasterTarget && (
-                      <p className="text-xs text-amber-400 mt-1 font-medium">
-                        The master admin account profile is 100% read-only and cannot be modified.
-                      </p>
-                    )}
-                    {isOtherAdmin && !isMasterTarget && (
-                      <p className="text-xs text-amber-400 mt-1 font-medium">
-                        Administrators cannot edit details of other admin accounts.
-                      </p>
-                    )}
-                    {isSelf && isTargetAdmin && !isMasterTarget && (
-                      <p className="text-xs text-amber-400 mt-1 font-medium">
-                        You are editing your own profile. You cannot change your own admin role.
-                      </p>
-                    )}
-                    {!isMasterAdmin && !isTargetAdmin && (
-                      <p className="text-xs text-subtext mt-1">
-                        Only the master admin can promote users to Administrator.
-                      </p>
-                    )}
+                    <label className="block text-sm font-medium text-subtext mb-1">
+                      {editingUser ? 'New Password (leave empty to keep current)' : 'Password'}
+                    </label>
+                    <input
+                      type="password"
+                      required={!editingUser}
+                      value={userForm.password}
+                      onChange={e => setUserForm({ ...userForm, password: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors"
+                    />
                   </div>
+                )}
 
-                  <div className="flex gap-3 pt-2">
+                <div>
+                  <label className="block text-sm font-medium text-subtext mb-1">Role</label>
+                  <select
+                    value={userForm.role}
+                    onChange={e => setUserForm({ ...userForm, role: e.target.value })}
+                    disabled={!canChangeRole}
+                    className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors uppercase font-semibold ${
+                      !canChangeRole ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                    }`}
+                  >
+                    <option value="user">USER</option>
+                    <option value="artist">ARTIST</option>
+                    <option value="admin">ADMIN</option>
+                  </select>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setUserModalOpen(false)}
+                    className="flex-1 px-4 py-2.5 rounded-full border border-surface-highlight text-sm hover:bg-surface-highlight transition-colors"
+                  >
+                    {isReadOnlyModal ? 'Close' : 'Cancel'}
+                  </button>
+                  {!isReadOnlyModal && (
                     <button
-                      type="button"
-                      onClick={() => setUserModalOpen(false)}
-                      className="flex-1 px-4 py-2.5 rounded-full border border-surface-highlight text-sm hover:bg-surface-highlight transition-colors"
+                      type="submit"
+                      className="flex-1 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-colors"
                     >
-                      {isReadOnlyModal ? 'Close' : 'Cancel'}
+                      Save
                     </button>
-                    {!isReadOnlyModal && (
-                      <button
-                        type="submit"
-                        className="flex-1 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-colors"
-                      >
-                        Save
-                      </button>
-                    )}
-                  </div>
-                </>
-              )
-            })()}
-          </form>
+                  )}
+                </div>
+              </form>
+            )
+          })()}
         </div>
       )}
 
-      {/* ARTIST PROFILE FORM MODAL */}
+      {/* ARTIST PROFILE MODAL */}
       {artistModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <form onSubmit={handleArtistSubmit} className="bg-surface-elevated rounded-xl p-6 w-full max-w-md shadow-2xl border border-surface-highlight space-y-4 text-left">
-            <h2 className="text-lg font-bold">{editingArtist ? 'Edit Artist Profile' : 'Create Artist Profile'}</h2>
+            <h2 className="text-lg font-bold">{editingArtist ? 'Edit Artist Profile' : 'Add Artist Profile'}</h2>
             <div>
-              <label className="block text-sm font-medium text-subtext mb-1">Artist Name</label>
+              <label className="block text-sm font-medium text-subtext mb-1">Public Display Name</label>
               <input
                 type="text"
                 required
                 value={artistForm.name}
                 onChange={e => setArtistForm({ ...artistForm, name: e.target.value })}
+                placeholder="Artist or Band Name"
                 className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors"
               />
             </div>
 
-            {/* Searchable Artist Account Dropdown */}
+            {/* Searchable Artist Account Select Dropdown */}
             <div className="relative font-sans text-left" ref={artistAccountDropdownRef}>
-              <label className="block text-sm font-medium text-subtext mb-1">Link User Account (Optional)</label>
+              <label className="block text-sm font-medium text-subtext mb-1">Linked User Account (Role = ARTIST)</label>
               <div
                 onClick={() => setShowArtistAccountDropdown(!showArtistAccountDropdown)}
                 className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary cursor-pointer border-2 border-transparent hover:border-spotify-green/50 flex justify-between items-center transition-colors"
               >
                 <span className="truncate">
                   {artistForm.user_id
-                    ? artistAccountsList.find((u) => u.id === Number(artistForm.user_id))?.username || `User ID: ${artistForm.user_id}`
-                    : 'Select Artist Account...'}
+                    ? (artistAccountsList.find(u => Number(u.id) === Number(artistForm.user_id))?.username
+                      ? `${artistAccountsList.find(u => Number(u.id) === Number(artistForm.user_id))?.username} (ID: ${artistForm.user_id})`
+                      : `User ID: ${artistForm.user_id}`)
+                    : 'None (Unlinked Catalog Profile)'}
                 </span>
                 <span className="text-xs text-subtext select-none">▼</span>
               </div>
@@ -1006,7 +1447,7 @@ export default function AdminPanelPage() {
                 <div className="absolute left-0 right-0 mt-1 bg-surface-elevated border border-surface-highlight rounded-lg shadow-2xl z-50 p-2 space-y-2 max-h-60 overflow-hidden flex flex-col">
                   <input
                     type="text"
-                    placeholder="Search account..."
+                    placeholder="Search artist account..."
                     value={artistAccountSearch}
                     onChange={(e) => setArtistAccountSearch(e.target.value)}
                     className="w-full px-3 py-1.5 rounded-md bg-surface-highlight text-xs text-primary outline-none border border-transparent focus:border-spotify-green/30"
@@ -1019,9 +1460,9 @@ export default function AdminPanelPage() {
                         setShowArtistAccountDropdown(false)
                         setArtistAccountSearch('')
                       }}
-                      className="px-3 py-2 text-xs hover:bg-surface-highlight rounded-md cursor-pointer truncate text-primary flex justify-between items-center border-b border-surface-highlight/30"
+                      className="px-3 py-2 text-xs hover:bg-surface-highlight rounded-md cursor-pointer truncate text-spotify-green font-semibold"
                     >
-                      <span className="font-semibold text-subtext">Do Not Link / Clear Selection</span>
+                      None (Unlinked Catalog Profile)
                     </div>
 
                     {artistAccountsList
@@ -1039,10 +1480,11 @@ export default function AdminPanelPage() {
                           }}
                           className="px-3 py-2 text-xs hover:bg-surface-highlight rounded-md cursor-pointer truncate text-primary flex justify-between items-center"
                         >
-                          <span className="truncate mr-2">{u.username} ({u.email})</span>
+                          <span className="truncate mr-2">{u.username}</span>
                           <span className="text-[10px] text-subtext shrink-0">ID: {u.id}</span>
                         </div>
                       ))}
+
                     {artistAccountsList.filter((u) =>
                       (u.username || '').toLowerCase().includes(artistAccountSearch.toLowerCase()) ||
                       (u.email || '').toLowerCase().includes(artistAccountSearch.toLowerCase())
@@ -1111,16 +1553,15 @@ export default function AdminPanelPage() {
                   accept="image/*"
                   onChange={(e) => {
                     const file = e.target.files?.[0]
-                    if (file) {
-                      setAlbumCoverFile(file)
-                      setAlbumCoverPreview(URL.createObjectURL(file))
-                    }
+                    if (file) openImageCropper(file, (croppedFile) => {
+                      setAlbumCoverFile(croppedFile)
+                      setAlbumCoverPreview(URL.createObjectURL(croppedFile))
+                    })
                   }}
                   className="hidden"
                 />
               </div>
             </div>
-
 
             <div>
               <label className="block text-sm font-medium text-subtext mb-1">Album Title</label>
@@ -1206,6 +1647,21 @@ export default function AdminPanelPage() {
           </form>
         </div>
       )}
+
+      {/* Image Cropper Modal */}
+      <ImageCropperModal
+        isOpen={cropperOpen}
+        imageFile={cropperFile}
+        onClose={() => {
+          setCropperOpen(false)
+          setCropperFile(null)
+        }}
+        onCropComplete={(croppedFile) => {
+          if (cropCallback) cropCallback(croppedFile)
+          setCropperOpen(false)
+          setCropperFile(null)
+        }}
+      />
     </div>
   )
 }
