@@ -940,24 +940,25 @@ export default function ArtistPanelPage() {
               </label>
               <div
                 onClick={() => albumCoverInputRef.current?.click()}
-                className="relative h-32 rounded-lg border-2 border-dashed border-surface-highlight hover:border-spotify-green/50 transition-colors flex flex-col items-center justify-center cursor-pointer overflow-hidden group bg-surface-highlight/20"
+                className="relative aspect-square w-full max-h-64 mx-auto rounded-xl border-2 border-dashed border-surface-highlight hover:border-spotify-green/50 transition-colors flex flex-col items-center justify-center cursor-pointer overflow-hidden group bg-surface-highlight/20 shadow-md"
               >
                 {albumCoverPreview ? (
                   <>
                     <img
                       src={albumCoverPreview}
                       alt="Cover Preview"
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover rounded-lg"
                     />
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs font-medium gap-1">
-                      <ImageIcon size={20} />
-                      <span>Change cover image</span>
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs font-medium gap-1.5 p-4 text-center backdrop-blur-[2px]">
+                      <ImageIcon size={24} />
+                      <span>Click to change cover photo</span>
                     </div>
                   </>
                 ) : (
-                  <div className="flex flex-col items-center gap-1.5 text-subtext group-hover:text-primary transition-colors">
-                    <ImageIcon size={24} />
+                  <div className="flex flex-col items-center gap-2 text-subtext group-hover:text-primary transition-colors p-4 text-center">
+                    <ImageIcon size={32} />
                     <span className="text-xs font-medium">Click to select cover image</span>
+                    <span className="text-[10px] text-subtext/70">Square PNG or JPG recommended</span>
                   </div>
                 )}
                 <input

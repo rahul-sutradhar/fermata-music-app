@@ -163,23 +163,31 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
             </label>
             <div
               onClick={() => coverInputRef.current?.click()}
-              className="w-full border-2 border-dashed border-surface-highlight hover:border-spotify-green/50 rounded-lg p-3 flex items-center gap-3 cursor-pointer transition-colors"
+              className="relative aspect-square w-full max-h-56 mx-auto rounded-xl border-2 border-dashed border-surface-highlight hover:border-spotify-green/50 transition-colors flex flex-col items-center justify-center cursor-pointer overflow-hidden group bg-surface-highlight/20 shadow-md"
             >
               {coverPreview ? (
-                <img src={coverPreview} alt="Cover preview" className="w-12 h-12 rounded-md object-cover shrink-0 shadow" />
+                <>
+                  <img
+                    src={coverPreview}
+                    alt="Cover Preview"
+                    className="w-full h-full object-cover rounded-lg"
+                  />
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs font-medium gap-1.5 p-4 text-center backdrop-blur-[2px]">
+                    <ImageIcon size={24} />
+                    <span>Click to change track photo</span>
+                  </div>
+                </>
               ) : (
-                <div className="w-12 h-12 rounded-md bg-surface-highlight flex items-center justify-center shrink-0">
-                  <ImageIcon size={20} className="text-subtext/60" />
+                <div className="flex flex-col items-center gap-2 text-subtext group-hover:text-primary transition-colors p-4 text-center">
+                  <ImageIcon size={32} />
+                  <span className="text-xs font-medium">
+                    {coverFile ? coverFile.name : 'Click to attach track photo'}
+                  </span>
+                  <span className="text-[10px] text-subtext/70">
+                    If left empty, album cover photo will be used
+                  </span>
                 </div>
               )}
-              <div className="min-w-0 flex-1">
-                <span className="text-xs font-semibold text-primary block truncate">
-                  {coverFile ? coverFile.name : (coverPreview ? 'Click to replace track photo' : 'Attach custom track photo...')}
-                </span>
-                <span className="text-[10px] text-subtext block mt-0.5">
-                  If left empty, album cover photo will be used
-                </span>
-              </div>
               <input
                 ref={coverInputRef}
                 type="file"

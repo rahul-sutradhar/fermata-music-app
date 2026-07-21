@@ -1091,23 +1091,27 @@ export default function AdminPanelPage() {
               </label>
               <div
                 onClick={() => albumCoverInputRef.current?.click()}
-                className="w-full border-2 border-dashed border-surface-highlight hover:border-spotify-green/50 rounded-lg p-3 flex items-center gap-3 cursor-pointer transition-colors"
+                className="relative aspect-square w-full max-h-64 mx-auto rounded-xl border-2 border-dashed border-surface-highlight hover:border-spotify-green/50 transition-colors flex flex-col items-center justify-center cursor-pointer overflow-hidden group bg-surface-highlight/20 shadow-md"
               >
                 {albumCoverPreview ? (
-                  <img src={albumCoverPreview} alt="Album cover preview" className="w-12 h-12 rounded-md object-cover shrink-0 shadow" />
+                  <>
+                    <img
+                      src={albumCoverPreview}
+                      alt="Cover Preview"
+                      className="w-full h-full object-cover rounded-lg"
+                    />
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs font-medium gap-1.5 p-4 text-center backdrop-blur-[2px]">
+                      <ImageIcon size={24} />
+                      <span>Click to change album cover</span>
+                    </div>
+                  </>
                 ) : (
-                  <div className="w-12 h-12 rounded-md bg-surface-highlight flex items-center justify-center shrink-0">
-                    <ImageIcon size={20} className="text-subtext/60" />
+                  <div className="flex flex-col items-center gap-2 text-subtext group-hover:text-primary transition-colors p-4 text-center">
+                    <ImageIcon size={32} />
+                    <span className="text-xs font-medium">Click to attach album cover image</span>
+                    <span className="text-[10px] text-subtext/70">Square PNG or JPG recommended</span>
                   </div>
                 )}
-                <div className="min-w-0 flex-1">
-                  <span className="text-xs font-semibold text-primary block truncate">
-                    {albumCoverFile ? albumCoverFile.name : (albumCoverPreview ? 'Click to replace album cover' : 'Attach album cover image...')}
-                  </span>
-                  <span className="text-[10px] text-subtext block mt-0.5">
-                    Recommended square PNG or JPG
-                  </span>
-                </div>
                 <input
                   ref={albumCoverInputRef}
                   type="file"

@@ -66,7 +66,7 @@ def create_album(
     """Create a new album (Admin or owning Artist)."""
     if current_user.role != "admin":
         artist = artist_service._get_artist_or_404(db, payload.artist_id)
-        if artist.user_id != current_user.id:
+        if artist.id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
             
     return album_service.create_album(db=db, title=payload.title, artist_id=payload.artist_id)
@@ -87,13 +87,13 @@ def update_album(
     album = album_service._get_album_or_404(db, album_id)
     if current_user.role != "admin":
         artist = artist_service._get_artist_or_404(db, album.artist_id)
-        if artist.user_id != current_user.id:
+        if artist.id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
             
         # If trying to transfer ownership to another artist, verify they own that one too
         if payload.artist_id is not None and payload.artist_id != album.artist_id:
             new_artist = artist_service._get_artist_or_404(db, payload.artist_id)
-            if new_artist.user_id != current_user.id:
+            if new_artist.id != current_user.id:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot transfer album to an artist you do not own")
                 
     return album_service.update_album(db=db, album_id=album_id, title=payload.title, artist_id=payload.artist_id)
@@ -113,7 +113,7 @@ def delete_album(
     album = album_service._get_album_or_404(db, album_id)
     if current_user.role != "admin":
         artist = artist_service._get_artist_or_404(db, album.artist_id)
-        if artist.user_id != current_user.id:
+        if artist.id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
             
     album_service.delete_album(db=db, album_id=album_id)
