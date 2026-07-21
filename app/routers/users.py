@@ -74,7 +74,7 @@ def list_users(
     db: DbSession,
     current_user: CurrentAdmin,
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=200),
+    limit: int = Query(100, ge=1, le=500),
 ) -> list[UserResponse]:
     """List all users (Admin only)."""
     users = db.scalars(select(User).order_by(User.id).offset(skip).limit(limit)).all()
