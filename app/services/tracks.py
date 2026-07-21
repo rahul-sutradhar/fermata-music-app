@@ -107,7 +107,7 @@ def _ensure_unique_title(
         )
 
 
-def list_tracks(*, db: Session, skip: int, limit: int, q: str | None, artist_id: int | None = None) -> list[TrackResponse]:
+def list_tracks(*, db: Session, skip: int, limit: int, q: str | None) -> list[TrackResponse]:
     query = (
         select(Track)
         .options(
@@ -118,10 +118,6 @@ def list_tracks(*, db: Session, skip: int, limit: int, q: str | None, artist_id:
     )
     if q:
         query = query.where(Track.title.ilike(f"%{q}%"))
-    if artist_id is not None:
-        query = query.outerjoin(Track.album).where(
-            (Track.artist_id == artist_id) | (Album.artist_id == artist_id)
-        )
 
     tracks = db.scalars(query.offset(skip).limit(limit)).all()
     return [_to_response(track) for track in tracks]

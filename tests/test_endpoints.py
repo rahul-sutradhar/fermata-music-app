@@ -135,33 +135,3 @@ def test_delete_playlist(auth_client, db_session):
     assert deleted is None
 
 
-def test_list_tracks_filter_by_artist(client, db_session):
-    artist, album, tracks = seed_album_data(db_session)
-    
-    # Create another artist and track
-    other_artist = Artist(name="Other Artist")
-    db_session.add(other_artist)
-    db_session.flush()
-    other_album = Album(title="Other Album", artist_id=other_artist.id)
-    db_session.add(other_album)
-    db_session.flush()
-    other_track = Track(title="Other Track", album_id=other_album.id, duration_seconds=150)
-    db_session.add(other_track)
-    db_session.commit()
-
-    # Filter tracks by first artist (should return their 2 tracks)
-    response = client.get(f"/tracks?artist_id={artist.id}")
-    assert response.status_code == 200
-    res_tracks = response.json()
-    assert len(res_tracks) == 2
-    assert all(t["artist_id"] == artist.id for t in res_tracks)
-
-    # Filter tracks by second artist (should return 1 track)
-    response = client.get(f"/tracks?artist_id={other_artist.id}")
-    assert response.status_code == 200
-    res_tracks = response.json()
-    assert len(res_tracks) == 1
-    assert res_tracks[0]["title"] == "Other Track"
-
-
-

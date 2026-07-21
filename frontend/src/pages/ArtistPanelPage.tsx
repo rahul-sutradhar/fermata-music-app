@@ -66,8 +66,12 @@ export default function ArtistPanelPage() {
         const filteredAlbums = allAlbums.filter((al) => al.artist_id === profile!.id)
         setMyAlbums(filteredAlbums)
 
-        // 3. Fetch tracks belonging to this artist (filtered on backend by artist_id)
-        const filteredTracks = await listTracks(0, 200, undefined, profile.id)
+        // 3. Fetch tracks belonging to this artist (either via album or standalone artist_id)
+        const myAlbumIds = new Set(filteredAlbums.map((al) => al.id))
+        const allTracks = await listTracks(0, 200)
+        const filteredTracks = allTracks.filter(
+          (t) => (t.album_id && myAlbumIds.has(t.album_id)) || t.artist_id === profile!.id,
+        )
         setMyTracks(filteredTracks)
       }
     } catch (err) {
