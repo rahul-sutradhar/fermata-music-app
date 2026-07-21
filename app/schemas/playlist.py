@@ -7,10 +7,16 @@ class PlaylistCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
 
 
+class PlaylistUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+
+
 class PlaylistResponse(BaseModel):
     id: int
     name: str
     user_id: int
+    cover_url: str | None = None
+
 
 
 class PlaylistItemCreate(BaseModel):

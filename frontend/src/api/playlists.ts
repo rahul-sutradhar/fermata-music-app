@@ -39,9 +39,16 @@ export function updatePlaylistItem(playlistId: number, trackId: number, position
 export function uploadPlaylistCover(playlistId: number, file: File) {
   const formData = new FormData()
   formData.append('cover_file', file)
-  return apiRequest<CoverUploadResponse>(`/playlists/${playlistId}/cover`, {
+  return apiRequest<Playlist>(`/playlists/${playlistId}/cover`, {
     method: 'POST',
     body: formData,
+  })
+}
+
+export function updatePlaylist(playlistId: number, name: string) {
+  return apiRequest<Playlist>(`/playlists/${playlistId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ name }),
   })
 }
 
@@ -50,4 +57,5 @@ export function deletePlaylist(playlistId: number) {
     method: 'DELETE',
   })
 }
+
 

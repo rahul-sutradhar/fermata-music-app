@@ -25,7 +25,13 @@ _PLAYLIST_COVER_DIR = Path(__file__).resolve().parents[2] / "storage" / "playlis
 
 
 def _to_playlist_response(playlist: Playlist) -> PlaylistResponse:
-    return PlaylistResponse(id=playlist.id, name=playlist.name, user_id=playlist.user_id)
+    return PlaylistResponse(
+        id=playlist.id,
+        name=playlist.name,
+        user_id=playlist.user_id,
+        cover_url=playlist.cover_url,
+    )
+
 
 
 from app.core.storage import get_audio_url
@@ -201,9 +207,24 @@ def delete_playlist_item(*, db: Session, playlist_id: int, track_id: int, user_i
     db.commit()
 
 
+from app.schemas.playlist import PlaylistUpdate
+
+
+def update_playlist(*, db: Session, playlist_id: int, payload: PlaylistUpdate, user_id: int) -> PlaylistResponse:
+    playlist = _get_playlist_or_404(db, playlist_id)
+    _ensure_playlist_owner(playlist, user_id)
+
+    if payload.name is not None:
+        playlist.name = payload.name
+
+    db.commit()
+    db.refresh(playlist)
+    return _to_playlist_response(playlist)
+
+
 def save_playlist_cover(
     *, db: Session, playlist_id: int, cover_file: UploadFile, user_id: int
-) -> CoverUploadResponse:
+) -> PlaylistResponse:
     playlist = _get_playlist_or_404(db, playlist_id)
     _ensure_playlist_owner(playlist, user_id)
 
@@ -219,7 +240,11 @@ def save_playlist_cover(
     cover_path = _PLAYLIST_COVER_DIR / f"playlist-{playlist_id}{suffix}"
     cover_path.write_bytes(cover_file.file.read())
 
-    return CoverUploadResponse(filename=cover_path.name, path=str(cover_path))
+    playlist.cover_image_key = f"playlists/playlist-{playlist_id}{suffix}"
+    db.commit()
+    db.refresh(playlist)
+
+    return _to_playlist_response(playlist)
 
 
 from app.models.user import User
@@ -230,6 +255,7 @@ def delete_playlist(*, db: Session, playlist_id: int, user: User) -> None:
 
     db.delete(playlist)
     db.commit()
+
 
 
 

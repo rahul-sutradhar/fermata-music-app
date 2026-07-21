@@ -37,7 +37,9 @@ export interface Playlist {
   id: number
   name: string
   user_id: number
+  cover_url?: string | null
 }
+
 
 // Backend PlaylistItemResponse: { track: TrackResponse, position: int }
 export interface PlaylistItem {

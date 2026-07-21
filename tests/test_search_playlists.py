@@ -46,7 +46,7 @@ def test_me_playlists_returns_owned_playlists(auth_client, db_session, current_u
 
     assert response.status_code == 200
     assert response.json() == [
-        {"id": playlist.id, "name": "Favorites", "user_id": current_user.id}
+        {"id": playlist.id, "name": "Favorites", "user_id": current_user.id, "cover_url": None}
     ]
 
 
@@ -105,4 +105,6 @@ def test_playlist_cover_upload(auth_client, db_session, current_user):
     )
 
     assert response.status_code == 200
-    assert response.json()["filename"].startswith(f"playlist-{playlist.id}")
+    assert response.json()["id"] == playlist.id
+    assert response.json()["cover_url"] is not None
+
