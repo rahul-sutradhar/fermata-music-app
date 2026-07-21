@@ -91,7 +91,7 @@ export default function AdminPanelPage() {
     setLoading(true)
     try {
       // Pre-fetch all users to build userMap and avoid duplicate requests
-      const allUsers = await listUsers(0, 100)
+      const allUsers = await listUsers(0, 200)
       const map: Record<number, string> = {}
       allUsers.forEach(u => {
         map[u.id] = u.username
@@ -99,7 +99,7 @@ export default function AdminPanelPage() {
       setUserMap(map)
 
       if (activeTab === 'tracks') {
-        const data = await listTracks(0, 100, searchQ || undefined)
+        const data = await listTracks(0, 200, searchQ || undefined)
         setTracks(data)
       } else if (activeTab === 'users') {
         setUsers(allUsers.filter(u =>
@@ -116,7 +116,7 @@ export default function AdminPanelPage() {
           )
         ))
       } else if (activeTab === 'artists') {
-        const profileData = await listArtists(0, 100)
+        const profileData = await listArtists(0, 200)
         setArtists(profileData.filter(a => (a.name || '').toLowerCase().includes(searchQ.toLowerCase())))
         setUsers(allUsers.filter(u =>
           u.role === 'artist' && (
@@ -126,11 +126,12 @@ export default function AdminPanelPage() {
         ))
         setArtistAccountsList(allUsers.filter(u => u.role === 'artist'))
       } else if (activeTab === 'albums') {
-        const data = await listAlbums(0, 100)
+        const data = await listAlbums(0, 200)
         setAlbums(data.filter(a => a.title.toLowerCase().includes(searchQ.toLowerCase())))
         const artistData = await listArtists(0, 200)
         setAllArtistsList(artistData)
       }
+
     } catch (err) {
       console.error('Failed to load admin data:', err)
     } finally {
