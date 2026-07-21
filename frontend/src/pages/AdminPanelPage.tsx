@@ -556,7 +556,7 @@ export default function AdminPanelPage() {
                 Add Artist Profile
               </button>
             </div>
-             <div className="rounded-xl border border-surface-highlight overflow-hidden bg-surface-elevated/40">
+            <div className="rounded-xl border border-surface-highlight overflow-hidden bg-surface-elevated/40">
               <div className="grid grid-cols-[1fr_220px_100px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>Artist Name</span>
                 <span>Linked Account</span>
@@ -850,57 +850,71 @@ export default function AdminPanelPage() {
       {userModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <form onSubmit={handleUserSubmit} className="bg-surface-elevated rounded-xl p-6 w-full max-w-md shadow-2xl border border-surface-highlight space-y-4 text-left">
-            <h2 className="text-lg font-bold">
-              {editingUser
-                ? `Edit ${userForm.role.toUpperCase()}`
-                : `Create ${userForm.role.toUpperCase()}`}
-            </h2>
-            <div>
-              <label className="block text-sm font-medium text-subtext mb-1">Username</label>
-              <input
-                type="text"
-                required
-                disabled={editingUser?.username === 'admin'}
-                value={userForm.username}
-                onChange={e => setUserForm({ ...userForm, username: e.target.value })}
-                className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${
-                  editingUser?.username === 'admin' ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-subtext mb-1">Email</label>
-              <input
-                type="email"
-                required
-                value={userForm.email}
-                onChange={e => setUserForm({ ...userForm, email: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors"
-              />
-            </div>
-            {!editingUser && (
-              <div>
-                <label className="block text-sm font-medium text-subtext mb-1">Password</label>
-                <input
-                  type="password"
-                  required
-                  value={userForm.password}
-                  onChange={e => setUserForm({ ...userForm, password: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors"
-                />
-              </div>
-            )}
-            <div>
-              <label className="block text-sm font-medium text-subtext mb-1">Assigned Account Role</label>
-              {(() => {
-                const isMasterAdmin = currentUser?.username === 'admin' || currentUser?.id === 1
-                const isSelf = editingUser != null && editingUser.id === currentUser?.id
-                const isMasterTarget = editingUser != null && (editingUser.username === 'admin' || editingUser.id === 1)
-                const isTargetAdmin = editingUser != null && editingUser.role === 'admin'
-                const canChangeRole = !isSelf && !isMasterTarget && (isMasterAdmin || !isTargetAdmin)
+            {(() => {
+              const isMasterAdmin = currentUser?.username === 'admin' || currentUser?.id === 1
+              const isMasterTarget = editingUser != null && (editingUser.username === 'admin' || editingUser.id === 1)
+              const isTargetAdmin = editingUser != null && editingUser.role === 'admin'
+              const isSelf = editingUser != null && editingUser.id === currentUser?.id
+              const isOtherAdmin = isTargetAdmin && !isSelf
+              const isReadOnlyModal = isMasterTarget || isOtherAdmin
 
-                return (
-                  <>
+              const canChangeRole = !isSelf && !isMasterTarget && !isOtherAdmin && (isMasterAdmin || !isTargetAdmin)
+
+              return (
+                <>
+                  <h2 className="text-lg font-bold">
+                    {isReadOnlyModal
+                      ? (isMasterTarget ? 'View Master Admin (Read-Only)' : 'View Administrator Profile (Read-Only)')
+                      : editingUser
+                        ? `Edit ${userForm.role.toUpperCase()}`
+                        : `Create ${userForm.role.toUpperCase()}`}
+                  </h2>
+
+                  <div>
+                    <label className="block text-sm font-medium text-subtext mb-1">Username</label>
+                    <input
+                      type="text"
+                      required
+                      disabled={isReadOnlyModal}
+                      readOnly={isReadOnlyModal}
+                      value={userForm.username}
+                      onChange={e => setUserForm({ ...userForm, username: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${
+                        isReadOnlyModal ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-subtext mb-1">Email</label>
+                    <input
+                      type="email"
+                      required
+                      disabled={isReadOnlyModal}
+                      readOnly={isReadOnlyModal}
+                      value={userForm.email}
+                      onChange={e => setUserForm({ ...userForm, email: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${
+                        isReadOnlyModal ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                    />
+                  </div>
+
+                  {!editingUser && (
+                    <div>
+                      <label className="block text-sm font-medium text-subtext mb-1">Password</label>
+                      <input
+                        type="password"
+                        required
+                        value={userForm.password}
+                        onChange={e => setUserForm({ ...userForm, password: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-subtext mb-1">Assigned Account Role</label>
                     <select
                       value={userForm.role}
                       onChange={e => setUserForm({ ...userForm, role: e.target.value })}
@@ -913,47 +927,49 @@ export default function AdminPanelPage() {
                       <option value="artist">ARTIST</option>
                       {isMasterAdmin && <option value="admin">ADMIN</option>}
                     </select>
+
                     {isMasterTarget && (
-                      <p className="text-xs text-amber-400 mt-1">
-                        The master admin account role cannot be changed by anyone
+                      <p className="text-xs text-amber-400 mt-1 font-medium">
+                        The master admin account profile is 100% read-only and cannot be modified.
                       </p>
                     )}
-                    {isSelf && !isMasterTarget && (
-                      <p className="text-xs text-amber-400 mt-1">
-                        You cannot change your own role
+                    {isOtherAdmin && !isMasterTarget && (
+                      <p className="text-xs text-amber-400 mt-1 font-medium">
+                        Administrators cannot edit details of other admin accounts.
                       </p>
                     )}
-                    {!isMasterAdmin && isTargetAdmin && !isSelf && (
-                      <p className="text-xs text-amber-400 mt-1">
-                        Only the master admin can demote administrators
+                    {isSelf && isTargetAdmin && !isMasterTarget && (
+                      <p className="text-xs text-amber-400 mt-1 font-medium">
+                        You are editing your own profile. You cannot change your own admin role.
                       </p>
                     )}
                     {!isMasterAdmin && !isTargetAdmin && (
                       <p className="text-xs text-subtext mt-1">
-                        Only the master admin can promote users to Administrator
+                        Only the master admin can promote users to Administrator.
                       </p>
                     )}
-                  </>
-                )
-              })()}
-            </div>
+                  </div>
 
-
-            <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setUserModalOpen(false)}
-                className="flex-1 px-4 py-2.5 rounded-full border border-surface-highlight text-sm hover:bg-surface-highlight transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="flex-1 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-colors"
-              >
-                Save
-              </button>
-            </div>
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setUserModalOpen(false)}
+                      className="flex-1 px-4 py-2.5 rounded-full border border-surface-highlight text-sm hover:bg-surface-highlight transition-colors"
+                    >
+                      {isReadOnlyModal ? 'Close' : 'Cancel'}
+                    </button>
+                    {!isReadOnlyModal && (
+                      <button
+                        type="submit"
+                        className="flex-1 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-colors"
+                      >
+                        Save
+                      </button>
+                    )}
+                  </div>
+                </>
+              )
+            })()}
           </form>
         </div>
       )}

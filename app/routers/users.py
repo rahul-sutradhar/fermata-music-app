@@ -154,20 +154,21 @@ def admin_update_user(
 
     is_master_admin = (current_user.username == "admin" or current_user.id == 1)
 
-    # Protection for master admin account (by username or ID 1)
+    # 1. Master admin account is 100% read-only for everyone
     if user.username == "admin" or user_id == 1:
-        if payload.role is not None and payload.role != "admin":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot change the role of the master admin account"
-            )
-        if payload.username is not None and payload.username != "admin":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot change the username of the master admin account"
-            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The master admin account is 100% read-only and cannot be modified."
+        )
 
-    # Permission checks for non-master admins
+    # 2. Admins cannot modify details of other admin accounts
+    if user.role == "admin" and user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrators cannot modify details of other admin accounts."
+        )
+
+    # Permission checks for non-master admins promoting/demoting users
     if payload.role is not None and payload.role != user.role:
         if not is_master_admin:
             if payload.role == "admin":
