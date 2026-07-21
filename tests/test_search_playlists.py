@@ -99,12 +99,14 @@ def test_playlist_cover_upload(auth_client, db_session, current_user):
     db_session.commit()
     db_session.refresh(playlist)
 
-    response = auth_client.post(
-        f"/playlists/{playlist.id}/cover",
-        files={"cover_file": ("cover.jpg", b"fake-image-bytes", "image/jpeg")},
-    )
+    with patch("app.api.playlists.upload_file_to_s3", return_value="https://fake-s3-url.com/cover.jpg"):
+        response = auth_client.post(
+            f"/playlists/{playlist.id}/cover",
+            files={"cover_file": ("cover.jpg", b"fake-image-bytes", "image/jpeg")},
+        )
 
     assert response.status_code == 200
     assert response.json()["id"] == playlist.id
+    print("Response payload:", response.json())
     assert response.json()["cover_url"] is not None
 
