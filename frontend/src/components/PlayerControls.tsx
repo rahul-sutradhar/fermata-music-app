@@ -42,13 +42,21 @@ export default function PlayerControls({ audioRef }: Props) {
   const togglePlay = useCallback(() => {
     const audio = audioRef.current
     if (!audio) return
+
     if (isPlaying) {
       audio.pause()
+      setIsPlaying(false)
     } else {
-      audio.play().catch(() => { })
+      if (audio.ended || (durationMs > 0 && progressMs >= durationMs - 500)) {
+        audio.currentTime = 0
+        setProgressMs(0)
+      }
+      audio.play().catch((err) => {
+        console.warn('Playback fail or auto-play blocked:', err)
+      })
+      setIsPlaying(true)
     }
-    setIsPlaying(!isPlaying)
-  }, [audioRef, isPlaying, setIsPlaying])
+  }, [audioRef, isPlaying, durationMs, progressMs, setIsPlaying, setProgressMs])
 
   const handleSeek = useCallback(
     (clientX: number) => {
@@ -104,15 +112,19 @@ export default function PlayerControls({ audioRef }: Props) {
     <div className="flex flex-col items-center gap-1 w-full max-w-[600px]">
       {/* Buttons */}
       <div className="flex items-center gap-4">
-        <button
-          onClick={() => setShuffle(!shuffle)}
-          className={`p-1.5 rounded-full transition-colors ${shuffle ? 'text-spotify-green' : 'text-subtext hover:text-primary'
-            }`}
-          title="Shuffle"
-        >
-          <Shuffle size={16} />
-        </button>
+        {/* Shuffle */}
+        <div className="flex flex-col items-center">
+          <button
+            onClick={() => setShuffle(!shuffle)}
+            className={`p-1.5 rounded-full transition-colors ${shuffle ? 'text-spotify-green' : 'text-subtext hover:text-primary'}`}
+            title={shuffle ? 'Disable shuffle' : 'Enable shuffle'}
+          >
+            <Shuffle size={16} />
+          </button>
+          {shuffle && <span className="w-1 h-1 bg-spotify-green rounded-full -mt-0.5" />}
+        </div>
 
+        {/* Previous */}
         <button
           onClick={playPrevious}
           className="p-1.5 rounded-full text-subtext hover:text-primary transition-colors"
@@ -121,31 +133,37 @@ export default function PlayerControls({ audioRef }: Props) {
           <SkipBack size={18} />
         </button>
 
+        {/* Play / Pause */}
         <button
           onClick={togglePlay}
           className="w-8 h-8 rounded-full bg-primary text-inverted flex items-center justify-center hover:scale-105 transition-transform"
           title={isPlaying ? 'Pause' : 'Play'}
         >
-          {isPlaying ? <Pause size={16} /> : <Play size={16} className="ml-0.5" />}
+          {isPlaying ? <Pause size={16} /> : <Play size={16} className="ml-0.5" fill="currentColor" />}
         </button>
 
+        {/* Next */}
         <button
-          onClick={playNext}
+          onClick={() => playNext(true)}
           className="p-1.5 rounded-full text-subtext hover:text-primary transition-colors"
           title="Next"
         >
           <SkipForward size={18} />
         </button>
 
-        <button
-          onClick={cycleRepeat}
-          className={`p-1.5 rounded-full transition-colors ${repeatMode !== 'off' ? 'text-spotify-green' : 'text-subtext hover:text-primary'
-            }`}
-          title={`Repeat: ${repeatMode}`}
-        >
-          {repeatMode === 'track' ? <Repeat1 size={16} /> : <Repeat size={16} />}
-        </button>
+        {/* Repeat */}
+        <div className="flex flex-col items-center">
+          <button
+            onClick={cycleRepeat}
+            className={`p-1.5 rounded-full transition-colors ${repeatMode !== 'off' ? 'text-spotify-green' : 'text-subtext hover:text-primary'}`}
+            title={`Repeat mode: ${repeatMode}`}
+          >
+            {repeatMode === 'track' ? <Repeat1 size={16} /> : <Repeat size={16} />}
+          </button>
+          {repeatMode !== 'off' && <span className="w-1 h-1 bg-spotify-green rounded-full -mt-0.5" />}
+        </div>
       </div>
+
 
       {/* Progress Bar */}
       <div className="flex items-center gap-2 w-full">

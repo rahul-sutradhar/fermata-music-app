@@ -60,9 +60,18 @@ export default function AlbumPage() {
     <div>
       {/* Header */}
       <div className="flex items-end gap-6 mb-8">
-        <div className="w-48 h-48 rounded-lg bg-surface-highlight flex items-center justify-center shadow-2xl shrink-0">
-          <Music size={64} className="text-subtext/40" />
-        </div>
+        {album.cover_url ? (
+          <img
+            src={album.cover_url}
+            alt={album.title}
+            className="w-48 h-48 rounded-lg object-cover shadow-2xl shrink-0"
+          />
+        ) : (
+          <div className="w-48 h-48 rounded-lg bg-surface-highlight flex items-center justify-center shadow-2xl shrink-0">
+            <Music size={64} className="text-subtext/40" />
+          </div>
+        )}
+
         <div className="min-w-0">
           <p className="text-xs font-medium uppercase tracking-wider text-subtext mb-1">Album</p>
           <h1 className="text-4xl font-bold mb-2 truncate">{album.title}</h1>

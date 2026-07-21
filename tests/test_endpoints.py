@@ -33,6 +33,7 @@ def test_get_album_by_id(client, db_session):
         "title": album.title,
         "artist_id": album.artist_id,
         "artist_name": artist.name,
+        "cover_url": None,
     }
 
 
@@ -63,8 +64,9 @@ def test_get_artist_albums(client, db_session):
 
     assert response.status_code == 200
     assert response.json() == [
-        {"id": album.id, "title": album.title, "artist_id": artist.id, "artist_name": artist.name}
+        {"id": album.id, "title": album.title, "artist_id": artist.id, "artist_name": artist.name, "cover_url": None}
     ]
+
 
 
 

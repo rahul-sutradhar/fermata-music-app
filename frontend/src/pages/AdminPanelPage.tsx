@@ -1,12 +1,13 @@
 import { useEffect, useState, useRef } from 'react'
-import { Plus, Pencil, Trash2, Upload, Search, User, Music, Disc, Radio, Shield } from 'lucide-react'
-import { listTracks, createTrack, updateTrack, deleteTrack, uploadTrackAudio } from '@/api/tracks'
+import { Plus, Pencil, Trash2, Upload, Search, User, Music, Disc, Radio, Shield, Image as ImageIcon } from 'lucide-react'
+import { listTracks, createTrack, updateTrack, deleteTrack, uploadTrackAudio, uploadTrackCover } from '@/api/tracks'
 import { listUsers, createUser, updateUser, deleteUser } from '@/api/admin'
 import { listArtists, createArtist, updateArtist, deleteArtist } from '@/api/artists'
-import { listAlbums, createAlbum, updateAlbum, deleteAlbum } from '@/api/albums'
+import { listAlbums, createAlbum, updateAlbum, deleteAlbum, uploadAlbumCover } from '@/api/albums'
 import type { Track, User as UserType, Artist, Album } from '@/types'
 import { useAuthStore } from '@/store/authStore'
 import TrackFormModal from '@/components/TrackFormModal'
+
 
 type TabType = 'users' | 'artists' | 'admins' | 'albums' | 'tracks'
 
@@ -38,8 +39,11 @@ export default function AdminPanelPage() {
   const [albumModalOpen, setAlbumModalOpen] = useState(false)
   const [editingAlbum, setEditingAlbum] = useState<Album | null>(null)
   const [albumForm, setAlbumForm] = useState({ title: '', artist_id: '' })
+  const [albumCoverFile, setAlbumCoverFile] = useState<File | null>(null)
+  const [albumCoverPreview, setAlbumCoverPreview] = useState<string | null>(null)
+  const albumCoverInputRef = useRef<HTMLInputElement>(null)
 
-  // Audio upload state
+  // Audio / Cover upload state
   const [uploadingForId, setUploadingForId] = useState<number | null>(null)
 
   // Searchable artist select states for album modal
@@ -144,25 +148,29 @@ export default function AdminPanelPage() {
     album_id: number
     duration_seconds?: number
     audioFile?: File
+    coverFile?: File
   }) => {
     try {
+      let targetTrack: Track
       if (editingTrack) {
-        await updateTrack(editingTrack.id, {
+        targetTrack = await updateTrack(editingTrack.id, {
           title: data.title,
           album_id: data.album_id,
           duration_seconds: data.duration_seconds
         })
-        if (data.audioFile) {
-          setUploadingForId(editingTrack.id)
-          await uploadTrackAudio(editingTrack.id, data.audioFile)
-        }
       } else {
-        const newTrack = await createTrack(data.title, data.album_id, data.duration_seconds)
-        if (data.audioFile) {
-          setUploadingForId(newTrack.id)
-          await uploadTrackAudio(newTrack.id, data.audioFile)
-        }
+        targetTrack = await createTrack(data.title, data.album_id, data.duration_seconds)
       }
+
+      if (data.audioFile) {
+        setUploadingForId(targetTrack.id)
+        await uploadTrackAudio(targetTrack.id, data.audioFile)
+      }
+      if (data.coverFile) {
+        setUploadingForId(targetTrack.id)
+        await uploadTrackCover(targetTrack.id, data.coverFile)
+      }
+
       setTrackModalOpen(false)
       setEditingTrack(null)
       loadData()
@@ -194,6 +202,19 @@ export default function AdminPanelPage() {
       setUploadingForId(null)
     }
   }
+
+  const handleUploadTrackCover = async (trackId: number, file: File) => {
+    setUploadingForId(trackId)
+    try {
+      await uploadTrackCover(trackId, file)
+      loadData()
+    } catch (err: any) {
+      alert(err.message || 'Failed to upload track cover')
+    } finally {
+      setUploadingForId(null)
+    }
+  }
+
 
   // User CRUD Actions
   const openUserModal = (user: UserType | null = null, defaultRole: string = 'user') => {
@@ -282,6 +303,8 @@ export default function AdminPanelPage() {
   // Album CRUD Actions
   const openAlbumModal = (album: Album | null = null) => {
     setEditingAlbum(album)
+    setAlbumCoverFile(null)
+    setAlbumCoverPreview(album?.cover_url || null)
     if (album) {
       setAlbumForm({ title: album.title, artist_id: String(album.artist_id) })
     } else {
@@ -297,15 +320,34 @@ export default function AdminPanelPage() {
       artist_id: Number(albumForm.artist_id)
     }
     try {
+      let savedAlbum: Album
       if (editingAlbum) {
-        await updateAlbum(editingAlbum.id, payload)
+        savedAlbum = await updateAlbum(editingAlbum.id, payload)
       } else {
-        await createAlbum(payload)
+        savedAlbum = await createAlbum(payload)
+      }
+      if (albumCoverFile) {
+        setUploadingForId(savedAlbum.id)
+        await uploadAlbumCover(savedAlbum.id, albumCoverFile)
       }
       setAlbumModalOpen(false)
       loadData()
     } catch (err: any) {
       alert(err.message || 'Failed to save album')
+    } finally {
+      setUploadingForId(null)
+    }
+  }
+
+  const handleUploadAlbumCover = async (albumId: number, file: File) => {
+    setUploadingForId(albumId)
+    try {
+      await uploadAlbumCover(albumId, file)
+      loadData()
+    } catch (err: any) {
+      alert(err.message || 'Failed to upload album cover')
+    } finally {
+      setUploadingForId(null)
     }
   }
 
@@ -318,6 +360,7 @@ export default function AdminPanelPage() {
       alert(err.message || 'Failed to delete album')
     }
   }
+
 
   return (
     <div className="space-y-6">
@@ -543,7 +586,7 @@ export default function AdminPanelPage() {
           {/* TRACKS TABLE */}
           {activeTab === 'tracks' && (
             <>
-              <div className="grid grid-cols-[60px_1fr_120px_120px_140px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[60px_1fr_120px_120px_160px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>ID</span>
                 <span>Title</span>
                 <span>Album ID</span>
@@ -555,11 +598,20 @@ export default function AdminPanelPage() {
                   <div className="py-12 text-center text-subtext text-sm">No tracks found</div>
                 ) : (
                   tracks.map((track) => (
-                    <div key={track.id} className="grid grid-cols-[60px_1fr_120px_120px_140px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
+                    <div key={track.id} className="grid grid-cols-[60px_1fr_120px_120px_160px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
                       <span className="text-sm font-semibold text-subtext tabular-nums">{track.id}</span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{track.title}</p>
-                        {track.audio_url && <span className="text-[10px] text-spotify-green">Audio attached</span>}
+                      <div className="flex items-center gap-3 min-w-0">
+                        {track.cover_url ? (
+                          <img src={track.cover_url} alt={track.title} className="w-10 h-10 rounded-md object-cover shrink-0 shadow" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-md bg-surface-highlight flex items-center justify-center shrink-0">
+                            <Music size={18} className="text-subtext/50" />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{track.title}</p>
+                          {track.audio_url && <span className="text-[10px] text-spotify-green">Audio attached</span>}
+                        </div>
                       </div>
                       <span className="text-sm text-subtext">{track.album_id}</span>
                       <span className="text-sm text-subtext tabular-nums">
@@ -575,6 +627,22 @@ export default function AdminPanelPage() {
                         >
                           <Pencil size={14} />
                         </button>
+                        <label
+                          className={`p-2 rounded-lg text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''}`}
+                          title="Upload cover photo"
+                        >
+                          <ImageIcon size={14} />
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]
+                              if (file) handleUploadTrackCover(track.id, file)
+                              e.target.value = ''
+                            }}
+                          />
+                        </label>
                         <label
                           className={`p-2 rounded-lg text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''
                             }`}
@@ -601,6 +669,7 @@ export default function AdminPanelPage() {
                         </button>
                       </div>
                     </div>
+
                   ))
                 )}
               </div>
@@ -688,7 +757,7 @@ export default function AdminPanelPage() {
           {/* ALBUMS TABLE */}
           {activeTab === 'albums' && (
             <>
-              <div className="grid grid-cols-[1fr_220px_120px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[1fr_220px_160px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>Album Title</span>
                 <span>Artist Profile</span>
                 <span className="text-right">Actions</span>
@@ -698,8 +767,17 @@ export default function AdminPanelPage() {
                   <div className="py-12 text-center text-subtext text-sm">No albums found</div>
                 ) : (
                   albums.map((al) => (
-                    <div key={al.id} className="grid grid-cols-[1fr_220px_120px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
-                      <span className="text-sm font-medium truncate">{al.title}</span>
+                    <div key={al.id} className="grid grid-cols-[1fr_220px_160px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {al.cover_url ? (
+                          <img src={al.cover_url} alt={al.title} className="w-10 h-10 rounded-md object-cover shrink-0 shadow" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-md bg-surface-highlight flex items-center justify-center shrink-0">
+                            <Disc size={18} className="text-subtext/50" />
+                          </div>
+                        )}
+                        <span className="text-sm font-medium truncate">{al.title}</span>
+                      </div>
                       <span className="text-sm text-subtext">
                         {al.artist_id ? (allArtistsList.find(a => a.id === al.artist_id)?.name ? `${allArtistsList.find(a => a.id === al.artist_id)?.name} (ID: ${al.artist_id})` : `ID: ${al.artist_id}`) : 'Unknown'}
                       </span>
@@ -711,6 +789,22 @@ export default function AdminPanelPage() {
                         >
                           <Pencil size={14} />
                         </button>
+                        <label
+                          className={`p-2 rounded-lg text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${uploadingForId === al.id ? 'opacity-50 pointer-events-none' : ''}`}
+                          title="Upload album cover"
+                        >
+                          <ImageIcon size={14} />
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]
+                              if (file) handleUploadAlbumCover(al.id, file)
+                              e.target.value = ''
+                            }}
+                          />
+                        </label>
                         <button
                           onClick={() => handleAlbumDelete(al.id)}
                           className="p-2 rounded-lg text-subtext hover:text-red-400 hover:bg-surface-highlight transition-colors"
@@ -720,6 +814,7 @@ export default function AdminPanelPage() {
                         </button>
                       </div>
                     </div>
+
                   ))
                 )}
               </div>
@@ -925,6 +1020,47 @@ export default function AdminPanelPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <form onSubmit={handleAlbumSubmit} className="bg-surface-elevated rounded-xl p-6 w-full max-w-md shadow-2xl border border-surface-highlight space-y-4 text-left">
             <h2 className="text-lg font-bold">{editingAlbum ? 'Edit Album' : 'Create Album'}</h2>
+
+            {/* Album Cover Attachment */}
+            <div>
+              <label className="block text-sm font-medium text-subtext mb-1.5">
+                Album Cover Photo (Optional)
+              </label>
+              <div
+                onClick={() => albumCoverInputRef.current?.click()}
+                className="w-full border-2 border-dashed border-surface-highlight hover:border-spotify-green/50 rounded-lg p-3 flex items-center gap-3 cursor-pointer transition-colors"
+              >
+                {albumCoverPreview ? (
+                  <img src={albumCoverPreview} alt="Album cover preview" className="w-12 h-12 rounded-md object-cover shrink-0 shadow" />
+                ) : (
+                  <div className="w-12 h-12 rounded-md bg-surface-highlight flex items-center justify-center shrink-0">
+                    <ImageIcon size={20} className="text-subtext/60" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <span className="text-xs font-semibold text-primary block truncate">
+                    {albumCoverFile ? albumCoverFile.name : (albumCoverPreview ? 'Click to replace album cover' : 'Attach album cover image...')}
+                  </span>
+                  <span className="text-[10px] text-subtext block mt-0.5">
+                    Recommended square PNG or JPG
+                  </span>
+                </div>
+                <input
+                  ref={albumCoverInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) {
+                      setAlbumCoverFile(file)
+                      setAlbumCoverPreview(URL.createObjectURL(file))
+                    }
+                  }}
+                  className="hidden"
+                />
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-subtext mb-1">Album Title</label>
               <input
@@ -935,6 +1071,7 @@ export default function AdminPanelPage() {
                 className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors"
               />
             </div>
+
             {/* Searchable Artist Dropdown */}
             <div className="relative font-sans text-left" ref={artistDropdownRef}>
               <label className="block text-sm font-medium text-subtext mb-1">Artist</label>

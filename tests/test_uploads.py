@@ -271,3 +271,38 @@ def test_presign_and_confirm_with_different_content_types(auth_client, client, d
             assert presign_response.status_code == 200
             assert presign_response.json()["key"] == key
 
+
+def test_upload_album_cover(auth_client, db_session, sample_album):
+    """Test POST /albums/{id}/cover endpoint."""
+    with patch("app.core.storage.upload_audio_file") as mock_upload, \
+         patch("app.core.storage.get_audio_url", return_value="http://testserver/storage/albums/1/cover.png"):
+        file_data = ("cover.png", b"fake image data", "image/png")
+        response = auth_client.post(
+            f"/albums/{sample_album.id}/cover",
+            files={"file": file_data},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == sample_album.id
+        assert data["cover_url"] == "http://testserver/storage/albums/1/cover.png"
+        mock_upload.assert_called_once()
+
+
+def test_upload_track_cover(auth_client, db_session, sample_track):
+    """Test POST /tracks/{id}/cover endpoint."""
+    with patch("app.services.tracks.upload_audio_file") as mock_upload, \
+         patch("app.core.storage.get_audio_url", return_value="http://testserver/storage/tracks/1/cover.png"):
+        file_data = ("cover.png", b"fake image data", "image/png")
+        response = auth_client.post(
+            f"/tracks/{sample_track.id}/cover",
+            files={"file": file_data},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == sample_track.id
+        assert data["cover_url"] == "http://testserver/storage/tracks/1/cover.png"
+        mock_upload.assert_called_once()
+
+
+
+

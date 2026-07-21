@@ -16,6 +16,8 @@ import AudiobookPage from '@/pages/AudiobookPage'
 import ProfilePage from '@/pages/ProfilePage'
 import AdminRoute from '@/components/AdminRoute'
 import AdminPanelPage from '@/pages/AdminPanelPage'
+import ArtistRoute from '@/components/ArtistRoute'
+import ArtistPanelPage from '@/pages/ArtistPanelPage'
 import RecentsPage from '@/pages/RecentsPage'
 import NotFound from '@/pages/NotFound'
 
@@ -51,6 +53,11 @@ export default function App() {
           <Route path="profile" element={<ProfilePage />} />
         </Route>
 
+        <Route element={<ArtistRoute />}>
+          <Route path="artist-panel" element={<ArtistPanelPage />} />
+          <Route path="artist-studio" element={<ArtistPanelPage />} />
+        </Route>
+
         <Route element={<AdminRoute />}>
           <Route path="admin" element={<AdminPanelPage />} />
         </Route>
@@ -61,3 +68,4 @@ export default function App() {
     </HashRouter>
   )
 }
+

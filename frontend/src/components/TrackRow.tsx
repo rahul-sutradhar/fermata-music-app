@@ -70,18 +70,28 @@ export default function TrackRow({ track, index, tracks, onPlay }: Props) {
       </div>
 
       {/* Title */}
-      <div className="min-w-0">
-        <p className={`text-sm font-medium truncate ${isActive ? 'text-spotify-green' : ''}`}>
-          {track.title}
-        </p>
-        <p className="text-xs text-subtext truncate">
-          {track.artist_name || 'Unknown Artist'}
-          <span className="md:hidden">
-            {track.album_title ? ` • ${track.album_title}` : ''}
-            {track.duration_seconds ? ` • ${formatDuration(track.duration_seconds)}` : ''}
-          </span>
-        </p>
+      <div className="flex items-center gap-3 min-w-0">
+        {track.cover_url && (
+          <img
+            src={track.cover_url}
+            alt={track.title}
+            className="w-9 h-9 rounded object-cover shrink-0 shadow"
+          />
+        )}
+        <div className="min-w-0">
+          <p className={`text-sm font-medium truncate ${isActive ? 'text-spotify-green' : ''}`}>
+            {track.title}
+          </p>
+          <p className="text-xs text-subtext truncate">
+            {track.artist_name || 'Unknown Artist'}
+            <span className="md:hidden">
+              {track.album_title ? ` • ${track.album_title}` : ''}
+              {track.duration_seconds ? ` • ${formatDuration(track.duration_seconds)}` : ''}
+            </span>
+          </p>
+        </div>
       </div>
+
 
       {/* Album */}
       <p className="hidden md:block text-sm text-subtext truncate">{track.album_title || '—'}</p>

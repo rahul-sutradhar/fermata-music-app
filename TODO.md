@@ -208,12 +208,18 @@ Notes / Next steps:
 - [x] B2 credentials configured in `app/core` and `.env` (avoid committing secrets)
 - [x] Upload flow: server-side upload and presigned URLs (B2 S3-compatible or B2 Upload API)
 - [x] `audio_file_key` stored on `Track` model
+- [x] `cover_image_key` stored on `Album` model and `POST /albums/{id}/cover` endpoint
+- [x] `cover_image_key` stored on `Track` model with album fallback and `POST /tracks/{id}/cover` endpoint
+- [x] Single-flow cover photo attachment in Track & Album creation/edit forms
+
 - [x] Signed URL generation for playback with short expiry
 - [x] Upload content-type validation (audio/*)
 - [x] Upload size limits and content-type validation
 - [x] Lifecycle policy / cleanup for old files
 - [x] End-to-end upload/download tests
+- [ ] CDN integration for Backblaze B2 (e.g. Cloudflare / BunnyCDN) for fast global edge delivery of audio and cover photos with zero egress costs.
 - [ ] (Future) Encrypted HLS (HTTP Live Streaming) conversion using client-side WebAssembly (FFmpeg.wasm) to protect raw audio files from direct browser download/access without overloading Render Free Tier CPU.
+
 
 ---
 
@@ -262,10 +268,30 @@ Notes / Next steps:
 
 ## Backlog (ideas, not yet scheduled)
 
-- [ ] Liked tracks
-- [ ] Follow artists/users
-- [ ] Recently played history
-- [ ] Recommendations (way later)
+- [ ] Liked tracks & Follow artists/users
+- [ ] Recently played history analytics
+- [ ] **Standalone Single Tracks**: Allow artists to publish single tracks directly without requiring an album (similar to Spotify Single releases).
+- [ ] **Dynamic App Theming System**:
+  - [ ] Multi-palette themes (Spotify Green, Cyberpunk Neon, Midnight Velvet, Sunset Gold, Emerald, etc.).
+  - [ ] Global Dark / Light mode toggle common to all color themes.
+  - [ ] Admin feature to set the platform-wide "Daily Default Theme" for all users.
+- [ ] **Spotify-like Recommendation System**: Collaborative filtering and content-based recommendation engine based on user listening history, top genres, and track feature vectors.
+- [ ] **AI Music Splitter & Vocal Recording Studio** (Unique Feature):
+  - [ ] **Stem Separation Panel**: Interactive UI for selected songs allowing independent volume controls for isolated Vocals and Background Music (BGM/Instrumental).
+  - [ ] **Voice Karaoke Recorder**: In-browser audio recording (MediaRecorder API) enabling users to record their own voice live along with the playing BGM track.
+  - [ ] **Draft Track Management**: Save recorded vocal performances as private draft tracks with audio preview and mix adjustments.
+  - [ ] **Publish Flow**: Option for creators/artists to publish drafted recordings as official tracks/covers in their albums.
+- [ ] **Agentic AI Automated Music Sourcing Workflow (HITL + Auto-Ingestion)** (Unique Feature):
+  - [ ] **Missing Song Query Report**: When a user searches for a missing song, they can submit a "Report Missing Song" query request.
+  - [ ] **LLM Metadata Fetcher Agent**: LLM agent searches and fetches top 10 candidate songs with rich metadata (Artist name, track title, cover photo URL, duration).
+  - [ ] **Candidate Selection & Admin HITL Queue**: User selects their target song from candidates, submitting a request to the Admin Panel Human-in-the-Loop (HITL) approval queue.
+  - [ ] **Automated Ingestion Pipeline**: On Admin Approval, trigger background execution workflow to:
+    - Download audio via third-party download services (ssyoutube / spotdown APIs / yt-dlp).
+    - Fetch, crop, and optimize track cover photo & artist metadata.
+    - Upload audio file and cover image to Backblaze B2 / CDN.
+    - Automatically populate database tables (`Track`, `Album`, `Artist`) and notify the requesting user.
+
+
 
 ---
 

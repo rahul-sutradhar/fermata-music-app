@@ -10,6 +10,7 @@ class Album(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     artist_id: Mapped[int] = mapped_column(ForeignKey("artists.id"), nullable=False)
+    cover_image_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     artist: Mapped["Artist"] = relationship(back_populates="albums")
     tracks: Mapped[list["Track"]] = relationship(back_populates="album")
@@ -17,4 +18,10 @@ class Album(Base):
     @property
     def artist_name(self) -> str | None:
         return self.artist.name if self.artist else None
+
+    @property
+    def cover_url(self) -> str | None:
+        from app.core.storage import get_audio_url
+        return get_audio_url(self.cover_image_key) if self.cover_image_key else None
+
 

@@ -50,3 +50,13 @@ export function uploadTrackAudio(trackId: number, file: File) {
     body: formData,
   })
 }
+
+export function uploadTrackCover(trackId: number, file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return apiRequest<Track>(`/tracks/${trackId}/cover`, {
+    method: 'POST',
+    body: formData,
+  })
+}
+

@@ -14,7 +14,9 @@ import {
   X,
   UserCheck,
   History,
+  Radio,
 } from 'lucide-react'
+
 import { useAuthStore } from '@/store/authStore'
 import { useThemeStore } from '@/store/themeStore'
 import { getMyPlaylists, createPlaylist } from '@/api/playlists'
@@ -217,11 +219,18 @@ export default function Sidebar() {
               {user.username}
             </NavLink>
             {(user.role === 'artist' || user.role === 'admin') && (
+              <NavLink to="/artist-studio" className={linkClass}>
+                <Radio size={18} />
+                Artist Studio
+              </NavLink>
+            )}
+            {user.role === 'admin' && (
               <NavLink to="/admin" className={linkClass}>
                 <Settings size={18} />
                 Admin Panel
               </NavLink>
             )}
+
             <button
               onClick={handleLogout}
               className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-subtext hover:text-red-400 hover:bg-surface-highlight/50 transition-colors"

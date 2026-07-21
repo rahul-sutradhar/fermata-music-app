@@ -137,3 +137,30 @@ def update_track(
 def delete_track(track_id: int, db: DbSession, current_user: CurrentArtistOrAdmin) -> None:
     """Delete a track."""
     track_service.delete_track(db=db, track_id=track_id, user=current_user)
+
+
+@router.post(
+    "/{track_id}/cover",
+    response_model=TrackResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        400: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
+    },
+)
+def upload_track_cover(
+    track_id: int,
+    db: DbSession,
+    current_user: CurrentArtistOrAdmin,
+    file: UploadFile = File(...),
+) -> TrackResponse:
+    """Upload a cover image file for an existing track."""
+    return track_service.upload_track_cover(
+        db=db,
+        track_id=track_id,
+        file=file,
+        user=current_user,
+    )
+

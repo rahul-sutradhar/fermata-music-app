@@ -20,10 +20,12 @@ def _to_response(track: Track) -> TrackResponse:
         album_id=track.album_id,
         duration_seconds=track.duration_seconds,
         audio_url=get_audio_url(track.audio_file_key) if track.audio_file_key else None,
+        cover_url=track.cover_url,
         album_title=track.album_title,
         artist_id=track.artist_id,
         artist_name=track.artist_name,
     )
+
 
 
 def _get_track_or_404(db: Session, track_id: int) -> Track:
@@ -228,3 +230,45 @@ def set_track_audio_key(*, db: Session, track_id: int, object_key: str, user: Us
             pass
 
     return _to_response(track)
+
+
+def upload_track_cover(
+    *,
+    db: Session,
+    track_id: int,
+    file: UploadFile,
+    user: User,
+) -> TrackResponse:
+    track = _get_track_or_404(db, track_id)
+    _ensure_can_write_to_album(db, track.album_id, user)
+
+    if file.content_type is None or not file.content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file must be an image file",
+        )
+
+    extension = Path(file.filename or "").suffix or ".png"
+    object_key = f"tracks/{track.id}/cover{extension}"
+
+    try:
+        upload_audio_file(file=file, object_key=object_key)
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Storage service is unavailable",
+        ) from exc
+
+    previous_key = track.cover_image_key
+    track.cover_image_key = object_key
+    db.commit()
+    db.refresh(track)
+
+    if previous_key and previous_key != object_key:
+        try:
+            delete_audio_file(previous_key)
+        except RuntimeError:
+            pass
+
+    return _to_response(track)
+

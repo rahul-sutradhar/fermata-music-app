@@ -35,3 +35,13 @@ export function deleteAlbum(id: number) {
     method: 'DELETE',
   })
 }
+
+export function uploadAlbumCover(id: number, file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return apiRequest<Album>(`/albums/${id}/cover`, {
+    method: 'POST',
+    body: formData,
+  })
+}
+

@@ -183,8 +183,12 @@ export default function NowPlayingBar() {
       })
     } else {
       audio.pause()
+      if (audio.ended || (audio.duration && audio.currentTime >= audio.duration - 0.5)) {
+        audio.currentTime = 0
+        setProgressMs(0)
+      }
     }
-  }, [isPlaying])
+  }, [isPlaying, setProgressMs])
 
   // Progress updates
   useEffect(() => {
@@ -214,7 +218,15 @@ export default function NowPlayingBar() {
       }
     }
     const onEnded = () => {
-      playNext()
+      const state = usePlayerStore.getState()
+      if (state.repeatMode === 'track') {
+        audio.currentTime = 0
+        audio.play().catch(() => {})
+        setProgressMs(0)
+        setIsPlaying(true)
+      } else {
+        playNext(false)
+      }
     }
 
     audio.addEventListener('timeupdate', onTimeUpdate)
@@ -226,7 +238,8 @@ export default function NowPlayingBar() {
       audio.removeEventListener('loadedmetadata', onLoadedMetadata)
       audio.removeEventListener('ended', onEnded)
     }
-  }, [currentTrack, setProgressMs, setDurationMs, playNext])
+  }, [currentTrack, setProgressMs, setDurationMs, setIsPlaying, playNext])
+
 
   const toggleMute = useCallback(() => {
     setVolume(volume === 0 ? 50 : 0)
@@ -246,10 +259,18 @@ export default function NowPlayingBar() {
       <audio ref={audioRef} preload="metadata" />
 
       {/* Track Info — Left */}
-      <div className="flex items-center gap-2 md:gap-3 w-auto md:w-[240px] min-w-0 flex-1 md:flex-initial">
-        <div className="w-10 h-10 md:w-12 md:h-12 rounded-md bg-surface-highlight flex items-center justify-center shrink-0">
-          <Music size={18} className="text-subtext" />
-        </div>
+      <div className="flex items-center gap-3 min-w-0 md:w-[240px]">
+        {currentTrack.cover_url ? (
+          <img
+            src={currentTrack.cover_url}
+            alt={currentTrack.title}
+            className="w-10 h-10 md:w-12 md:h-12 rounded-md object-cover shrink-0 shadow"
+          />
+        ) : (
+          <div className="w-10 h-10 md:w-12 md:h-12 rounded-md bg-surface-highlight flex items-center justify-center shrink-0">
+            <Music size={18} className="text-subtext" />
+          </div>
+        )}
         <div className="min-w-0">
           <p className="text-xs md:text-sm font-medium truncate">{currentTrack.title}</p>
           <p className="text-[10px] md:text-xs text-subtext truncate">

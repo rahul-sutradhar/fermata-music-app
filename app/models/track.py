@@ -12,6 +12,7 @@ class Track(Base):
     album_id: Mapped[int] = mapped_column(ForeignKey("albums.id"), nullable=False)
     duration_seconds: Mapped[int | None] = mapped_column(nullable=True)
     audio_file_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    cover_image_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     album: Mapped["Album"] = relationship(back_populates="tracks")
     playlist_tracks: Mapped[list["PlaylistTrack"]] = relationship(
@@ -29,3 +30,11 @@ class Track(Base):
     @property
     def artist_name(self) -> str | None:
         return self.album.artist.name if (self.album and self.album.artist) else None
+
+    @property
+    def cover_url(self) -> str | None:
+        from app.core.storage import get_audio_url
+        if self.cover_image_key:
+            return get_audio_url(self.cover_image_key)
+        return self.album.cover_url if self.album else None
+

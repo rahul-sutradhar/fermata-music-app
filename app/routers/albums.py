@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query, status, HTTPException
+from fastapi import APIRouter, Query, status, HTTPException, File, UploadFile
 
 from app.core.deps import DbSession, CurrentArtistOrAdmin, CurrentAdmin
 from app.schemas.album import AlbumResponse, AlbumCreate, AlbumUpdate
@@ -8,6 +8,7 @@ from app.services import albums as album_service
 from app.services import artists as artist_service
 
 router = APIRouter(prefix="/albums", tags=["albums"])
+
 
 
 @router.get(
@@ -116,3 +117,30 @@ def delete_album(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
             
     album_service.delete_album(db=db, album_id=album_id)
+
+
+@router.post(
+    "/{album_id}/cover",
+    response_model=AlbumResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        400: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
+    },
+)
+def upload_album_cover(
+    album_id: int,
+    db: DbSession,
+    current_user: CurrentArtistOrAdmin,
+    file: UploadFile = File(...),
+) -> AlbumResponse:
+    """Upload a cover image file for an existing album."""
+    return album_service.upload_album_cover(
+        db=db,
+        album_id=album_id,
+        file=file,
+        user=current_user,
+    )
+

@@ -140,6 +140,7 @@ export default function HomePage() {
                 key={album.id}
                 title={album.title}
                 subtitle={album.artist_name || 'Various Artists'}
+                imageUrl={album.cover_url}
                 href={`/album/${album.id}`}
                 onPlay={() => {
                   // Play album tracks directly (handled inside Card click/play on Home)
@@ -154,12 +155,14 @@ export default function HomePage() {
                 key={album.id}
                 title={album.title}
                 subtitle={album.artist_name || 'Various Artists'}
+                imageUrl={album.cover_url}
                 href={`/album/${album.id}`}
               />
             ))}
           </CardGrid>
         </>
       )}
+
 
       {/* Your Playlists */}
       {playlists.length > 0 && (

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Upload, Music } from 'lucide-react'
+import { X, Upload, Music, Image as ImageIcon } from 'lucide-react'
 import type { Track, Album } from '@/types'
 import { listAlbums } from '@/api/albums'
 
@@ -11,17 +11,23 @@ interface Props {
     album_id: number
     duration_seconds?: number
     audioFile?: File
+    coverFile?: File
   }) => void
   initialData?: Track | null
+  availableAlbums?: Album[]
 }
 
-export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData }: Props) {
+export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData, availableAlbums }: Props) {
   const [title, setTitle] = useState('')
   const [albumId, setAlbumId] = useState('')
   const [duration, setDuration] = useState('')
   const [audioFile, setAudioFile] = useState<File | null>(null)
   const [fileName, setFileName] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const [coverFile, setCoverFile] = useState<File | null>(null)
+  const [coverPreview, setCoverPreview] = useState<string | null>(null)
+  const coverInputRef = useRef<HTMLInputElement>(null)
 
   // Searchable album dropdown states
   const [albumsList, setAlbumsList] = useState<Album[]>([])
@@ -36,22 +42,31 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData 
       setDuration(initialData.duration_seconds ? String(initialData.duration_seconds) : '')
       setAudioFile(null)
       setFileName('')
+      setCoverFile(null)
+      setCoverPreview(initialData.cover_url || null)
     } else {
       setTitle('')
       setAlbumId('')
       setDuration('')
       setAudioFile(null)
       setFileName('')
+      setCoverFile(null)
+      setCoverPreview(null)
     }
   }, [initialData, isOpen])
 
   useEffect(() => {
     if (isOpen) {
-      listAlbums(0, 200)
-        .then(setAlbumsList)
-        .catch(console.error)
+      if (availableAlbums) {
+        setAlbumsList(availableAlbums)
+      } else {
+        listAlbums(0, 200)
+          .then(setAlbumsList)
+          .catch(console.error)
+      }
     }
-  }, [isOpen])
+  }, [isOpen, availableAlbums])
+
 
   // Handle click outside to close dropdown
   useEffect(() => {
@@ -89,6 +104,15 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData 
     })
   }
 
+  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setCoverFile(file)
+    const previewUrl = URL.createObjectURL(file)
+    setCoverPreview(previewUrl)
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!albumId) {
@@ -100,8 +124,10 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData 
       album_id: Number(albumId),
       duration_seconds: duration ? Number(duration) : undefined,
       audioFile: audioFile || undefined,
+      coverFile: coverFile || undefined,
     })
   }
+
 
   const formatDuration = (secStr: string) => {
     const sec = Number(secStr)
@@ -127,6 +153,40 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData 
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Cover Photo attachment */}
+          <div>
+            <label className="block text-sm font-medium text-subtext mb-1.5">
+              Track Cover Photo (Optional)
+            </label>
+            <div
+              onClick={() => coverInputRef.current?.click()}
+              className="w-full border-2 border-dashed border-surface-highlight hover:border-spotify-green/50 rounded-lg p-3 flex items-center gap-3 cursor-pointer transition-colors"
+            >
+              {coverPreview ? (
+                <img src={coverPreview} alt="Cover preview" className="w-12 h-12 rounded-md object-cover shrink-0 shadow" />
+              ) : (
+                <div className="w-12 h-12 rounded-md bg-surface-highlight flex items-center justify-center shrink-0">
+                  <ImageIcon size={20} className="text-subtext/60" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <span className="text-xs font-semibold text-primary block truncate">
+                  {coverFile ? coverFile.name : (coverPreview ? 'Click to replace track photo' : 'Attach custom track photo...')}
+                </span>
+                <span className="text-[10px] text-subtext block mt-0.5">
+                  If left empty, album cover photo will be used
+                </span>
+              </div>
+              <input
+                ref={coverInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleCoverChange}
+                className="hidden"
+              />
+            </div>
+          </div>
+
           {/* File attachment */}
           <div>
             <label className="block text-sm font-medium text-subtext mb-1.5">
@@ -152,6 +212,7 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData 
               />
             </div>
           </div>
+
 
           <div>
             <label className="block text-sm font-medium text-subtext mb-1.5">

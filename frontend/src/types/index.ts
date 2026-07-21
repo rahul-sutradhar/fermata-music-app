@@ -16,6 +16,7 @@ export interface Album {
   title: string
   artist_id: number
   artist_name?: string
+  cover_url?: string | null
 }
 
 export interface Track {
@@ -24,11 +25,13 @@ export interface Track {
   album_id: number
   duration_seconds: number | null
   audio_url?: string | null
+  cover_url?: string | null
   // These fields may be provided by enriched/search endpoints but not by core TrackResponse
   album_title?: string
   artist_id?: number
   artist_name?: string
 }
+
 
 export interface Playlist {
   id: number
