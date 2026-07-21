@@ -71,6 +71,13 @@ export interface LibraryItem {
   added_at: string
 }
 
+// Backend LikedAlbumResponse: { id, album_id, added_at }
+export interface LikedAlbum {
+  id: number
+  album_id: number
+  added_at: string
+}
+
 export interface TopItem {
   id: number
   name: string

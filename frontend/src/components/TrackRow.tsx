@@ -1,8 +1,9 @@
-import { Play, Pause, MoreHorizontal, Clock } from 'lucide-react'
-import { useState } from 'react'
+import { Play, Pause, MoreHorizontal, Clock, Heart } from 'lucide-react'
+import { useState, useEffect } from 'react'
 import { usePlayerStore } from '@/store/playerStore'
 import type { Track } from '@/types'
 import AddToPlaylistMenu from './AddToPlaylistMenu'
+import { checkLibrary, addToLibrary, removeFromLibrary } from '@/api/library'
 
 function formatDuration(seconds: number | null) {
   if (!seconds) return '--:--'
@@ -25,9 +26,42 @@ export default function TrackRow({ track, index, tracks, onPlay }: Props) {
   const setQueue = usePlayerStore((s) => s.setQueue)
   const setIsPlaying = usePlayerStore((s) => s.setIsPlaying)
   const [showMenu, setShowMenu] = useState(false)
+  const [liked, setLiked] = useState<boolean | null>(null)
+  const [liking, setLiking] = useState(false)
 
   const isActive = currentTrack?.id === track.id
   const isCurrentlyPlaying = isActive && isPlaying
+
+  // Check if this track is in the library on mount
+  useEffect(() => {
+    let cancelled = false
+    checkLibrary([track.id])
+      .then((res) => { if (!cancelled) setLiked(res[track.id] ?? false) })
+      .catch(() => { if (!cancelled) setLiked(false) })
+    return () => { cancelled = true }
+  }, [track.id])
+
+  const handleToggleLike = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (liking || liked === null) return
+    setLiking(true)
+    try {
+      if (liked) {
+        await removeFromLibrary([track.id])
+        setLiked(false)
+        // Notify Library page to refresh
+        window.dispatchEvent(new Event('library-updated'))
+      } else {
+        await addToLibrary([track.id])
+        setLiked(true)
+        window.dispatchEvent(new Event('library-updated'))
+      }
+    } catch {
+      // silent
+    } finally {
+      setLiking(false)
+    }
+  }
 
   const handlePlay = () => {
     if (isActive) {
@@ -44,7 +78,7 @@ export default function TrackRow({ track, index, tracks, onPlay }: Props) {
 
   return (
     <div
-      className={`group grid grid-cols-[32px_1fr_40px] md:grid-cols-[32px_1fr_1fr_80px_40px] gap-2 md:gap-4 items-center px-2 md:px-4 py-2 rounded-md transition-colors cursor-pointer ${
+      className={`group grid grid-cols-[32px_1fr_32px_40px] md:grid-cols-[32px_1fr_1fr_32px_80px_40px] gap-2 md:gap-4 items-center px-2 md:px-4 py-2 rounded-md transition-colors cursor-pointer ${
         isActive ? 'bg-surface-highlight/80' : 'hover:bg-surface-highlight/50'
       }`}
       onClick={handlePlay}
@@ -92,10 +126,20 @@ export default function TrackRow({ track, index, tracks, onPlay }: Props) {
         </div>
       </div>
 
-
       {/* Album */}
       <p className="hidden md:block text-sm text-subtext truncate">{track.album_title || 'Single'}</p>
 
+      {/* Heart / Like button */}
+      <button
+        onClick={handleToggleLike}
+        disabled={liking || liked === null}
+        title={liked ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
+        className={`flex items-center justify-center transition-all duration-150 opacity-0 group-hover:opacity-100 ${
+          liked ? 'opacity-100 text-spotify-green' : 'text-subtext hover:text-spotify-green'
+        } ${liking ? 'animate-pulse' : ''}`}
+      >
+        <Heart size={15} fill={liked ? 'currentColor' : 'none'} />
+      </button>
 
       {/* Duration */}
       <span className="hidden md:block text-sm text-subtext tabular-nums text-right">
@@ -126,10 +170,11 @@ export default function TrackRow({ track, index, tracks, onPlay }: Props) {
 
 export function TrackListHeader() {
   return (
-    <div className="grid grid-cols-[32px_1fr_40px] md:grid-cols-[32px_1fr_1fr_80px_40px] gap-2 md:gap-4 items-center px-2 md:px-4 py-2 border-b border-surface-highlight text-xs text-subtext uppercase tracking-wider">
+    <div className="grid grid-cols-[32px_1fr_32px_40px] md:grid-cols-[32px_1fr_1fr_32px_80px_40px] gap-2 md:gap-4 items-center px-2 md:px-4 py-2 border-b border-surface-highlight text-xs text-subtext uppercase tracking-wider">
       <span className="text-center">#</span>
       <span>Title</span>
       <span className="hidden md:block">Album</span>
+      <span />
       <span className="hidden md:flex text-right items-center justify-end gap-1">
         <Clock size={14} />
       </span>

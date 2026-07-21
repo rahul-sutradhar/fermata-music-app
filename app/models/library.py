@@ -25,3 +25,22 @@ class UserLibrary(Base):
 
     def __repr__(self) -> str:
         return f"<UserLibrary user_id={self.user_id} track_id={self.track_id}>"
+
+
+class UserLikedAlbum(Base):
+    """Join table for user-liked albums."""
+
+    __tablename__ = "user_liked_albums"
+    __table_args__ = (UniqueConstraint("user_id", "album_id", name="uq_user_album"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    album_id: Mapped[int] = mapped_column(ForeignKey("albums.id", ondelete="CASCADE"))
+    added_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+    user = relationship("User")
+    album = relationship("Album")
+
+    def __repr__(self) -> str:
+        return f"<UserLikedAlbum user_id={self.user_id} album_id={self.album_id}>"
+
