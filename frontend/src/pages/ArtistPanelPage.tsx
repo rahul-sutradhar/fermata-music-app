@@ -357,13 +357,15 @@ export default function ArtistPanelPage() {
   }
 
   // Search filtering
-  const displayedTracks = myTracks.filter((t) =>
-    t.title.toLowerCase().includes(searchQ.toLowerCase()),
-  )
+  // Search filtering & Alphabetical sorting
+  const displayedTracks = [...myTracks]
+    .filter((t) => t.title.toLowerCase().includes(searchQ.toLowerCase()))
+    .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }))
 
-  const displayedAlbums = myAlbums.filter((al) =>
-    al.title.toLowerCase().includes(searchQ.toLowerCase()),
-  )
+  const displayedAlbums = [...myAlbums]
+    .filter((al) => al.title.toLowerCase().includes(searchQ.toLowerCase()))
+    .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }))
+
 
   return (
     <div className="space-y-6">
@@ -463,7 +465,7 @@ export default function ArtistPanelPage() {
           {activeTab === 'tracks' && (
             <>
               <div className="grid grid-cols-[60px_1fr_160px_100px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
-                <span>ID</span>
+                <span>#</span>
                 <span>Title</span>
                 <span>Album</span>
                 <span>Duration</span>
@@ -475,7 +477,7 @@ export default function ArtistPanelPage() {
                     {searchQ ? 'No matching tracks found' : 'You haven’t uploaded any tracks yet'}
                   </div>
                 ) : (
-                  displayedTracks.map((track) => {
+                  displayedTracks.map((track, index) => {
                     const album = myAlbums.find((a) => Number(a.id) === Number(track.album_id))
                     const isCurrentPlaying = currentTrack?.id === track.id && isPlaying
 
@@ -490,8 +492,9 @@ export default function ArtistPanelPage() {
                         }`}
                       >
                         <span className="text-sm font-semibold text-subtext tabular-nums">
-                          {track.id}
+                          {index + 1}
                         </span>
+
 
                         <div className="flex items-center gap-3 min-w-0">
                           {track.cover_url ? (
@@ -631,7 +634,7 @@ export default function ArtistPanelPage() {
           {activeTab === 'albums' && (
             <>
               <div className="grid grid-cols-[60px_1fr_120px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
-                <span>ID</span>
+                <span>#</span>
                 <span>Album Title</span>
                 <span>Track Count</span>
                 <span className="text-right">Actions</span>
@@ -642,7 +645,7 @@ export default function ArtistPanelPage() {
                     {searchQ ? 'No matching albums found' : 'You haven’t created any albums yet'}
                   </div>
                 ) : (
-                  displayedAlbums.map((al) => {
+                  displayedAlbums.map((al, index) => {
                     const albumTracks = myTracks.filter((t) => Number(t.album_id) === Number(al.id))
                     const isExpanded = expandedAlbumIds.has(al.id)
 
@@ -657,8 +660,9 @@ export default function ArtistPanelPage() {
                         >
                           {/* Serial ID */}
                           <span className="text-sm font-semibold text-subtext tabular-nums">
-                            {al.id}
+                            {index + 1}
                           </span>
+
 
                           <div className="flex items-center gap-3 min-w-0">
                             {/* Expand / Collapse Chevron */}
@@ -758,12 +762,15 @@ export default function ArtistPanelPage() {
                               </div>
                             ) : (
                               <div className="divide-y divide-surface-highlight/20">
-                                {albumTracks.map((track, i) => {
-                                  const isActiveTrack = currentTrack?.id === track.id && isPlaying
-                                  return (
-                                    <div
-                                      key={track.id}
-                                      onClick={() => handlePlayTrack(track, albumTracks)}
+                                {[...albumTracks]
+                                  .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }))
+                                  .map((track, i) => {
+                                    const isActiveTrack = currentTrack?.id === track.id && isPlaying
+                                    return (
+                                      <div
+                                        key={track.id}
+                                        onClick={() => handlePlayTrack(track, albumTracks)}
+
                                       className={`grid grid-cols-[30px_1fr_80px_180px] gap-3 items-center py-2 px-3 rounded-lg cursor-pointer transition-colors ${
                                         isActiveTrack
                                           ? 'bg-spotify-green/15 text-spotify-green font-semibold'

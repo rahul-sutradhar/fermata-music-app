@@ -580,45 +580,40 @@ export default function AdminPanelPage() {
       <div className="flex border-b border-surface-highlight mb-4 gap-2 overflow-x-auto scrollbar-none">
         <button
           onClick={() => { setActiveTab('tracks'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
-            activeTab === 'tracks' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
-          }`}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'tracks' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+            }`}
         >
           <Music size={16} />
           Tracks ({tracks.length})
         </button>
         <button
           onClick={() => { setActiveTab('albums'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
-            activeTab === 'albums' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
-          }`}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'albums' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+            }`}
         >
           <Disc size={16} />
           Albums ({albums.length})
         </button>
         <button
           onClick={() => { setActiveTab('users'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
-            activeTab === 'users' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
-          }`}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'users' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+            }`}
         >
           <User size={16} />
           Users
         </button>
         <button
           onClick={() => { setActiveTab('artists'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
-            activeTab === 'artists' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
-          }`}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'artists' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+            }`}
         >
           <Radio size={16} />
           Artists
         </button>
         <button
           onClick={() => { setActiveTab('admins'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
-            activeTab === 'admins' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
-          }`}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'admins' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+            }`}
         >
           <Shield size={16} />
           Admins
@@ -779,11 +774,10 @@ export default function AdminPanelPage() {
                       <div
                         key={track.id}
                         onClick={() => handlePlayTrack(track, tracks)}
-                        className={`grid grid-cols-[60px_1fr_160px_100px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${
-                          isCurrentPlaying
+                        className={`grid grid-cols-[60px_1fr_160px_100px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${isCurrentPlaying
                             ? 'bg-spotify-green/15 text-spotify-green font-semibold'
                             : 'hover:bg-surface-highlight/20'
-                        }`}
+                          }`}
                       >
                         <span className="text-sm font-semibold text-subtext tabular-nums">{track.id}</span>
                         <div className="flex items-center gap-3 min-w-0">
@@ -1019,9 +1013,8 @@ export default function AdminPanelPage() {
                         {/* Album Row */}
                         <div
                           onClick={(e) => toggleAlbumExpand(al.id, e)}
-                          className={`grid grid-cols-[60px_1fr_200px_110px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${
-                            isExpanded ? 'bg-surface-highlight/40' : 'hover:bg-surface-highlight/20'
-                          }`}
+                          className={`grid grid-cols-[60px_1fr_200px_110px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${isExpanded ? 'bg-surface-highlight/40' : 'hover:bg-surface-highlight/20'
+                            }`}
                         >
                           {/* Serial ID */}
                           <span className="text-sm font-semibold text-subtext tabular-nums">
@@ -1131,11 +1124,10 @@ export default function AdminPanelPage() {
                                     <div
                                       key={track.id}
                                       onClick={() => handlePlayTrack(track, albumTracks)}
-                                      className={`grid grid-cols-[30px_1fr_80px_180px] gap-3 items-center py-2 px-3 rounded-lg cursor-pointer transition-colors ${
-                                        isActiveTrack
+                                      className={`grid grid-cols-[30px_1fr_80px_180px] gap-3 items-center py-2 px-3 rounded-lg cursor-pointer transition-colors ${isActiveTrack
                                           ? 'bg-spotify-green/15 text-spotify-green font-semibold'
                                           : 'hover:bg-surface-highlight/30 text-primary'
-                                      }`}
+                                        }`}
                                     >
                                       {/* Track Serial # */}
                                       <span className="text-xs text-subtext tabular-nums text-center">
@@ -1199,9 +1191,8 @@ export default function AdminPanelPage() {
                                         {/* Upload Cover */}
                                         <label
                                           onClick={(e) => e.stopPropagation()}
-                                          className={`p-1.5 rounded-md text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${
-                                            uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''
-                                          }`}
+                                          className={`p-1.5 rounded-md text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''
+                                            }`}
                                           title="Upload Cover Image"
                                         >
                                           <ImageIcon size={13} />
@@ -1220,9 +1211,8 @@ export default function AdminPanelPage() {
                                         {/* Upload Audio */}
                                         <label
                                           onClick={(e) => e.stopPropagation()}
-                                          className={`p-1.5 rounded-md text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${
-                                            uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''
-                                          }`}
+                                          className={`p-1.5 rounded-md text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''
+                                            }`}
                                           title="Upload Audio File"
                                         >
                                           <Upload size={13} />
@@ -1335,9 +1325,8 @@ export default function AdminPanelPage() {
                     readOnly={isReadOnlyModal}
                     value={userForm.username}
                     onChange={e => setUserForm({ ...userForm, username: e.target.value })}
-                    className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${
-                      isReadOnlyModal ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
+                    className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${isReadOnlyModal ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
                   />
                 </div>
 
@@ -1349,9 +1338,8 @@ export default function AdminPanelPage() {
                     readOnly={isReadOnlyModal}
                     value={userForm.email}
                     onChange={e => setUserForm({ ...userForm, email: e.target.value })}
-                    className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${
-                      isReadOnlyModal ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
+                    className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${isReadOnlyModal ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
                   />
                 </div>
 
@@ -1376,9 +1364,8 @@ export default function AdminPanelPage() {
                     value={userForm.role}
                     onChange={e => setUserForm({ ...userForm, role: e.target.value })}
                     disabled={!canChangeRole}
-                    className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors uppercase font-semibold ${
-                      !canChangeRole ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                    }`}
+                    className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors uppercase font-semibold ${!canChangeRole ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                      }`}
                   >
                     <option value="user">USER</option>
                     <option value="artist">ARTIST</option>
