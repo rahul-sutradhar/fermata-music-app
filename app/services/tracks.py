@@ -62,12 +62,12 @@ def _ensure_can_write_to_track_target(
             )
         from app.services.artists import _get_artist_or_404
         artist = _get_artist_or_404(db, album.artist_id)
-        if artist.user_id != user.id:
+        if artist.id != user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
     elif artist_id is not None:
         from app.services.artists import _get_artist_or_404
         artist = _get_artist_or_404(db, artist_id)
-        if artist.user_id != user.id:
+        if artist.id != user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
     else:
         raise HTTPException(

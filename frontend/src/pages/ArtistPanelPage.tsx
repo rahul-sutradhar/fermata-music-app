@@ -1,8 +1,8 @@
 import { useEffect, useState, useRef } from 'react'
 import { Plus, Pencil, Trash2, Upload, Search, Music, Disc, Image as ImageIcon, Sparkles } from 'lucide-react'
 import { listTracks, createTrack, updateTrack, deleteTrack, uploadTrackAudio, uploadTrackCover } from '@/api/tracks'
-import { listArtists, createArtist } from '@/api/artists'
-import { listAlbums, createAlbum, updateAlbum, deleteAlbum, uploadAlbumCover } from '@/api/albums'
+import { listArtists, createArtist, getArtistSingles } from '@/api/artists'
+import { listAlbums, createAlbum, updateAlbum, deleteAlbum, uploadAlbumCover, getAlbumTracks } from '@/api/albums'
 import type { Track, Artist, Album } from '@/types'
 import { useAuthStore } from '@/store/authStore'
 import TrackFormModal from '@/components/TrackFormModal'
@@ -44,7 +44,9 @@ export default function ArtistPanelPage() {
     try {
       // 1. Fetch artist profile linked to current user
       const allArtists = await listArtists(0, 200)
-      let profile = allArtists.find((a) => a.user_id === currentUser.id)
+      let profile = allArtists.find(
+        (a) => Number(a.user_id) === Number(currentUser.id) || Number(a.id) === Number(currentUser.id)
+      )
 
       if (!profile) {
         // Attempt to auto-create profile if missing
@@ -63,16 +65,46 @@ export default function ArtistPanelPage() {
       if (profile) {
         // 2. Fetch albums belonging to this artist
         const allAlbums = await listAlbums(0, 200)
-        const filteredAlbums = allAlbums.filter((al) => al.artist_id === profile!.id)
+        const filteredAlbums = allAlbums.filter((al) => Number(al.artist_id) === Number(profile!.id))
         setMyAlbums(filteredAlbums)
 
-        // 3. Fetch tracks belonging to this artist (either via album or standalone artist_id)
-        const myAlbumIds = new Set(filteredAlbums.map((al) => al.id))
-        const allTracks = await listTracks(0, 200)
-        const filteredTracks = allTracks.filter(
-          (t) => (t.album_id && myAlbumIds.has(t.album_id)) || t.artist_id === profile!.id,
+        // 3. Fetch tracks belonging to this artist
+        // A. Fetch tracks from each album owned by the artist
+        const albumTracksPromises = filteredAlbums.map((al) =>
+          getAlbumTracks(al.id, 0, 100).catch(() => [] as Track[]),
         )
-        setMyTracks(filteredTracks)
+        // B. Fetch standalone single tracks for this artist
+        const singlesPromise = getArtistSingles(profile.id, 0, 100).catch(() => [] as Track[])
+        // C. Fetch global tracks list as safety net
+        const allTracksPromise = listTracks(0, 200).catch(() => [] as Track[])
+
+        const [albumTrackGroups, singles, allTracks] = await Promise.all([
+          Promise.all(albumTracksPromises),
+          singlesPromise,
+          allTracksPromise,
+        ])
+
+        const myAlbumIds = new Set(filteredAlbums.map((al) => Number(al.id)))
+        const trackMap = new Map<number, Track>()
+
+        // Add album tracks
+        albumTrackGroups.flat().forEach((t) => trackMap.set(t.id, t))
+
+        // Add singles
+        singles.forEach((t) => trackMap.set(t.id, t))
+
+        // Add any matching tracks from global list
+        allTracks.forEach((t) => {
+          if (
+            (t.album_id && myAlbumIds.has(Number(t.album_id))) ||
+            (t.artist_id && Number(t.artist_id) === Number(profile!.id)) ||
+            (t.artist_name && t.artist_name.toLowerCase() === profile!.name.toLowerCase())
+          ) {
+            trackMap.set(t.id, t)
+          }
+        })
+
+        setMyTracks(Array.from(trackMap.values()))
       }
     } catch (err) {
       console.error('Failed to load artist panel data:', err)

@@ -110,7 +110,7 @@ def upload_album_cover(
     if user.role != "admin":
         from app.services.artists import _get_artist_or_404
         artist = _get_artist_or_404(db, album.artist_id)
-        if artist.user_id != user.id:
+        if artist.id != user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
 
     if file.content_type is None or not file.content_type.startswith("image/"):
