@@ -8,24 +8,19 @@ from app.routers import uploads
 from app.middleware.rate_limiter import RateLimitMiddleware
 
 from contextlib import asynccontextmanager
+from alembic import command
+from alembic.config import Config
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        from sqlalchemy import text
-        from app.db.session import SessionLocal
-        db = SessionLocal()
-        try:
-            db.execute(text("ALTER TABLE albums ADD COLUMN IF NOT EXISTS cover_image_key VARCHAR(512);"))
-            db.execute(text("ALTER TABLE tracks ADD COLUMN IF NOT EXISTS cover_image_key VARCHAR(512);"))
-            db.execute(text("ALTER TABLE tracks ADD COLUMN IF NOT EXISTS artist_id INTEGER REFERENCES artists(id) ON DELETE CASCADE;"))
-            db.execute(text("ALTER TABLE tracks ALTER COLUMN album_id DROP NOT NULL;"))
-            db.commit()
-        finally:
-            db.close()
+        alembic_cfg = Config("alembic.ini")
+        command.upgrade(alembic_cfg, "head")
     except Exception as exc:
-        print(f"Startup schema sync note: {exc}")
+        print(f"Alembic auto-migration startup warning: {exc}")
     yield
+
 
 
 app = FastAPI(
