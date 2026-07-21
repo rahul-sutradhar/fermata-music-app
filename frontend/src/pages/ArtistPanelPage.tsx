@@ -38,6 +38,22 @@ import ImageCropperModal from '@/components/ImageCropperModal'
 
 type TabType = 'tracks' | 'albums'
 
+function formatDate(dateStr?: string | null): string {
+  if (!dateStr) return '—'
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return '—'
+    return d.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+  } catch {
+    return '—'
+  }
+}
+
+
 export default function ArtistPanelPage() {
   const currentUser = useAuthStore((s) => s.user)
   const [activeTab, setActiveTab] = useState<TabType>('tracks')
@@ -464,10 +480,12 @@ export default function ArtistPanelPage() {
           {/* TRACKS TABLE */}
           {activeTab === 'tracks' && (
             <>
-              <div className="grid grid-cols-[60px_1fr_160px_100px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[40px_1fr_140px_110px_110px_90px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>#</span>
                 <span>Title</span>
                 <span>Album</span>
+                <span>Created</span>
+                <span>Updated</span>
                 <span>Duration</span>
                 <span className="text-right">Actions</span>
               </div>
@@ -485,16 +503,15 @@ export default function ArtistPanelPage() {
                       <div
                         key={track.id}
                         onClick={() => handlePlayTrack(track, displayedTracks)}
-                        className={`grid grid-cols-[60px_1fr_160px_100px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${
+                        className={`grid grid-cols-[40px_1fr_140px_110px_110px_90px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${
                           isCurrentPlaying
                             ? 'bg-spotify-green/15 text-spotify-green font-semibold'
                             : 'hover:bg-surface-highlight/20'
                         }`}
                       >
-                        <span className="text-sm font-semibold text-subtext tabular-nums">
+                        <span className="text-xs font-semibold text-subtext tabular-nums">
                           {index + 1}
                         </span>
-
 
                         <div className="flex items-center gap-3 min-w-0">
                           {track.cover_url ? (
@@ -521,7 +538,7 @@ export default function ArtistPanelPage() {
                         {/* Album / Single badge */}
                         <span className="text-sm truncate">
                           {track.album_id ? (
-                            <span className="text-subtext font-medium">{album?.title || `Album #${track.album_id}`}</span>
+                            <span className="text-subtext font-medium truncate block">{album?.title || `Album #${track.album_id}`}</span>
                           ) : (
                             <span className="px-2 py-0.5 rounded-full bg-spotify-green/20 text-spotify-green text-xs font-semibold">
                               Single
@@ -529,11 +546,15 @@ export default function ArtistPanelPage() {
                           )}
                         </span>
 
+                        <span className="text-xs text-subtext truncate">{formatDate(track.created_at)}</span>
+                        <span className="text-xs text-subtext truncate">{formatDate(track.updated_at)}</span>
+
                         <span className="text-sm text-subtext tabular-nums">
                           {track.duration_seconds
                             ? `${Math.floor(track.duration_seconds / 60)}:${(track.duration_seconds % 60).toString().padStart(2, '0')}`
                             : '—'}
                         </span>
+
 
                         <div className="flex items-center gap-1 justify-end">
                           {/* Play Track Button */}
@@ -633,10 +654,12 @@ export default function ArtistPanelPage() {
           {/* ALBUMS TABLE WITH ACCORDION & SERIAL ID */}
           {activeTab === 'albums' && (
             <>
-              <div className="grid grid-cols-[60px_1fr_120px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[40px_1fr_90px_110px_110px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>#</span>
                 <span>Album Title</span>
-                <span>Track Count</span>
+                <span>Tracks</span>
+                <span>Created</span>
+                <span>Updated</span>
                 <span className="text-right">Actions</span>
               </div>
               <div className="divide-y divide-surface-highlight/30">
@@ -654,15 +677,14 @@ export default function ArtistPanelPage() {
                         {/* Album Row */}
                         <div
                           onClick={(e) => toggleAlbumExpand(al.id, e)}
-                          className={`grid grid-cols-[60px_1fr_120px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${
+                          className={`grid grid-cols-[40px_1fr_90px_110px_110px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${
                             isExpanded ? 'bg-surface-highlight/40' : 'hover:bg-surface-highlight/20'
                           }`}
                         >
                           {/* Serial ID */}
-                          <span className="text-sm font-semibold text-subtext tabular-nums">
+                          <span className="text-xs font-semibold text-subtext tabular-nums">
                             {index + 1}
                           </span>
-
 
                           <div className="flex items-center gap-3 min-w-0">
                             {/* Expand / Collapse Chevron */}
@@ -691,6 +713,10 @@ export default function ArtistPanelPage() {
                           <span className="text-sm text-subtext tabular-nums">
                             {albumTracks.length} track{albumTracks.length === 1 ? '' : 's'}
                           </span>
+
+                          <span className="text-xs text-subtext truncate">{formatDate(al.created_at)}</span>
+                          <span className="text-xs text-subtext truncate">{formatDate(al.updated_at)}</span>
+
 
                           <div className="flex items-center gap-1 justify-end">
                             {/* Play Entire Album Button */}
@@ -771,7 +797,7 @@ export default function ArtistPanelPage() {
                                         key={track.id}
                                         onClick={() => handlePlayTrack(track, albumTracks)}
 
-                                      className={`grid grid-cols-[30px_1fr_80px_180px] gap-3 items-center py-2 px-3 rounded-lg cursor-pointer transition-colors ${
+                                      className={`grid grid-cols-[30px_1fr_130px_80px_180px] gap-3 items-center py-2 px-3 rounded-lg cursor-pointer transition-colors ${
                                         isActiveTrack
                                           ? 'bg-spotify-green/15 text-spotify-green font-semibold'
                                           : 'hover:bg-surface-highlight/30 text-primary'
@@ -804,6 +830,12 @@ export default function ArtistPanelPage() {
                                           )}
                                         </div>
                                       </div>
+
+                                      {/* Added to Album Date */}
+                                      <span className="text-[11px] text-subtext truncate">
+                                        Added: {formatDate(track.updated_at || track.created_at)}
+                                      </span>
+
 
                                       {/* Duration */}
                                       <span className="text-xs text-subtext tabular-nums">

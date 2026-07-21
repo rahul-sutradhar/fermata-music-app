@@ -1,4 +1,5 @@
-from sqlalchemy import ForeignKey, String
+from datetime import datetime
+from sqlalchemy import DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -14,6 +15,8 @@ class Track(Base):
     duration_seconds: Mapped[int | None] = mapped_column(nullable=True)
     audio_file_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
     cover_image_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=True)
 
     album: Mapped["Album | None"] = relationship(back_populates="tracks")
     artist_rel: Mapped["Artist | None"] = relationship(back_populates="standalone_tracks", foreign_keys=[artist_id])
@@ -50,5 +53,3 @@ class Track(Base):
         if self.cover_image_key:
             return get_audio_url(self.cover_image_key)
         return self.album.cover_url if self.album else None
-
-

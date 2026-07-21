@@ -260,7 +260,7 @@ export default function Sidebar() {
             {user.role === 'admin' && (
               <NavLink to="/admin" className={linkClass}>
                 <Settings size={18} />
-                Admin Panel
+                Admin Console
               </NavLink>
             )}
 

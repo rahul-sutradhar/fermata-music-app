@@ -3,12 +3,16 @@ export interface User {
   username: string
   email: string
   role?: 'user' | 'artist' | 'admin'
+  created_at?: string | null
+  updated_at?: string | null
 }
 
 export interface Artist {
   id: number
   name: string
   user_id?: number | null
+  created_at?: string | null
+  updated_at?: string | null
 }
 
 export interface Album {
@@ -17,6 +21,8 @@ export interface Album {
   artist_id: number
   artist_name?: string
   cover_url?: string | null
+  created_at?: string | null
+  updated_at?: string | null
 }
 
 export interface Track {
@@ -29,9 +35,9 @@ export interface Track {
   album_title?: string | null
   artist_id?: number | null
   artist_name?: string | null
+  created_at?: string | null
+  updated_at?: string | null
 }
-
-
 
 export interface Playlist {
   id: number
@@ -40,8 +46,6 @@ export interface Playlist {
   cover_url?: string | null
 }
 
-
-// Backend PlaylistItemResponse: { track: TrackResponse, position: int }
 export interface PlaylistItem {
   track: Track
   position: number
@@ -57,21 +61,18 @@ export interface PlayerState {
   repeat_mode: 'off' | 'context' | 'track'
 }
 
-// Backend RecentlyPlayedResponse: { id, track_id, played_at } — no nested track
 export interface RecentlyPlayed {
   id: number
   track_id: number
   played_at: string
 }
 
-// Backend LibraryItemResponse: { id, track_id, added_at } — no nested track
 export interface LibraryItem {
   id: number
   track_id: number
   added_at: string
 }
 
-// Backend LikedAlbumResponse: { id, album_id, added_at }
 export interface LikedAlbum {
   id: number
   album_id: number

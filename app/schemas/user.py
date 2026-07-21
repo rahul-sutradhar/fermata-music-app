@@ -12,14 +12,19 @@ class UserCreate(BaseModel):
     password: str = Field(min_length=8, max_length=128)
 
 
+from datetime import datetime
+
 class UserResponse(BaseModel):
     id: int
     username: str
     email: str
     role: str
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     class Config:
         from_attributes = True
+
 
 
 class TopItemResponse(BaseModel):

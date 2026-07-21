@@ -27,6 +27,8 @@ class TrackUpdate(BaseModel):
         return self
 
 
+from datetime import datetime
+
 class TrackResponse(BaseModel):
     id: int
     title: str
@@ -37,8 +39,11 @@ class TrackResponse(BaseModel):
     album_title: str | None = None
     artist_id: int | None = None
     artist_name: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     class Config:
         from_attributes = True
+
 
 

@@ -32,7 +32,6 @@ import {
   updateAlbum,
   deleteAlbum,
   uploadAlbumCover,
-  getAlbumTracks,
 } from '@/api/albums'
 import type { Track, User as UserType, Artist, Album } from '@/types'
 import { useAuthStore } from '@/store/authStore'
@@ -41,6 +40,21 @@ import TrackFormModal from '@/components/TrackFormModal'
 import ImageCropperModal from '@/components/ImageCropperModal'
 
 type TabType = 'tracks' | 'albums' | 'users' | 'artists' | 'admins'
+
+function formatDate(dateStr?: string | null): string {
+  if (!dateStr) return '—'
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return '—'
+    return d.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+  } catch {
+    return '—'
+  }
+}
 
 export default function AdminPanelPage() {
   const currentUser = useAuthStore((s) => s.user)
@@ -126,7 +140,7 @@ export default function AdminPanelPage() {
 
   useEffect(() => {
     if (albumModalOpen) {
-      listArtists(0, 200)
+      listArtists(0, 100)
         .then(setAllArtistsList)
         .catch(console.error)
     }
@@ -134,7 +148,7 @@ export default function AdminPanelPage() {
 
   useEffect(() => {
     if (artistModalOpen) {
-      listUsers(0, 200)
+      listUsers(0, 100)
         .then(data => setArtistAccountsList(data.filter(u => u.role === 'artist')))
         .catch(console.error)
     }
@@ -157,7 +171,7 @@ export default function AdminPanelPage() {
     setLoading(true)
     let allUsers: UserType[] = []
     try {
-      allUsers = await listUsers(0, 200)
+      allUsers = await listUsers(0, 100)
       const map: Record<number, string> = {}
       allUsers.forEach(u => {
         map[u.id] = u.username
@@ -168,11 +182,20 @@ export default function AdminPanelPage() {
     }
 
     try {
-      // Load all tracks, albums, artists for platform-wide management across all users
+      const trackSearch = activeTab === 'tracks' ? (searchQ || undefined) : undefined
       const [allTracksData, allAlbumsData, allArtistsData] = await Promise.all([
-        listTracks(0, 200, searchQ || undefined).catch(() => [] as Track[]),
-        listAlbums(0, 200).catch(() => [] as Album[]),
-        listArtists(0, 200).catch(() => [] as Artist[]),
+        listTracks(0, 100, trackSearch).catch((err) => {
+          console.error('Failed to load tracks:', err)
+          return [] as Track[]
+        }),
+        listAlbums(0, 100).catch((err) => {
+          console.error('Failed to load albums:', err)
+          return [] as Album[]
+        }),
+        listArtists(0, 100).catch((err) => {
+          console.error('Failed to load artists:', err)
+          return [] as Artist[]
+        }),
       ])
 
       // Sort platform-wide tracks and albums by ID / date descending
@@ -580,40 +603,45 @@ export default function AdminPanelPage() {
       <div className="flex border-b border-surface-highlight mb-4 gap-2 overflow-x-auto scrollbar-none">
         <button
           onClick={() => { setActiveTab('tracks'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'tracks' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
-            }`}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
+            activeTab === 'tracks' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+          }`}
         >
           <Music size={16} />
           Tracks ({tracks.length})
         </button>
         <button
           onClick={() => { setActiveTab('albums'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'albums' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
-            }`}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
+            activeTab === 'albums' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+          }`}
         >
           <Disc size={16} />
           Albums ({albums.length})
         </button>
         <button
           onClick={() => { setActiveTab('users'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'users' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
-            }`}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
+            activeTab === 'users' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+          }`}
         >
           <User size={16} />
           Users
         </button>
         <button
           onClick={() => { setActiveTab('artists'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'artists' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
-            }`}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
+            activeTab === 'artists' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+          }`}
         >
           <Radio size={16} />
           Artists
         </button>
         <button
           onClick={() => { setActiveTab('admins'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'admins' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
-            }`}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
+            activeTab === 'admins' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+          }`}
         >
           <Shield size={16} />
           Admins
@@ -636,7 +664,7 @@ export default function AdminPanelPage() {
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
           <div className="w-8 h-8 border-2 border-spotify-green border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs text-subtext">Loading admin data...</p>
+          <p className="text-xs text-subtext">Loading admin console...</p>
         </div>
       ) : activeTab === 'artists' ? (
         /* ARTISTS TAB - ROLE SEPARATED DESIGN */
@@ -657,19 +685,25 @@ export default function AdminPanelPage() {
               </button>
             </div>
             <div className="rounded-xl border border-surface-highlight overflow-hidden bg-surface-elevated/40">
-              <div className="grid grid-cols-[1fr_1.5fr_100px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[40px_1fr_1.5fr_120px_120px_100px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+                <span>#</span>
                 <span>Username</span>
                 <span>Email</span>
+                <span>Created</span>
+                <span>Updated</span>
                 <span className="text-right">Actions</span>
               </div>
               <div className="divide-y divide-surface-highlight/30">
                 {users.filter(u => u.role === 'artist').length === 0 ? (
                   <div className="py-8 text-center text-subtext text-sm">No artist accounts found</div>
                 ) : (
-                  users.filter(u => u.role === 'artist').map((u) => (
-                    <div key={u.id} className="grid grid-cols-[1fr_1.5fr_100px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
+                  users.filter(u => u.role === 'artist').map((u, index) => (
+                    <div key={u.id} className="grid grid-cols-[40px_1fr_1.5fr_120px_120px_100px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
+                      <span className="text-xs font-semibold text-subtext tabular-nums">{index + 1}</span>
                       <span className="text-sm font-medium truncate">{u.username}</span>
                       <span className="text-sm text-subtext truncate">{u.email}</span>
+                      <span className="text-xs text-subtext truncate">{formatDate(u.created_at)}</span>
+                      <span className="text-xs text-subtext truncate">{formatDate(u.updated_at)}</span>
                       <div className="flex items-center gap-1 justify-end">
                         <button
                           onClick={() => openUserModal(u, 'artist')}
@@ -709,21 +743,27 @@ export default function AdminPanelPage() {
               </button>
             </div>
             <div className="rounded-xl border border-surface-highlight overflow-hidden bg-surface-elevated/40">
-              <div className="grid grid-cols-[1fr_220px_100px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[40px_1fr_200px_120px_120px_100px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+                <span>#</span>
                 <span>Artist Name</span>
                 <span>Linked Account</span>
+                <span>Created</span>
+                <span>Updated</span>
                 <span className="text-right">Actions</span>
               </div>
               <div className="divide-y divide-surface-highlight/30">
                 {artists.length === 0 ? (
                   <div className="py-8 text-center text-subtext text-sm">No artist profiles found</div>
                 ) : (
-                  artists.map((a) => (
-                    <div key={a.id} className="grid grid-cols-[1fr_220px_100px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
+                  artists.map((a, index) => (
+                    <div key={a.id} className="grid grid-cols-[40px_1fr_200px_120px_120px_100px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
+                      <span className="text-xs font-semibold text-subtext tabular-nums">{index + 1}</span>
                       <span className="text-sm font-medium truncate">{a.name}</span>
-                      <span className="text-sm text-subtext">
+                      <span className="text-sm text-subtext truncate">
                         {a.user_id ? (userMap[a.user_id] ? `${userMap[a.user_id]} (ID: ${a.user_id})` : `ID: ${a.user_id}`) : 'Not linked'}
                       </span>
+                      <span className="text-xs text-subtext truncate">{formatDate(a.created_at)}</span>
+                      <span className="text-xs text-subtext truncate">{formatDate(a.updated_at)}</span>
                       <div className="flex items-center gap-1 justify-end">
                         <button
                           onClick={() => openArtistModal(a)}
@@ -753,10 +793,12 @@ export default function AdminPanelPage() {
           {/* TRACKS TABLE (ALL USERS, SORTED DESCENDING BY ID/DATE) */}
           {activeTab === 'tracks' && (
             <>
-              <div className="grid grid-cols-[60px_1fr_160px_100px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
-                <span>ID</span>
+              <div className="grid grid-cols-[40px_1fr_140px_110px_110px_90px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+                <span>#</span>
                 <span>Title</span>
                 <span>Album</span>
+                <span>Created</span>
+                <span>Updated</span>
                 <span>Duration</span>
                 <span className="text-right">Actions</span>
               </div>
@@ -766,7 +808,7 @@ export default function AdminPanelPage() {
                     {searchQ ? 'No matching tracks found' : 'No tracks uploaded yet'}
                   </div>
                 ) : (
-                  tracks.map((track) => {
+                  tracks.map((track, index) => {
                     const album = albums.find((a) => Number(a.id) === Number(track.album_id))
                     const isCurrentPlaying = currentTrack?.id === track.id && isPlaying
 
@@ -774,12 +816,13 @@ export default function AdminPanelPage() {
                       <div
                         key={track.id}
                         onClick={() => handlePlayTrack(track, tracks)}
-                        className={`grid grid-cols-[60px_1fr_160px_100px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${isCurrentPlaying
+                        className={`grid grid-cols-[40px_1fr_140px_110px_110px_90px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${
+                          isCurrentPlaying
                             ? 'bg-spotify-green/15 text-spotify-green font-semibold'
                             : 'hover:bg-surface-highlight/20'
-                          }`}
+                        }`}
                       >
-                        <span className="text-sm font-semibold text-subtext tabular-nums">{track.id}</span>
+                        <span className="text-xs font-semibold text-subtext tabular-nums">{index + 1}</span>
                         <div className="flex items-center gap-3 min-w-0">
                           {track.cover_url ? (
                             <img src={track.cover_url} alt={track.title} className="w-10 h-10 rounded-md object-cover shrink-0 shadow" />
@@ -804,13 +847,16 @@ export default function AdminPanelPage() {
                         {/* Album / Single badge */}
                         <span className="text-sm truncate">
                           {track.album_id ? (
-                            <span className="text-subtext font-medium">{album?.title || `Album #${track.album_id}`}</span>
+                            <span className="text-subtext font-medium truncate block">{album?.title || `Album #${track.album_id}`}</span>
                           ) : (
                             <span className="px-2 py-0.5 rounded-full bg-spotify-green/20 text-spotify-green text-xs font-semibold">
                               Single
                             </span>
                           )}
                         </span>
+
+                        <span className="text-xs text-subtext truncate">{formatDate(track.created_at)}</span>
+                        <span className="text-xs text-subtext truncate">{formatDate(track.updated_at)}</span>
 
                         <span className="text-sm text-subtext tabular-nums">
                           {track.duration_seconds
@@ -912,19 +958,25 @@ export default function AdminPanelPage() {
           {/* NORMAL USERS TABLE */}
           {activeTab === 'users' && (
             <>
-              <div className="grid grid-cols-[1fr_1.5fr_120px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[40px_1fr_1.5fr_120px_120px_120px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+                <span>#</span>
                 <span>Username</span>
                 <span>Email</span>
+                <span>Created</span>
+                <span>Updated</span>
                 <span className="text-right">Actions</span>
               </div>
               <div className="divide-y divide-surface-highlight/30">
                 {users.length === 0 ? (
                   <div className="py-12 text-center text-subtext text-sm">No normal users found</div>
                 ) : (
-                  users.map((u) => (
-                    <div key={u.id} className="grid grid-cols-[1fr_1.5fr_120px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
+                  users.map((u, index) => (
+                    <div key={u.id} className="grid grid-cols-[40px_1fr_1.5fr_120px_120px_120px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
+                      <span className="text-xs font-semibold text-subtext tabular-nums">{index + 1}</span>
                       <span className="text-sm font-medium truncate">{u.username}</span>
                       <span className="text-sm text-subtext truncate">{u.email}</span>
+                      <span className="text-xs text-subtext truncate">{formatDate(u.created_at)}</span>
+                      <span className="text-xs text-subtext truncate">{formatDate(u.updated_at)}</span>
                       <div className="flex items-center gap-1 justify-end">
                         <button
                           onClick={() => openUserModal(u, 'user')}
@@ -951,19 +1003,25 @@ export default function AdminPanelPage() {
           {/* ADMINS TABLE */}
           {activeTab === 'admins' && (
             <>
-              <div className="grid grid-cols-[1fr_1.5fr_120px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[40px_1fr_1.5fr_120px_120px_120px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+                <span>#</span>
                 <span>Username</span>
                 <span>Email</span>
+                <span>Created</span>
+                <span>Updated</span>
                 <span className="text-right">Actions</span>
               </div>
               <div className="divide-y divide-surface-highlight/30">
                 {users.length === 0 ? (
                   <div className="py-12 text-center text-subtext text-sm">No administrators found</div>
                 ) : (
-                  users.map((u) => (
-                    <div key={u.id} className="grid grid-cols-[1fr_1.5fr_120px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
+                  users.map((u, index) => (
+                    <div key={u.id} className="grid grid-cols-[40px_1fr_1.5fr_120px_120px_120px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
+                      <span className="text-xs font-semibold text-subtext tabular-nums">{index + 1}</span>
                       <span className="text-sm font-medium truncate">{u.username}</span>
                       <span className="text-sm text-subtext truncate">{u.email}</span>
+                      <span className="text-xs text-subtext truncate">{formatDate(u.created_at)}</span>
+                      <span className="text-xs text-subtext truncate">{formatDate(u.updated_at)}</span>
                       <div className="flex items-center gap-1 justify-end">
                         <button
                           onClick={() => openUserModal(u, 'admin')}
@@ -990,11 +1048,13 @@ export default function AdminPanelPage() {
           {/* ALBUMS TABLE WITH ACCORDION & SERIAL ID (ALL USERS, SORTED DESCENDING BY ID/DATE) */}
           {activeTab === 'albums' && (
             <>
-              <div className="grid grid-cols-[60px_1fr_200px_110px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
-                <span>ID</span>
+              <div className="grid grid-cols-[40px_1fr_180px_90px_110px_110px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+                <span>#</span>
                 <span>Album Title</span>
                 <span>Artist Profile</span>
                 <span>Tracks</span>
+                <span>Created</span>
+                <span>Updated</span>
                 <span className="text-right">Actions</span>
               </div>
               <div className="divide-y divide-surface-highlight/30">
@@ -1003,7 +1063,7 @@ export default function AdminPanelPage() {
                     {searchQ ? 'No matching albums found' : 'No albums created yet'}
                   </div>
                 ) : (
-                  albums.map((al) => {
+                  albums.map((al, index) => {
                     const albumTracks = tracks.filter((t) => Number(t.album_id) === Number(al.id))
                     const isExpanded = expandedAlbumIds.has(al.id)
                     const artist = allArtistsList.find((a) => Number(a.id) === Number(al.artist_id))
@@ -1013,12 +1073,13 @@ export default function AdminPanelPage() {
                         {/* Album Row */}
                         <div
                           onClick={(e) => toggleAlbumExpand(al.id, e)}
-                          className={`grid grid-cols-[60px_1fr_200px_110px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${isExpanded ? 'bg-surface-highlight/40' : 'hover:bg-surface-highlight/20'
-                            }`}
+                          className={`grid grid-cols-[40px_1fr_180px_90px_110px_110px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${
+                            isExpanded ? 'bg-surface-highlight/40' : 'hover:bg-surface-highlight/20'
+                          }`}
                         >
-                          {/* Serial ID */}
-                          <span className="text-sm font-semibold text-subtext tabular-nums">
-                            {al.id}
+                          {/* Frontend Serial Number */}
+                          <span className="text-xs font-semibold text-subtext tabular-nums">
+                            {index + 1}
                           </span>
 
                           <div className="flex items-center gap-3 min-w-0">
@@ -1048,6 +1109,9 @@ export default function AdminPanelPage() {
                           <span className="text-sm text-subtext tabular-nums">
                             {albumTracks.length} track{albumTracks.length === 1 ? '' : 's'}
                           </span>
+
+                          <span className="text-xs text-subtext truncate">{formatDate(al.created_at)}</span>
+                          <span className="text-xs text-subtext truncate">{formatDate(al.updated_at)}</span>
 
                           <div className="flex items-center gap-1 justify-end">
                             {/* Play Entire Album Button */}
@@ -1124,10 +1188,11 @@ export default function AdminPanelPage() {
                                     <div
                                       key={track.id}
                                       onClick={() => handlePlayTrack(track, albumTracks)}
-                                      className={`grid grid-cols-[30px_1fr_80px_180px] gap-3 items-center py-2 px-3 rounded-lg cursor-pointer transition-colors ${isActiveTrack
+                                      className={`grid grid-cols-[30px_1fr_130px_80px_180px] gap-3 items-center py-2 px-3 rounded-lg cursor-pointer transition-colors ${
+                                        isActiveTrack
                                           ? 'bg-spotify-green/15 text-spotify-green font-semibold'
                                           : 'hover:bg-surface-highlight/30 text-primary'
-                                        }`}
+                                      }`}
                                     >
                                       {/* Track Serial # */}
                                       <span className="text-xs text-subtext tabular-nums text-center">
@@ -1156,6 +1221,11 @@ export default function AdminPanelPage() {
                                           )}
                                         </div>
                                       </div>
+
+                                      {/* Added to Album Date */}
+                                      <span className="text-[11px] text-subtext truncate">
+                                        Added: {formatDate(track.updated_at || track.created_at)}
+                                      </span>
 
                                       {/* Duration */}
                                       <span className="text-xs text-subtext tabular-nums">
@@ -1191,8 +1261,9 @@ export default function AdminPanelPage() {
                                         {/* Upload Cover */}
                                         <label
                                           onClick={(e) => e.stopPropagation()}
-                                          className={`p-1.5 rounded-md text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''
-                                            }`}
+                                          className={`p-1.5 rounded-md text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${
+                                            uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''
+                                          }`}
                                           title="Upload Cover Image"
                                         >
                                           <ImageIcon size={13} />
@@ -1211,8 +1282,9 @@ export default function AdminPanelPage() {
                                         {/* Upload Audio */}
                                         <label
                                           onClick={(e) => e.stopPropagation()}
-                                          className={`p-1.5 rounded-md text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''
-                                            }`}
+                                          className={`p-1.5 rounded-md text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${
+                                            uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''
+                                          }`}
                                           title="Upload Audio File"
                                         >
                                           <Upload size={13} />
@@ -1325,8 +1397,9 @@ export default function AdminPanelPage() {
                     readOnly={isReadOnlyModal}
                     value={userForm.username}
                     onChange={e => setUserForm({ ...userForm, username: e.target.value })}
-                    className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${isReadOnlyModal ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
+                    className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${
+                      isReadOnlyModal ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
                   />
                 </div>
 
@@ -1338,8 +1411,9 @@ export default function AdminPanelPage() {
                     readOnly={isReadOnlyModal}
                     value={userForm.email}
                     onChange={e => setUserForm({ ...userForm, email: e.target.value })}
-                    className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${isReadOnlyModal ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
+                    className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${
+                      isReadOnlyModal ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
                   />
                 </div>
 
@@ -1364,8 +1438,9 @@ export default function AdminPanelPage() {
                     value={userForm.role}
                     onChange={e => setUserForm({ ...userForm, role: e.target.value })}
                     disabled={!canChangeRole}
-                    className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors uppercase font-semibold ${!canChangeRole ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                      }`}
+                    className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors uppercase font-semibold ${
+                      !canChangeRole ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                    }`}
                   >
                     <option value="user">USER</option>
                     <option value="artist">ARTIST</option>
