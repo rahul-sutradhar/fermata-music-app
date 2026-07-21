@@ -17,7 +17,7 @@ router = APIRouter(prefix="/tracks", tags=["tracks"])
 def list_tracks(
     db: DbSession,
     skip: int = Query(0, ge=0, description="Number of tracks to skip"),
-    limit: int = Query(20, ge=1, le=500, description="Maximum tracks to return"),
+    limit: int = Query(20, ge=1, le=100, description="Maximum tracks to return"),
     q: str | None = Query(None, description="Filter tracks by title"),
 ) -> list[TrackResponse]:
     """List tracks with optional pagination and title search."""
