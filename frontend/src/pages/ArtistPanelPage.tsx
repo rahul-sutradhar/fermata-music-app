@@ -1,10 +1,38 @@
 import { useEffect, useState, useRef } from 'react'
-import { Plus, Pencil, Trash2, Upload, Search, Music, Disc, Image as ImageIcon, Sparkles } from 'lucide-react'
-import { listTracks, createTrack, updateTrack, deleteTrack, uploadTrackAudio, uploadTrackCover } from '@/api/tracks'
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Upload,
+  Search,
+  Music,
+  Disc,
+  Image as ImageIcon,
+  Play,
+  ChevronDown,
+  ChevronRight,
+  FolderMinus,
+} from 'lucide-react'
+import {
+  listTracks,
+  createTrack,
+  updateTrack,
+  deleteTrack,
+  uploadTrackAudio,
+  uploadTrackCover,
+} from '@/api/tracks'
 import { listArtists, createArtist, getArtistSingles } from '@/api/artists'
-import { listAlbums, createAlbum, updateAlbum, deleteAlbum, uploadAlbumCover, getAlbumTracks } from '@/api/albums'
+import {
+  listAlbums,
+  createAlbum,
+  updateAlbum,
+  deleteAlbum,
+  uploadAlbumCover,
+  getAlbumTracks,
+} from '@/api/albums'
 import type { Track, Artist, Album } from '@/types'
 import { useAuthStore } from '@/store/authStore'
+import { usePlayerStore } from '@/store/playerStore'
 import TrackFormModal from '@/components/TrackFormModal'
 
 type TabType = 'tracks' | 'albums'
@@ -15,6 +43,13 @@ export default function ArtistPanelPage() {
   const [searchQ, setSearchQ] = useState('')
   const [loading, setLoading] = useState(true)
 
+  // Player store integration
+  const setTrack = usePlayerStore((s) => s.setTrack)
+  const setQueue = usePlayerStore((s) => s.setQueue)
+  const setIsPlaying = usePlayerStore((s) => s.setIsPlaying)
+  const currentTrack = usePlayerStore((s) => s.currentTrack)
+  const isPlaying = usePlayerStore((s) => s.isPlaying)
+
   // Artist profile state
   const [myArtist, setMyArtist] = useState<Artist | null>(null)
   const [profileCreating, setProfileCreating] = useState(false)
@@ -22,6 +57,9 @@ export default function ArtistPanelPage() {
   // Data states
   const [myAlbums, setMyAlbums] = useState<Album[]>([])
   const [myTracks, setMyTracks] = useState<Track[]>([])
+
+  // Accordion state for albums expansion
+  const [expandedAlbumIds, setExpandedAlbumIds] = useState<Set<number>>(new Set())
 
   // Modal control states
   const [trackModalOpen, setTrackModalOpen] = useState(false)
@@ -37,6 +75,20 @@ export default function ArtistPanelPage() {
   // Upload state tracking
   const [uploadingForId, setUploadingForId] = useState<number | null>(null)
 
+  // Toggle album expanded state
+  const toggleAlbumExpand = (albumId: number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    setExpandedAlbumIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(albumId)) {
+        next.delete(albumId)
+      } else {
+        next.add(albumId)
+      }
+      return next
+    })
+  }
+
   // Load Artist Profile & Data
   const loadArtistData = async () => {
     if (!currentUser) return
@@ -45,11 +97,10 @@ export default function ArtistPanelPage() {
       // 1. Fetch artist profile linked to current user
       const allArtists = await listArtists(0, 200)
       let profile = allArtists.find(
-        (a) => Number(a.user_id) === Number(currentUser.id) || Number(a.id) === Number(currentUser.id)
+        (a) => Number(a.user_id) === Number(currentUser.id) || Number(a.id) === Number(currentUser.id),
       )
 
       if (!profile) {
-        // Attempt to auto-create profile if missing
         setProfileCreating(true)
         try {
           profile = await createArtist({ name: currentUser.username, user_id: currentUser.id })
@@ -69,13 +120,10 @@ export default function ArtistPanelPage() {
         setMyAlbums(filteredAlbums)
 
         // 3. Fetch tracks belonging to this artist
-        // A. Fetch tracks from each album owned by the artist
         const albumTracksPromises = filteredAlbums.map((al) =>
           getAlbumTracks(al.id, 0, 100).catch(() => [] as Track[]),
         )
-        // B. Fetch standalone single tracks for this artist
         const singlesPromise = getArtistSingles(profile.id, 0, 100).catch(() => [] as Track[])
-        // C. Fetch global tracks list as safety net
         const allTracksPromise = listTracks(0, 200).catch(() => [] as Track[])
 
         const [albumTrackGroups, singles, allTracks] = await Promise.all([
@@ -87,13 +135,8 @@ export default function ArtistPanelPage() {
         const myAlbumIds = new Set(filteredAlbums.map((al) => Number(al.id)))
         const trackMap = new Map<number, Track>()
 
-        // Add album tracks
         albumTrackGroups.flat().forEach((t) => trackMap.set(t.id, t))
-
-        // Add singles
         singles.forEach((t) => trackMap.set(t.id, t))
-
-        // Add any matching tracks from global list
         allTracks.forEach((t) => {
           if (
             (t.album_id && myAlbumIds.has(Number(t.album_id))) ||
@@ -117,6 +160,48 @@ export default function ArtistPanelPage() {
     loadArtistData()
   }, [currentUser])
 
+  // Play track helper
+  const handlePlayTrack = (track: Track, trackList: Track[], e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    if (!track.audio_url) {
+      alert('No audio file has been uploaded for this track yet.')
+      return
+    }
+    setQueue(trackList)
+    setTrack(track)
+    setIsPlaying(true)
+  }
+
+  // Play entire album helper
+  const handlePlayAlbum = (album: Album, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    const albumTracks = myTracks.filter((t) => Number(t.album_id) === Number(album.id))
+    if (albumTracks.length === 0) {
+      alert('This album has no tracks yet.')
+      return
+    }
+    const playableTracks = albumTracks.filter((t) => t.audio_url)
+    if (playableTracks.length === 0) {
+      alert('None of the tracks in this album have audio uploaded yet.')
+      return
+    }
+    setQueue(playableTracks)
+    setTrack(playableTracks[0])
+    setIsPlaying(true)
+  }
+
+  // Remove track from album (Convert to Single)
+  const handleRemoveTrackFromAlbum = async (trackId: number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    if (!confirm('Remove this track from the album? (It will become a standalone Single track)')) return
+    try {
+      await updateTrack(trackId, { album_id: null })
+      loadArtistData()
+    } catch (err: any) {
+      alert(err.message || 'Failed to remove track from album')
+    }
+  }
+
   // Track CRUD Actions
   const handleTrackSubmit = async (data: {
     title: string
@@ -139,7 +224,6 @@ export default function ArtistPanelPage() {
         targetTrack = await createTrack(data.title, data.album_id, data.duration_seconds, myArtist?.id)
       }
 
-
       if (data.audioFile) {
         setUploadingForId(targetTrack.id)
         await uploadTrackAudio(targetTrack.id, data.audioFile)
@@ -159,7 +243,8 @@ export default function ArtistPanelPage() {
     }
   }
 
-  const handleTrackDelete = async (id: number) => {
+  const handleTrackDelete = async (id: number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
     if (!confirm('Are you sure you want to delete this track?')) return
     try {
       await deleteTrack(id)
@@ -193,7 +278,7 @@ export default function ArtistPanelPage() {
     }
   }
 
-  // Album CRUD Actions (Automatic artist_id assignment)
+  // Album CRUD Actions
   const openAlbumModal = (album: Album | null = null) => {
     setEditingAlbum(album)
     setAlbumCoverFile(null)
@@ -211,7 +296,7 @@ export default function ArtistPanelPage() {
 
     const payload = {
       title: albumFormTitle,
-      artist_id: myArtist.id, // Automatically set to logged in artist
+      artist_id: myArtist.id,
     }
 
     try {
@@ -248,7 +333,8 @@ export default function ArtistPanelPage() {
     }
   }
 
-  const handleAlbumDelete = async (id: number) => {
+  const handleAlbumDelete = async (id: number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
     if (!confirm('Are you sure you want to delete this album and all its tracks?')) return
     try {
       await deleteAlbum(id)
@@ -287,11 +373,6 @@ export default function ArtistPanelPage() {
         {activeTab === 'tracks' && (
           <button
             onClick={() => {
-              if (myAlbums.length === 0) {
-                alert('Please create at least one album before adding tracks!')
-                openAlbumModal()
-                return
-              }
               setEditingTrack(null)
               setTrackModalOpen(true)
             }}
@@ -369,7 +450,7 @@ export default function ArtistPanelPage() {
           {/* TRACKS TABLE */}
           {activeTab === 'tracks' && (
             <>
-              <div className="grid grid-cols-[60px_1fr_160px_100px_160px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[60px_1fr_160px_100px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>ID</span>
                 <span>Title</span>
                 <span>Album</span>
@@ -383,15 +464,23 @@ export default function ArtistPanelPage() {
                   </div>
                 ) : (
                   displayedTracks.map((track) => {
-                    const album = myAlbums.find((a) => a.id === track.album_id)
+                    const album = myAlbums.find((a) => Number(a.id) === Number(track.album_id))
+                    const isCurrentPlaying = currentTrack?.id === track.id && isPlaying
+
                     return (
                       <div
                         key={track.id}
-                        className="grid grid-cols-[60px_1fr_160px_100px_160px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors"
+                        onClick={() => handlePlayTrack(track, displayedTracks)}
+                        className={`grid grid-cols-[60px_1fr_160px_100px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${
+                          isCurrentPlaying
+                            ? 'bg-spotify-green/15 text-spotify-green font-semibold'
+                            : 'hover:bg-surface-highlight/20'
+                        }`}
                       >
                         <span className="text-sm font-semibold text-subtext tabular-nums">
                           {track.id}
                         </span>
+
                         <div className="flex items-center gap-3 min-w-0">
                           {track.cover_url ? (
                             <img
@@ -406,22 +495,24 @@ export default function ArtistPanelPage() {
                           )}
                           <div className="min-w-0">
                             <p className="text-sm font-medium truncate">{track.title}</p>
-                            {track.audio_url && (
+                            {track.audio_url ? (
                               <span className="text-[10px] text-spotify-green">Audio attached</span>
+                            ) : (
+                              <span className="text-[10px] text-subtext">No audio</span>
                             )}
                           </div>
                         </div>
 
+                        {/* Album / Single badge */}
                         <span className="text-sm truncate">
                           {track.album_id ? (
-                            <span className="text-subtext">{album?.title || `Album #${track.album_id}`}</span>
+                            <span className="text-subtext font-medium">{album?.title || `Album #${track.album_id}`}</span>
                           ) : (
                             <span className="px-2 py-0.5 rounded-full bg-spotify-green/20 text-spotify-green text-xs font-semibold">
                               Single
                             </span>
                           )}
                         </span>
-
 
                         <span className="text-sm text-subtext tabular-nums">
                           {track.duration_seconds
@@ -430,19 +521,35 @@ export default function ArtistPanelPage() {
                         </span>
 
                         <div className="flex items-center gap-1 justify-end">
+                          {/* Play Track Button */}
                           <button
-                            onClick={() => {
+                            onClick={(e) => handlePlayTrack(track, displayedTracks, e)}
+                            className="p-2 rounded-lg text-spotify-green hover:bg-spotify-green/20 transition-colors"
+                            title="Play Track"
+                          >
+                            <Play size={14} fill="currentColor" />
+                          </button>
+
+                          {/* Edit Track */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
                               setEditingTrack(track)
                               setTrackModalOpen(true)
                             }}
                             className="p-2 rounded-lg text-subtext hover:text-primary hover:bg-surface-highlight transition-colors"
-                            title="Edit Track"
+                            title="Edit Track & Change Album"
                           >
                             <Pencil size={14} />
                           </button>
+
+                          {/* Upload Cover */}
                           <label
-                            className={`p-2 rounded-lg text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''}`}
-                            title="Upload Cover Image"
+                            onClick={(e) => e.stopPropagation()}
+                            className={`p-2 rounded-lg text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${
+                              uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''
+                            }`}
+                            title="Upload Track Photo"
                           >
                             <ImageIcon size={14} />
                             <input
@@ -456,8 +563,13 @@ export default function ArtistPanelPage() {
                               }}
                             />
                           </label>
+
+                          {/* Upload Audio */}
                           <label
-                            className={`p-2 rounded-lg text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className={`p-2 rounded-lg text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${
+                              uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''
+                            }`}
                             title="Upload Audio File"
                           >
                             <Upload size={14} />
@@ -472,8 +584,21 @@ export default function ArtistPanelPage() {
                               }}
                             />
                           </label>
+
+                          {/* Remove from Album if part of album */}
+                          {track.album_id && (
+                            <button
+                              onClick={(e) => handleRemoveTrackFromAlbum(track.id, e)}
+                              className="p-2 rounded-lg text-subtext hover:text-amber-400 hover:bg-surface-highlight transition-colors"
+                              title="Remove from Album (Convert to Single)"
+                            >
+                              <FolderMinus size={14} />
+                            </button>
+                          )}
+
+                          {/* Delete Track */}
                           <button
-                            onClick={() => handleTrackDelete(track.id)}
+                            onClick={(e) => handleTrackDelete(track.id, e)}
                             className="p-2 rounded-lg text-subtext hover:text-red-400 hover:bg-surface-highlight transition-colors"
                             title="Delete Track"
                           >
@@ -488,10 +613,11 @@ export default function ArtistPanelPage() {
             </>
           )}
 
-          {/* ALBUMS TABLE */}
+          {/* ALBUMS TABLE WITH ACCORDION & SERIAL ID */}
           {activeTab === 'albums' && (
             <>
-              <div className="grid grid-cols-[1fr_120px_160px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[60px_1fr_120px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+                <span>ID</span>
                 <span>Album Title</span>
                 <span>Track Count</span>
                 <span className="text-right">Actions</span>
@@ -503,63 +629,257 @@ export default function ArtistPanelPage() {
                   </div>
                 ) : (
                   displayedAlbums.map((al) => {
-                    const trackCount = myTracks.filter((t) => t.album_id === al.id).length
+                    const albumTracks = myTracks.filter((t) => Number(t.album_id) === Number(al.id))
+                    const isExpanded = expandedAlbumIds.has(al.id)
+
                     return (
-                      <div
-                        key={al.id}
-                        className="grid grid-cols-[1fr_120px_160px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          {al.cover_url ? (
-                            <img
-                              src={al.cover_url}
-                              alt={al.title}
-                              className="w-10 h-10 rounded-md object-cover shrink-0 shadow"
-                            />
-                          ) : (
-                            <div className="w-10 h-10 rounded-md bg-surface-highlight flex items-center justify-center shrink-0">
-                              <Disc size={18} className="text-subtext/50" />
-                            </div>
-                          )}
-                          <span className="text-sm font-medium truncate">{al.title}</span>
-                        </div>
+                      <div key={al.id} className="flex flex-col">
+                        {/* Album Row */}
+                        <div
+                          onClick={(e) => toggleAlbumExpand(al.id, e)}
+                          className={`grid grid-cols-[60px_1fr_120px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${
+                            isExpanded ? 'bg-surface-highlight/40' : 'hover:bg-surface-highlight/20'
+                          }`}
+                        >
+                          {/* Serial ID */}
+                          <span className="text-sm font-semibold text-subtext tabular-nums">
+                            {al.id}
+                          </span>
 
-                        <span className="text-sm text-subtext tabular-nums">
-                          {trackCount} track{trackCount === 1 ? '' : 's'}
-                        </span>
+                          <div className="flex items-center gap-3 min-w-0">
+                            {/* Expand / Collapse Chevron */}
+                            <button
+                              onClick={(e) => toggleAlbumExpand(al.id, e)}
+                              className="text-subtext hover:text-primary transition-colors p-1"
+                              title={isExpanded ? 'Collapse Album' : 'Expand Album Tracks'}
+                            >
+                              {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                            </button>
 
-                        <div className="flex items-center gap-1 justify-end">
-                          <button
-                            onClick={() => openAlbumModal(al)}
-                            className="p-2 rounded-lg text-subtext hover:text-primary hover:bg-surface-highlight transition-colors"
-                            title="Edit Album"
-                          >
-                            <Pencil size={14} />
-                          </button>
-                          <label
-                            className={`p-2 rounded-lg text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${uploadingForId === al.id ? 'opacity-50 pointer-events-none' : ''}`}
-                            title="Upload Album Cover"
-                          >
-                            <ImageIcon size={14} />
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0]
-                                if (file) handleUploadAlbumCover(al.id, file)
-                                e.target.value = ''
+                            {al.cover_url ? (
+                              <img
+                                src={al.cover_url}
+                                alt={al.title}
+                                className="w-10 h-10 rounded-md object-cover shrink-0 shadow"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-md bg-surface-highlight flex items-center justify-center shrink-0">
+                                <Disc size={18} className="text-subtext/50" />
+                              </div>
+                            )}
+                            <span className="text-sm font-medium truncate">{al.title}</span>
+                          </div>
+
+                          <span className="text-sm text-subtext tabular-nums">
+                            {albumTracks.length} track{albumTracks.length === 1 ? '' : 's'}
+                          </span>
+
+                          <div className="flex items-center gap-1 justify-end">
+                            {/* Play Entire Album Button */}
+                            <button
+                              onClick={(e) => handlePlayAlbum(al, e)}
+                              className="p-2 rounded-lg text-spotify-green hover:bg-spotify-green/20 transition-colors"
+                              title="Play Entire Album"
+                            >
+                              <Play size={15} fill="currentColor" />
+                            </button>
+
+                            {/* Edit Album */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                openAlbumModal(al)
                               }}
-                            />
-                          </label>
-                          <button
-                            onClick={() => handleAlbumDelete(al.id)}
-                            className="p-2 rounded-lg text-subtext hover:text-red-400 hover:bg-surface-highlight transition-colors"
-                            title="Delete Album"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                              className="p-2 rounded-lg text-subtext hover:text-primary hover:bg-surface-highlight transition-colors"
+                              title="Edit Album"
+                            >
+                              <Pencil size={14} />
+                            </button>
+
+                            {/* Upload Album Cover */}
+                            <label
+                              onClick={(e) => e.stopPropagation()}
+                              className={`p-2 rounded-lg text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${
+                                uploadingForId === al.id ? 'opacity-50 pointer-events-none' : ''
+                              }`}
+                              title="Upload Album Cover"
+                            >
+                              <ImageIcon size={14} />
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0]
+                                  if (file) handleUploadAlbumCover(al.id, file)
+                                  e.target.value = ''
+                                }}
+                              />
+                            </label>
+
+                            {/* Delete Album */}
+                            <button
+                              onClick={(e) => handleAlbumDelete(al.id, e)}
+                              className="p-2 rounded-lg text-subtext hover:text-red-400 hover:bg-surface-highlight transition-colors"
+                              title="Delete Album"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
                         </div>
+
+                        {/* Expanded Album Tracks Accordion Section */}
+                        {isExpanded && (
+                          <div className="bg-surface-highlight/10 border-t border-b border-surface-highlight/30 px-6 py-3 space-y-2">
+                            <div className="flex items-center justify-between pb-2 border-b border-surface-highlight/20 text-xs font-semibold text-subtext uppercase tracking-wider">
+                              <span>Tracks in "{al.title}"</span>
+                              <span>{albumTracks.length} tracks</span>
+                            </div>
+
+                            {albumTracks.length === 0 ? (
+                              <div className="py-6 text-center text-xs text-subtext">
+                                No tracks in this album yet. Click "+ Upload Track" to add one!
+                              </div>
+                            ) : (
+                              <div className="divide-y divide-surface-highlight/20">
+                                {albumTracks.map((track, i) => {
+                                  const isActiveTrack = currentTrack?.id === track.id && isPlaying
+                                  return (
+                                    <div
+                                      key={track.id}
+                                      onClick={() => handlePlayTrack(track, albumTracks)}
+                                      className={`grid grid-cols-[30px_1fr_80px_180px] gap-3 items-center py-2 px-3 rounded-lg cursor-pointer transition-colors ${
+                                        isActiveTrack
+                                          ? 'bg-spotify-green/15 text-spotify-green font-semibold'
+                                          : 'hover:bg-surface-highlight/30 text-primary'
+                                      }`}
+                                    >
+                                      {/* Track Serial # */}
+                                      <span className="text-xs text-subtext tabular-nums text-center">
+                                        {i + 1}
+                                      </span>
+
+                                      {/* Track Details */}
+                                      <div className="flex items-center gap-2.5 min-w-0">
+                                        {track.cover_url || al.cover_url ? (
+                                          <img
+                                            src={track.cover_url || al.cover_url || ''}
+                                            alt={track.title}
+                                            className="w-7 h-7 rounded object-cover shrink-0 shadow"
+                                          />
+                                        ) : (
+                                          <div className="w-7 h-7 rounded bg-surface-highlight flex items-center justify-center shrink-0">
+                                            <Music size={14} className="text-subtext/50" />
+                                          </div>
+                                        )}
+                                        <div className="min-w-0">
+                                          <p className="text-xs font-medium truncate">{track.title}</p>
+                                          {track.audio_url ? (
+                                            <span className="text-[9px] text-spotify-green">Audio attached</span>
+                                          ) : (
+                                            <span className="text-[9px] text-subtext">No audio</span>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Duration */}
+                                      <span className="text-xs text-subtext tabular-nums">
+                                        {track.duration_seconds
+                                          ? `${Math.floor(track.duration_seconds / 60)}:${(track.duration_seconds % 60).toString().padStart(2, '0')}`
+                                          : '—'}
+                                      </span>
+
+                                      {/* Track Actions */}
+                                      <div className="flex items-center gap-1 justify-end">
+                                        {/* Play Track */}
+                                        <button
+                                          onClick={(e) => handlePlayTrack(track, albumTracks, e)}
+                                          className="p-1.5 rounded-md text-spotify-green hover:bg-spotify-green/20 transition-colors"
+                                          title="Play Track"
+                                        >
+                                          <Play size={13} fill="currentColor" />
+                                        </button>
+
+                                        {/* Edit Track */}
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            setEditingTrack(track)
+                                            setTrackModalOpen(true)
+                                          }}
+                                          className="p-1.5 rounded-md text-subtext hover:text-primary hover:bg-surface-highlight transition-colors"
+                                          title="Edit Track Details"
+                                        >
+                                          <Pencil size={13} />
+                                        </button>
+
+                                        {/* Upload Cover */}
+                                        <label
+                                          onClick={(e) => e.stopPropagation()}
+                                          className={`p-1.5 rounded-md text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${
+                                            uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''
+                                          }`}
+                                          title="Upload Cover Image"
+                                        >
+                                          <ImageIcon size={13} />
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                              const file = e.target.files?.[0]
+                                              if (file) handleUploadTrackCover(track.id, file)
+                                              e.target.value = ''
+                                            }}
+                                          />
+                                        </label>
+
+                                        {/* Upload Audio */}
+                                        <label
+                                          onClick={(e) => e.stopPropagation()}
+                                          className={`p-1.5 rounded-md text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${
+                                            uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''
+                                          }`}
+                                          title="Upload Audio File"
+                                        >
+                                          <Upload size={13} />
+                                          <input
+                                            type="file"
+                                            accept="audio/*"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                              const file = e.target.files?.[0]
+                                              if (file) handleUploadAudio(track.id, file)
+                                              e.target.value = ''
+                                            }}
+                                          />
+                                        </label>
+
+                                        {/* Remove from Album (Convert to Single) */}
+                                        <button
+                                          onClick={(e) => handleRemoveTrackFromAlbum(track.id, e)}
+                                          className="p-1.5 rounded-md text-subtext hover:text-amber-400 hover:bg-surface-highlight transition-colors"
+                                          title="Remove from Album (Convert to Single)"
+                                        >
+                                          <FolderMinus size={13} />
+                                        </button>
+
+                                        {/* Delete Track */}
+                                        <button
+                                          onClick={(e) => handleTrackDelete(track.id, e)}
+                                          className="p-1.5 rounded-md text-subtext hover:text-red-400 hover:bg-surface-highlight transition-colors"
+                                          title="Delete Track"
+                                        >
+                                          <Trash2 size={13} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )
                   })
@@ -570,7 +890,7 @@ export default function ArtistPanelPage() {
         </div>
       )}
 
-      {/* TRACK FORM MODAL (Restricted to artist's own albums) */}
+      {/* TRACK FORM MODAL */}
       <TrackFormModal
         isOpen={trackModalOpen}
         onClose={() => {
@@ -582,7 +902,7 @@ export default function ArtistPanelPage() {
         availableAlbums={myAlbums}
       />
 
-      {/* ALBUM FORM MODAL (Automatic Artist Binding) */}
+      {/* ALBUM FORM MODAL */}
       {albumModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <form
@@ -656,24 +976,19 @@ export default function ArtistPanelPage() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="flex gap-3 pt-2">
               <button
                 type="button"
                 onClick={() => setAlbumModalOpen(false)}
-                className="px-4 py-2 rounded-lg text-sm text-subtext hover:text-primary transition-colors"
+                className="flex-1 px-4 py-2.5 rounded-full border border-surface-highlight text-sm font-medium hover:bg-surface-highlight transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                disabled={uploadingForId !== null}
-                className="px-4 py-2 rounded-lg bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-colors shadow-lg disabled:opacity-50"
+                className="flex-1 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-colors"
               >
-                {uploadingForId !== null
-                  ? 'Uploading...'
-                  : editingAlbum
-                    ? 'Save Changes'
-                    : 'Create Album'}
+                {editingAlbum ? 'Save Album' : 'Create Album'}
               </button>
             </div>
           </form>
