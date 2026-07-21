@@ -52,6 +52,41 @@ def list_artist_albums(
     )
 
 
+from app.schemas.track import TrackResponse
+
+@router.get(
+    "/{artist_id}/singles",
+    response_model=list[TrackResponse],
+    responses={404: {"model": ErrorResponse}},
+)
+def list_artist_singles(
+    artist_id: int,
+    db: DbSession,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> list[TrackResponse]:
+    """Return standalone single tracks released by an artist."""
+    from sqlalchemy import select
+    from sqlalchemy.orm import joinedload
+    from app.models.track import Track
+    from app.models.album import Album
+    from app.services.tracks import _to_response
+
+    artist_service._get_artist_or_404(db, artist_id)
+
+    query = (
+        select(Track)
+        .options(joinedload(Track.album).joinedload(Album.artist), joinedload(Track.artist_rel))
+        .where(Track.artist_id == artist_id, Track.album_id.is_(None))
+        .order_by(Track.id)
+        .offset(skip)
+        .limit(limit)
+    )
+    tracks = db.scalars(query).all()
+    return [_to_response(t) for t in tracks]
+
+
+
 @router.post(
     "",
     response_model=ArtistResponse,

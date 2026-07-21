@@ -145,7 +145,8 @@ export default function AdminPanelPage() {
   // Track CRUD Actions
   const handleTrackSubmit = async (data: {
     title: string
-    album_id: number
+    album_id: number | null
+    artist_id?: number | null
     duration_seconds?: number
     audioFile?: File
     coverFile?: File
@@ -156,11 +157,13 @@ export default function AdminPanelPage() {
         targetTrack = await updateTrack(editingTrack.id, {
           title: data.title,
           album_id: data.album_id,
+          artist_id: data.artist_id,
           duration_seconds: data.duration_seconds
         })
       } else {
-        targetTrack = await createTrack(data.title, data.album_id, data.duration_seconds)
+        targetTrack = await createTrack(data.title, data.album_id, data.duration_seconds, data.artist_id)
       }
+
 
       if (data.audioFile) {
         setUploadingForId(targetTrack.id)
@@ -845,9 +848,12 @@ export default function AdminPanelPage() {
               <input
                 type="text"
                 required
+                disabled={editingUser?.username === 'admin'}
                 value={userForm.username}
                 onChange={e => setUserForm({ ...userForm, username: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors"
+                className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${
+                  editingUser?.username === 'admin' ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               />
             </div>
             <div>
@@ -874,24 +880,53 @@ export default function AdminPanelPage() {
             )}
             <div>
               <label className="block text-sm font-medium text-subtext mb-1">Assigned Account Role</label>
-              <select
-                value={userForm.role}
-                onChange={e => setUserForm({ ...userForm, role: e.target.value })}
-                disabled={editingUser != null && editingUser.id === currentUser?.id}
-                className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors uppercase font-semibold ${
-                  editingUser != null && editingUser.id === currentUser?.id
-                    ? 'opacity-50 cursor-not-allowed'
-                    : 'cursor-pointer'
-                }`}
-              >
-                <option value="user">USER</option>
-                <option value="artist">ARTIST</option>
-                <option value="admin">ADMIN</option>
-              </select>
-              {editingUser != null && editingUser.id === currentUser?.id && (
-                <p className="text-xs text-amber-400 mt-1">You cannot change your own role</p>
-              )}
+              {(() => {
+                const isMasterAdmin = currentUser?.username === 'admin' || currentUser?.id === 1
+                const isSelf = editingUser != null && editingUser.id === currentUser?.id
+                const isMasterTarget = editingUser != null && (editingUser.username === 'admin' || editingUser.id === 1)
+                const isTargetAdmin = editingUser != null && editingUser.role === 'admin'
+                const canChangeRole = !isSelf && !isMasterTarget && (isMasterAdmin || !isTargetAdmin)
+
+                return (
+                  <>
+                    <select
+                      value={userForm.role}
+                      onChange={e => setUserForm({ ...userForm, role: e.target.value })}
+                      disabled={!canChangeRole}
+                      className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors uppercase font-semibold ${
+                        !canChangeRole ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                      }`}
+                    >
+                      <option value="user">USER</option>
+                      <option value="artist">ARTIST</option>
+                      {isMasterAdmin && <option value="admin">ADMIN</option>}
+                    </select>
+                    {isMasterTarget && (
+                      <p className="text-xs text-amber-400 mt-1">
+                        The master admin account role cannot be changed by anyone
+                      </p>
+                    )}
+                    {isSelf && !isMasterTarget && (
+                      <p className="text-xs text-amber-400 mt-1">
+                        You cannot change your own role
+                      </p>
+                    )}
+                    {!isMasterAdmin && isTargetAdmin && !isSelf && (
+                      <p className="text-xs text-amber-400 mt-1">
+                        Only the master admin can demote administrators
+                      </p>
+                    )}
+                    {!isMasterAdmin && !isTargetAdmin && (
+                      <p className="text-xs text-subtext mt-1">
+                        Only the master admin can promote users to Administrator
+                      </p>
+                    )}
+                  </>
+                )
+              })()}
             </div>
+
+
             <div className="flex gap-3 pt-2">
               <button
                 type="button"

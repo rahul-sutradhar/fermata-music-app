@@ -8,18 +8,20 @@ interface Props {
   onClose: () => void
   onSubmit: (data: {
     title: string
-    album_id: number
+    album_id: number | null
+    artist_id?: number | null
     duration_seconds?: number
     audioFile?: File
     coverFile?: File
   }) => void
   initialData?: Track | null
   availableAlbums?: Album[]
+  artistId?: number | null
 }
 
-export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData, availableAlbums }: Props) {
+export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData, availableAlbums, artistId }: Props) {
   const [title, setTitle] = useState('')
-  const [albumId, setAlbumId] = useState('')
+  const [albumId, setAlbumId] = useState<string>('')
   const [duration, setDuration] = useState('')
   const [audioFile, setAudioFile] = useState<File | null>(null)
   const [fileName, setFileName] = useState('')
@@ -38,7 +40,7 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
   useEffect(() => {
     if (initialData) {
       setTitle(initialData.title)
-      setAlbumId(String(initialData.album_id))
+      setAlbumId(initialData.album_id ? String(initialData.album_id) : 'single')
       setDuration(initialData.duration_seconds ? String(initialData.duration_seconds) : '')
       setAudioFile(null)
       setFileName('')
@@ -46,7 +48,7 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
       setCoverPreview(initialData.cover_url || null)
     } else {
       setTitle('')
-      setAlbumId('')
+      setAlbumId('single') // Default to Single Track for easy uploading
       setDuration('')
       setAudioFile(null)
       setFileName('')
@@ -115,18 +117,19 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!albumId) {
-      alert('Please select an album')
-      return
-    }
+
+    const finalAlbumId = albumId === 'single' || !albumId ? null : Number(albumId)
+
     onSubmit({
       title,
-      album_id: Number(albumId),
+      album_id: finalAlbumId,
+      artist_id: artistId ?? initialData?.artist_id,
       duration_seconds: duration ? Number(duration) : undefined,
       audioFile: audioFile || undefined,
       coverFile: coverFile || undefined,
     })
   }
+
 
 
   const formatDuration = (secStr: string) => {
@@ -237,10 +240,10 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
               onClick={() => setShowAlbumDropdown(!showAlbumDropdown)}
               className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary cursor-pointer border-2 border-transparent hover:border-spotify-green/50 flex justify-between items-center transition-colors"
             >
-              <span className="truncate">
-                {albumId
-                  ? albumsList.find((a) => a.id === Number(albumId))?.title || `Album ID: ${albumId}`
-                  : 'Select Album...'}
+              <span className="truncate font-medium">
+                {albumId === 'single' || !albumId
+                  ? '🎵 Single Track (No Album)'
+                  : albumsList.find((a) => a.id === Number(albumId))?.title || `Album ID: ${albumId}`}
               </span>
               <span className="text-xs text-subtext select-none">▼</span>
             </div>
@@ -256,6 +259,23 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
                   onClick={(e) => e.stopPropagation()}
                 />
                 <div className="max-h-48 overflow-y-auto space-y-0.5 scrollbar-thin">
+                  {/* Standalone Single Option */}
+                  <div
+                    onClick={() => {
+                      setAlbumId('single')
+                      setShowAlbumDropdown(false)
+                      setAlbumSearch('')
+                    }}
+                    className={`px-3 py-2 text-xs rounded-md cursor-pointer truncate flex justify-between items-center ${
+                      albumId === 'single' || !albumId
+                        ? 'bg-spotify-green/20 text-spotify-green font-semibold'
+                        : 'hover:bg-surface-highlight text-primary'
+                    }`}
+                  >
+                    <span>🎵 Standalone Single (No Album)</span>
+                    <span className="text-[10px] text-subtext">Single</span>
+                  </div>
+
                   {albumsList
                     .filter((a) =>
                       a.title.toLowerCase().includes(albumSearch.toLowerCase())
@@ -268,12 +288,17 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
                           setShowAlbumDropdown(false)
                           setAlbumSearch('')
                         }}
-                        className="px-3 py-2 text-xs hover:bg-surface-highlight rounded-md cursor-pointer truncate text-primary flex justify-between items-center"
+                        className={`px-3 py-2 text-xs rounded-md cursor-pointer truncate flex justify-between items-center ${
+                          albumId === String(a.id)
+                            ? 'bg-spotify-green/20 text-spotify-green font-semibold'
+                            : 'hover:bg-surface-highlight text-primary'
+                        }`}
                       >
                         <span className="truncate mr-2">{a.title}</span>
-                        <span className="text-[10px] text-subtext shrink-0">ID: {a.id}</span>
+                        <span className="text-[10px] text-subtext shrink-0">Album ID: {a.id}</span>
                       </div>
                     ))}
+
                   {albumsList.filter((a) =>
                     a.title.toLowerCase().includes(albumSearch.toLowerCase())
                   ).length === 0 && (

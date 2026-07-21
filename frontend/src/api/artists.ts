@@ -1,5 +1,6 @@
 import { apiRequest } from './client'
-import type { Artist, Album } from '@/types'
+import type { Artist, Album, Track } from '@/types'
+
 
 export function getArtist(id: number) {
   return apiRequest<Artist>(`/artists/${id}`)
@@ -8,6 +9,11 @@ export function getArtist(id: number) {
 export function getArtistAlbums(id: number, skip = 0, limit = 20) {
   return apiRequest<Album[]>(`/artists/${id}/albums?skip=${skip}&limit=${limit}`)
 }
+
+export function getArtistSingles(id: number, skip = 0, limit = 20) {
+  return apiRequest<Track[]>(`/artists/${id}/singles?skip=${skip}&limit=${limit}`)
+}
+
 
 export function listArtists(skip = 0, limit = 100) {
   return apiRequest<Artist[]>(`/artists?skip=${skip}&limit=${limit}`)

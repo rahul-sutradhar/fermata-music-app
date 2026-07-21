@@ -13,6 +13,8 @@ from app.schemas.track import TrackCreate, TrackResponse, TrackUpdate
 _RESTRICTED_ALBUM_IDS = {999}
 
 
+from app.models.artist import Artist
+
 def _to_response(track: Track) -> TrackResponse:
     return TrackResponse(
         id=track.id,
@@ -22,10 +24,9 @@ def _to_response(track: Track) -> TrackResponse:
         audio_url=get_audio_url(track.audio_file_key) if track.audio_file_key else None,
         cover_url=track.cover_url,
         album_title=track.album_title,
-        artist_id=track.artist_id,
+        artist_id=track.effective_artist_id,
         artist_name=track.artist_name,
     )
-
 
 
 def _get_track_or_404(db: Session, track_id: int) -> Track:
@@ -40,27 +41,56 @@ def _get_track_or_404(db: Session, track_id: int) -> Track:
 
 from app.models.user import User
 
-def _ensure_can_write_to_album(db: Session, album_id: int, user: User) -> None:
-    album = db.get(Album, album_id)
-    if album is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Album {album_id} not found",
-        )
 
+def _ensure_can_write_to_track_target(
+    db: Session, *, album_id: int | None, artist_id: int | None, user: User
+) -> None:
     if user.role == "admin":
         return
 
-    if album_id in _RESTRICTED_ALBUM_IDS:
+    if album_id is not None:
+        album = db.get(Album, album_id)
+        if album is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Album {album_id} not found",
+            )
+        if album_id in _RESTRICTED_ALBUM_IDS:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to modify tracks on this album",
+            )
+        from app.services.artists import _get_artist_or_404
+        artist = _get_artist_or_404(db, album.artist_id)
+        if artist.user_id != user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+    elif artist_id is not None:
+        from app.services.artists import _get_artist_or_404
+        artist = _get_artist_or_404(db, artist_id)
+        if artist.user_id != user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+    else:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to modify tracks on this album",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either album_id or artist_id must be provided",
         )
-        
-    from app.services.artists import _get_artist_or_404
-    artist = _get_artist_or_404(db, album.artist_id)
-    if artist.user_id != user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+
+
+def _ensure_can_write_to_album(db: Session, album_id: int | None, user: User) -> None:
+    if album_id is None:
+        if user.role == "admin":
+            return
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Album ID required for this action",
+        )
+    _ensure_can_write_to_track_target(db, album_id=album_id, artist_id=None, user=user)
+
+
+def _ensure_can_write_to_track(db: Session, track: Track, user: User) -> None:
+    _ensure_can_write_to_track_target(
+        db, album_id=track.album_id, artist_id=track.effective_artist_id, user=user
+    )
 
 
 def _ensure_unique_title(
@@ -78,13 +108,19 @@ def _ensure_unique_title(
 
 
 def list_tracks(*, db: Session, skip: int, limit: int, q: str | None) -> list[TrackResponse]:
-    query = select(Track).options(joinedload(Track.album).joinedload(Album.artist)).order_by(Track.id)
+    query = (
+        select(Track)
+        .options(
+            joinedload(Track.album).joinedload(Album.artist),
+            joinedload(Track.artist_rel),
+        )
+        .order_by(Track.id)
+    )
     if q:
         query = query.where(Track.title.ilike(f"%{q}%"))
 
     tracks = db.scalars(query.offset(skip).limit(limit)).all()
     return [_to_response(track) for track in tracks]
-
 
 
 def get_track(*, db: Session, track_id: int) -> TrackResponse:
@@ -99,7 +135,7 @@ def upload_track_audio(
     user: User,
 ) -> TrackResponse:
     track = _get_track_or_404(db, track_id)
-    _ensure_can_write_to_album(db, track.album_id, user)
+    _ensure_can_write_to_track(db, track, user)
 
     if file.content_type is None or not file.content_type.startswith("audio/"):
         raise HTTPException(
@@ -166,10 +202,18 @@ def get_track_audio_url(*, db: Session, track_id: int) -> str:
 
 
 def create_track(*, db: Session, payload: TrackCreate, user: User) -> TrackResponse:
-    _ensure_can_write_to_album(db, payload.album_id, user)
+    _ensure_can_write_to_track_target(
+        db, album_id=payload.album_id, artist_id=payload.artist_id, user=user
+    )
     _ensure_unique_title(db, payload.title)
 
-    track = Track(**payload.model_dump())
+    data = payload.model_dump()
+    if payload.album_id:
+        album = db.get(Album, payload.album_id)
+        if album:
+            data["artist_id"] = album.artist_id
+
+    track = Track(**data)
     db.add(track)
     db.commit()
     db.refresh(track)
@@ -180,10 +224,21 @@ def update_track(
     *, db: Session, track_id: int, payload: TrackUpdate, user: User
 ) -> TrackResponse:
     track = _get_track_or_404(db, track_id)
+    _ensure_can_write_to_track(db, track, user)
+
     updates = payload.model_dump(exclude_unset=True)
 
-    album_id = updates.get("album_id", track.album_id)
-    _ensure_can_write_to_album(db, album_id, user)
+    new_album_id = updates.get("album_id", track.album_id)
+    new_artist_id = updates.get("artist_id", track.effective_artist_id)
+
+    if "album_id" in updates or "artist_id" in updates:
+        _ensure_can_write_to_track_target(
+            db, album_id=new_album_id, artist_id=new_artist_id, user=user
+        )
+        if new_album_id is not None:
+            album = db.get(Album, new_album_id)
+            if album:
+                updates["artist_id"] = album.artist_id
 
     if "title" in updates:
         _ensure_unique_title(db, updates["title"], exclude_id=track_id)
@@ -198,7 +253,7 @@ def update_track(
 
 def delete_track(*, db: Session, track_id: int, user: User) -> None:
     track = _get_track_or_404(db, track_id)
-    _ensure_can_write_to_album(db, track.album_id, user)
+    _ensure_can_write_to_track(db, track, user)
     if track.audio_file_key:
         try:
             delete_audio_file(track.audio_file_key)
@@ -209,14 +264,8 @@ def delete_track(*, db: Session, track_id: int, user: User) -> None:
 
 
 def set_track_audio_key(*, db: Session, track_id: int, object_key: str, user: User) -> TrackResponse:
-    """Associate an existing uploaded audio object key with a track.
-
-    Used when uploads are done directly to storage (presigned upload). This will
-    set the track.audio_file_key to the provided key and remove the previous
-    key from storage if present.
-    """
     track = _get_track_or_404(db, track_id)
-    _ensure_can_write_to_album(db, track.album_id, user)
+    _ensure_can_write_to_track(db, track, user)
 
     previous_key = track.audio_file_key
     track.audio_file_key = object_key
@@ -240,7 +289,7 @@ def upload_track_cover(
     user: User,
 ) -> TrackResponse:
     track = _get_track_or_404(db, track_id)
-    _ensure_can_write_to_album(db, track.album_id, user)
+    _ensure_can_write_to_track(db, track, user)
 
     if file.content_type is None or not file.content_type.startswith("image/"):
         raise HTTPException(
@@ -271,4 +320,5 @@ def upload_track_cover(
             pass
 
     return _to_response(track)
+
 

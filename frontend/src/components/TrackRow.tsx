@@ -94,7 +94,8 @@ export default function TrackRow({ track, index, tracks, onPlay }: Props) {
 
 
       {/* Album */}
-      <p className="hidden md:block text-sm text-subtext truncate">{track.album_title || '—'}</p>
+      <p className="hidden md:block text-sm text-subtext truncate">{track.album_title || 'Single'}</p>
+
 
       {/* Duration */}
       <span className="hidden md:block text-sm text-subtext tabular-nums text-right">

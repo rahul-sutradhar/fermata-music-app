@@ -66,10 +66,12 @@ export default function ArtistPanelPage() {
         const filteredAlbums = allAlbums.filter((al) => al.artist_id === profile!.id)
         setMyAlbums(filteredAlbums)
 
-        // 3. Fetch tracks belonging to this artist's albums
+        // 3. Fetch tracks belonging to this artist (either via album or standalone artist_id)
         const myAlbumIds = new Set(filteredAlbums.map((al) => al.id))
         const allTracks = await listTracks(0, 200)
-        const filteredTracks = allTracks.filter((t) => myAlbumIds.has(t.album_id))
+        const filteredTracks = allTracks.filter(
+          (t) => (t.album_id && myAlbumIds.has(t.album_id)) || t.artist_id === profile!.id,
+        )
         setMyTracks(filteredTracks)
       }
     } catch (err) {
@@ -86,7 +88,8 @@ export default function ArtistPanelPage() {
   // Track CRUD Actions
   const handleTrackSubmit = async (data: {
     title: string
-    album_id: number
+    album_id: number | null
+    artist_id?: number | null
     duration_seconds?: number
     audioFile?: File
     coverFile?: File
@@ -97,11 +100,13 @@ export default function ArtistPanelPage() {
         targetTrack = await updateTrack(editingTrack.id, {
           title: data.title,
           album_id: data.album_id,
+          artist_id: myArtist?.id,
           duration_seconds: data.duration_seconds,
         })
       } else {
-        targetTrack = await createTrack(data.title, data.album_id, data.duration_seconds)
+        targetTrack = await createTrack(data.title, data.album_id, data.duration_seconds, myArtist?.id)
       }
+
 
       if (data.audioFile) {
         setUploadingForId(targetTrack.id)
@@ -375,9 +380,16 @@ export default function ArtistPanelPage() {
                           </div>
                         </div>
 
-                        <span className="text-sm text-subtext truncate">
-                          {album?.title || `Album #${track.album_id}`}
+                        <span className="text-sm truncate">
+                          {track.album_id ? (
+                            <span className="text-subtext">{album?.title || `Album #${track.album_id}`}</span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full bg-spotify-green/20 text-spotify-green text-xs font-semibold">
+                              Single
+                            </span>
+                          )}
                         </span>
+
 
                         <span className="text-sm text-subtext tabular-nums">
                           {track.duration_seconds

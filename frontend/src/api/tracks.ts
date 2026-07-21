@@ -15,26 +15,35 @@ export function getTrackAudioUrl(id: number) {
   return apiRequest<{ audio_url: string | null }>(`/tracks/${id}/audio`)
 }
 
-export function createTrack(title: string, albumId: number, durationSeconds?: number) {
+export function createTrack(
+  title: string,
+  albumId?: number | null,
+  durationSeconds?: number,
+  artistId?: number | null
+) {
+  const payload: Record<string, any> = {
+    title,
+    duration_seconds: durationSeconds ?? null,
+  }
+  if (albumId) payload.album_id = albumId
+  if (artistId) payload.artist_id = artistId
+
   return apiRequest<Track>('/tracks', {
     method: 'POST',
-    body: JSON.stringify({
-      title,
-      album_id: albumId,
-      duration_seconds: durationSeconds ?? null,
-    }),
+    body: JSON.stringify(payload),
   })
 }
 
 export function updateTrack(
   id: number,
-  data: { title?: string; album_id?: number; duration_seconds?: number },
+  data: { title?: string; album_id?: number | null; artist_id?: number | null; duration_seconds?: number },
 ) {
   return apiRequest<Track>(`/tracks/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
   })
 }
+
 
 export function deleteTrack(id: number) {
   return apiRequest<void>(`/tracks/${id}`, {

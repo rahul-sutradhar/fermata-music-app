@@ -9,12 +9,14 @@ class Track(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    album_id: Mapped[int] = mapped_column(ForeignKey("albums.id"), nullable=False)
+    album_id: Mapped[int | None] = mapped_column(ForeignKey("albums.id"), nullable=True)
+    artist_id: Mapped[int | None] = mapped_column(ForeignKey("artists.id", ondelete="CASCADE"), nullable=True)
     duration_seconds: Mapped[int | None] = mapped_column(nullable=True)
     audio_file_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
     cover_image_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
-    album: Mapped["Album"] = relationship(back_populates="tracks")
+    album: Mapped["Album | None"] = relationship(back_populates="tracks")
+    artist_rel: Mapped["Artist | None"] = relationship(back_populates="standalone_tracks", foreign_keys=[artist_id])
     playlist_tracks: Mapped[list["PlaylistTrack"]] = relationship(
         back_populates="track"
     )
@@ -24,12 +26,23 @@ class Track(Base):
         return self.album.title if self.album else None
 
     @property
-    def artist_id(self) -> int | None:
+    def effective_artist_id(self) -> int | None:
+        if self.artist_id is not None:
+            return self.artist_id
         return self.album.artist_id if self.album else None
+
+    # Alias for backward compatibility
+    @property
+    def artist_id_value(self) -> int | None:
+        return self.effective_artist_id
 
     @property
     def artist_name(self) -> str | None:
-        return self.album.artist.name if (self.album and self.album.artist) else None
+        if self.artist_rel:
+            return self.artist_rel.name
+        if self.album and self.album.artist:
+            return self.album.artist.name
+        return None
 
     @property
     def cover_url(self) -> str | None:
@@ -37,4 +50,5 @@ class Track(Base):
         if self.cover_image_key:
             return get_audio_url(self.cover_image_key)
         return self.album.cover_url if self.album else None
+
 

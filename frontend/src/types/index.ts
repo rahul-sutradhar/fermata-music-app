@@ -22,15 +22,15 @@ export interface Album {
 export interface Track {
   id: number
   title: string
-  album_id: number
+  album_id?: number | null
   duration_seconds: number | null
   audio_url?: string | null
   cover_url?: string | null
-  // These fields may be provided by enriched/search endpoints but not by core TrackResponse
-  album_title?: string
-  artist_id?: number
-  artist_name?: string
+  album_title?: string | null
+  artist_id?: number | null
+  artist_name?: string | null
 }
+
 
 
 export interface Playlist {

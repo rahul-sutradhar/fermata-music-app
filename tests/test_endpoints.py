@@ -104,3 +104,20 @@ def test_get_missing_track_returns_404(client):
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Track 999 not found"
+
+
+def test_get_artist_singles(client, db_session):
+    artist, _, _ = seed_album_data(db_session)
+    single_track = Track(title="Standalone Single", album_id=None, artist_id=artist.id, duration_seconds=195)
+    db_session.add(single_track)
+    db_session.commit()
+
+    response = client.get(f"/artists/{artist.id}/singles")
+
+    assert response.status_code == 200
+    singles = response.json()
+    assert len(singles) == 1
+    assert singles[0]["title"] == "Standalone Single"
+    assert singles[0]["album_id"] is None
+    assert singles[0]["artist_id"] == artist.id
+

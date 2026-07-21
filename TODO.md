@@ -137,6 +137,8 @@ _____________________________________________________________________
 - [x] Token revocation / logout
 - [x] Route protection applied to relevant endpoints
 - [x] Basic role/ownership checks (e.g. "only playlist owner can edit")
+- [x] **Strict Role Hierarchy & Master Admin Lock**: Enforced role authorization hierarchy (Master Admin has full control; Standard Admins can toggle User ↔ Artist but cannot create/demote Admins; Master Admin role/username permanently locked against demotion; No user can change their own role).
+
 
 ---
 
@@ -270,7 +272,10 @@ Notes / Next steps:
 
 - [ ] Liked tracks & Follow artists/users
 - [ ] Recently played history analytics
-- [ ] **Standalone Single Tracks**: Allow artists to publish single tracks directly without requiring an album (similar to Spotify Single releases).
+- [x] **Standalone Single Tracks**: Allow artists to publish single tracks directly without requiring an album (similar to Spotify Single releases) with option to attach/detach to/from albums dynamically.
+- [x] **Strict Role Hierarchy & Master Admin Lock**: Master Admin immutability lock, self-role modification prevention, and multi-tier admin permission constraints in backend and frontend.
+
+
 - [ ] **Dynamic App Theming System**:
   - [ ] Multi-palette themes (Spotify Green, Cyberpunk Neon, Midnight Velvet, Sunset Gold, Emerald, etc.).
   - [ ] Global Dark / Light mode toggle common to all color themes.

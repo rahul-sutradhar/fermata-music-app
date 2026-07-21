@@ -93,6 +93,14 @@ def admin_create_user(
     current_user: CurrentAdmin,
 ) -> UserResponse:
     """Create a user with a specific role (Admin only)."""
+    is_master_admin = (current_user.username == "admin" or current_user.id == 1)
+
+    if payload.role == "admin" and not is_master_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the master admin can create admin accounts",
+        )
+
     if db.scalar(select(User).where(User.username == payload.username)):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already taken")
     if db.scalar(select(User).where(User.email == payload.email)):
@@ -144,16 +152,42 @@ def admin_update_user(
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User {user_id} not found")
 
+    is_master_admin = (current_user.username == "admin" or current_user.id == 1)
+
+    # Protection for master admin account (by username or ID 1)
+    if user.username == "admin" or user_id == 1:
+        if payload.role is not None and payload.role != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot change the role of the master admin account"
+            )
+        if payload.username is not None and payload.username != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot change the username of the master admin account"
+            )
+
+    # Permission checks for non-master admins
+    if payload.role is not None and payload.role != user.role:
+        if not is_master_admin:
+            if payload.role == "admin":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only the master admin can promote users to admin",
+                )
+            if user.role == "admin":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only the master admin can change the role of administrators",
+                )
+
     # Prevent admin from changing their own role
     if payload.role is not None and payload.role != user.role and user_id == current_user.id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot change your own role")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot change your own administrator role"
+        )
 
-    # Protection for master admin
-    if user.username == "admin":
-        if payload.role is not None and payload.role != "admin":
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot change the role of the master admin")
-        if payload.username is not None and payload.username != "admin":
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot change the username of the master admin")
 
     if payload.username is not None:
         existing = db.scalar(select(User).where(User.username == payload.username, User.id != user_id))
@@ -223,9 +257,18 @@ def admin_delete_user(
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User {user_id} not found")
 
+    is_master_admin = (current_user.username == "admin" or current_user.id == 1)
+
     # Protection for master admin
-    if user.username == "admin":
+    if user.username == "admin" or user_id == 1:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete the master admin")
+
+    # Only master admin can delete standard admins
+    if user.role == "admin" and not is_master_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the master admin can delete administrator accounts",
+        )
 
     # Protection for deleting active catalog artists
     if user.role == "artist":
@@ -239,4 +282,5 @@ def admin_delete_user(
 
     db.delete(user)
     db.commit()
+
 

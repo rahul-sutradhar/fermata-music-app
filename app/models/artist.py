@@ -11,7 +11,12 @@ class Artist(User):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
 
     albums: Mapped[list["Album"]] = relationship(back_populates="artist")
+    standalone_tracks: Mapped[list["Track"]] = relationship(
+        back_populates="artist_rel",
+        foreign_keys="Track.artist_id"
+    )
 
     __mapper_args__ = {
         "polymorphic_identity": "artist",
     }
+
