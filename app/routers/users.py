@@ -161,8 +161,8 @@ def admin_update_user(
             detail="The master admin account is 100% read-only and cannot be modified."
         )
 
-    # 2. Admins cannot modify details of other admin accounts
-    if user.role == "admin" and user_id != current_user.id:
+    # 2. Non-master admins cannot modify details of other admin accounts
+    if not is_master_admin and user.role == "admin" and user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Administrators cannot modify details of other admin accounts."
