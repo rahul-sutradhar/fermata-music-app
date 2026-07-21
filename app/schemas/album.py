@@ -12,6 +12,8 @@ class AlbumResponse(BaseModel):
     id: int
     title: str
     artist_id: int
+    artist_name: str | None = None
 
     class Config:
         from_attributes = True
+

@@ -13,3 +13,8 @@ class Album(Base):
 
     artist: Mapped["Artist"] = relationship(back_populates="albums")
     tracks: Mapped[list["Track"]] = relationship(back_populates="album")
+
+    @property
+    def artist_name(self) -> str | None:
+        return self.artist.name if self.artist else None
+

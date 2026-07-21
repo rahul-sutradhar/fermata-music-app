@@ -1,6 +1,6 @@
 from fastapi import HTTPException, status
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.artist import Artist
 from app.models.album import Album
@@ -9,6 +9,7 @@ from app.schemas.artist import ArtistResponse
 
 
 def _to_artist_response(artist: Artist) -> ArtistResponse:
+
     return ArtistResponse(id=artist.id, name=artist.name, user_id=artist.id)
 
 
@@ -17,6 +18,7 @@ def _to_album_response(album: Album) -> AlbumResponse:
         id=album.id,
         title=album.title,
         artist_id=album.artist_id,
+        artist_name=album.artist_name,
     )
 
 
@@ -38,9 +40,10 @@ def list_artist_albums(
     *, db: Session, artist_id: int, skip: int = 0, limit: int = 100
 ) -> list[AlbumResponse]:
     _get_artist_or_404(db, artist_id)
-    query = select(Album).where(Album.artist_id == artist_id).order_by(Album.id)
+    query = select(Album).options(joinedload(Album.artist)).where(Album.artist_id == artist_id).order_by(Album.id)
     albums = db.scalars(query.offset(skip).limit(limit)).all()
     return [_to_album_response(album) for album in albums]
+
 
 
 def create_artist(*, db: Session, name: str, user_id: int | None = None) -> ArtistResponse:

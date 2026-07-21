@@ -20,10 +20,8 @@ def list_albums(
     limit: int = Query(100, ge=1, le=200),
 ) -> list[AlbumResponse]:
     """List all albums with pagination."""
-    from sqlalchemy import select
-    from app.models.album import Album
-    albums = db.scalars(select(Album).order_by(Album.id).offset(skip).limit(limit)).all()
-    return [AlbumResponse(id=a.id, title=a.title, artist_id=a.artist_id) for a in albums]
+    return album_service.list_albums(db=db, skip=skip, limit=limit)
+
 
 
 @router.get(

@@ -23,7 +23,7 @@ def seed_album_data(db):
 
 
 def test_get_album_by_id(client, db_session):
-    _, album, _ = seed_album_data(db_session)
+    artist, album, _ = seed_album_data(db_session)
 
     response = client.get(f"/albums/{album.id}")
 
@@ -32,6 +32,7 @@ def test_get_album_by_id(client, db_session):
         "id": album.id,
         "title": album.title,
         "artist_id": album.artist_id,
+        "artist_name": artist.name,
     }
 
 
@@ -62,8 +63,9 @@ def test_get_artist_albums(client, db_session):
 
     assert response.status_code == 200
     assert response.json() == [
-        {"id": album.id, "title": album.title, "artist_id": artist.id}
+        {"id": album.id, "title": album.title, "artist_id": artist.id, "artist_name": artist.name}
     ]
+
 
 
 def test_get_track_by_id(client, db_session):

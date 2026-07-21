@@ -11,15 +11,16 @@ from app.schemas.artist import ArtistResponse
 
 
 def _track_row_to_item(track: Track) -> SearchResultItem:
-    return SearchResultItem(type="track", id=track.id, title=track.title, subtitle=None)
+    return SearchResultItem(type="track", id=track.id, title=track.title, subtitle=track.artist_name)
 
 
 def _album_row_to_item(album: Album) -> SearchResultItem:
-    return SearchResultItem(type="album", id=album.id, title=album.title, subtitle=None)
+    return SearchResultItem(type="album", id=album.id, title=album.title, subtitle=album.artist_name)
 
 
 def _artist_row_to_item(artist: Artist) -> SearchResultItem:
     return SearchResultItem(type="artist", id=artist.id, title=artist.name, subtitle=None)
+
 
 
 def search(*, db: Session, q: str, limit: int = 10) -> SearchResponse:
@@ -174,18 +175,32 @@ def search(*, db: Session, q: str, limit: int = 10) -> SearchResponse:
     items = items[:limit]
 
     # Also provide legacy typed lists for consumers expecting structured responses
+    from app.core.storage import get_audio_url
+
     track_objs = [
         TrackResponse(
             id=t.id,
             title=t.title,
             album_id=t.album_id,
             duration_seconds=t.duration_seconds,
-            audio_url=getattr(t, "audio_url", None),
+            audio_url=get_audio_url(t.audio_file_key) if getattr(t, "audio_file_key", None) else None,
+            album_title=t.album_title,
+            artist_id=t.artist_id,
+            artist_name=t.artist_name,
         )
         for t in tracks
     ]
-    album_objs = [AlbumResponse(id=a.id, title=a.title, artist_id=a.artist_id) for a in albums]
+    album_objs = [
+        AlbumResponse(
+            id=a.id,
+            title=a.title,
+            artist_id=a.artist_id,
+            artist_name=a.artist_name,
+        )
+        for a in albums
+    ]
     artist_objs = [ArtistResponse(id=ar.id, name=ar.name) for ar in artists]
+
 
     return SearchResponse(
         q=q,

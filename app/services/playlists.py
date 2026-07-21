@@ -28,12 +28,20 @@ def _to_playlist_response(playlist: Playlist) -> PlaylistResponse:
     return PlaylistResponse(id=playlist.id, name=playlist.name, user_id=playlist.user_id)
 
 
+from app.core.storage import get_audio_url
+from app.models.album import Album
+
+
 def _to_track_response(track: Track) -> TrackResponse:
     return TrackResponse(
         id=track.id,
         title=track.title,
         album_id=track.album_id,
         duration_seconds=track.duration_seconds,
+        audio_url=get_audio_url(track.audio_file_key) if track.audio_file_key else None,
+        album_title=track.album_title,
+        artist_id=track.artist_id,
+        artist_name=track.artist_name,
     )
 
 
@@ -63,11 +71,12 @@ def _get_playlist_items(db: Session, playlist_id: int) -> list[PlaylistTrack]:
     return list(
         db.scalars(
             select(PlaylistTrack)
-            .options(joinedload(PlaylistTrack.track))
+            .options(joinedload(PlaylistTrack.track).joinedload(Track.album).joinedload(Album.artist))
             .where(PlaylistTrack.playlist_id == playlist_id)
             .order_by(PlaylistTrack.position)
         ).all()
     )
+
 
 
 def _resequence_playlist_items(db: Session, items: list[PlaylistTrack]) -> None:
