@@ -90,33 +90,45 @@ export default function AdminPanelPage() {
   const loadData = async () => {
     setLoading(true)
     try {
-      // Pre-fetch all users to build userMap and avoid duplicate requests
-      const allUsers = await listUsers(0, 200)
-      const map: Record<number, string> = {}
-      allUsers.forEach(u => {
-        map[u.id] = u.username
-      })
-      setUserMap(map)
-
       if (activeTab === 'tracks') {
+        // Tracks tab – no user fetch needed
         const data = await listTracks(0, 200, searchQ || undefined)
         setTracks(data)
+
       } else if (activeTab === 'users') {
+        const allUsers = await listUsers(0, 500)
+        const map: Record<number, string> = {}
+        allUsers.forEach(u => { map[u.id] = u.username })
+        setUserMap(map)
         setUsers(allUsers.filter(u =>
           u.role === 'user' && (
             (u.username || '').toLowerCase().includes(searchQ.toLowerCase()) ||
             (u.email || '').toLowerCase().includes(searchQ.toLowerCase())
           )
         ))
+
       } else if (activeTab === 'admins') {
+        const allUsers = await listUsers(0, 500)
+        const map: Record<number, string> = {}
+        allUsers.forEach(u => { map[u.id] = u.username })
+        setUserMap(map)
         setUsers(allUsers.filter(u =>
           u.role === 'admin' && (
             (u.username || '').toLowerCase().includes(searchQ.toLowerCase()) ||
             (u.email || '').toLowerCase().includes(searchQ.toLowerCase())
           )
         ))
+
       } else if (activeTab === 'artists') {
-        const profileData = await listArtists(0, 200)
+        // Fetch both users and artist profiles in parallel
+        const [allUsers, profileData] = await Promise.all([
+          listUsers(0, 500),
+          listArtists(0, 200),
+        ])
+        const map: Record<number, string> = {}
+        allUsers.forEach(u => { map[u.id] = u.username })
+        setUserMap(map)
+
         setArtists(profileData.filter(a => (a.name || '').toLowerCase().includes(searchQ.toLowerCase())))
         setUsers(allUsers.filter(u =>
           u.role === 'artist' && (
@@ -125,10 +137,13 @@ export default function AdminPanelPage() {
           )
         ))
         setArtistAccountsList(allUsers.filter(u => u.role === 'artist'))
+
       } else if (activeTab === 'albums') {
-        const data = await listAlbums(0, 200)
+        const [data, artistData] = await Promise.all([
+          listAlbums(0, 200),
+          listArtists(0, 200),
+        ])
         setAlbums(data.filter(a => a.title.toLowerCase().includes(searchQ.toLowerCase())))
-        const artistData = await listArtists(0, 200)
         setAllArtistsList(artistData)
       }
 

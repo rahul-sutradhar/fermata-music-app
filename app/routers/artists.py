@@ -22,7 +22,7 @@ def list_artists(
     from sqlalchemy import select
     from app.models.artist import Artist
     artists = db.scalars(select(Artist).order_by(Artist.id).offset(skip).limit(limit)).all()
-    return [ArtistResponse(id=a.id, name=a.name, user_id=a.id) for a in artists]
+    return [artist_service._to_artist_response(a) for a in artists]
 
 
 @router.get(
