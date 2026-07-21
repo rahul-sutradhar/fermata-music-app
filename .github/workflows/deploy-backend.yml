@@ -60,13 +60,15 @@ jobs:
       - name: Run tests
         run: python -m pytest -q
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fermata_test
+          DATABASE_URL: postgresql://${{ secrets.DATABASE_USERNAME }}:${{ secrets.DATABASE_PASSWORD }}@${{ secrets.DATABASE_HOSTNAME }}:${{ secrets.DATABASE_PORT }}/${{ secrets.DATABASE_NAME }}
           SECRET_KEY: test-secret-key
           ALGORITHM: HS256
           ACCESS_TOKEN_EXPIRE_MINUTES: 30
+
           B2_ACCESS_KEY_ID: ${{ secrets.B2_ACCESS_KEY_ID }}
           B2_SECRET_ACCESS_KEY: ${{ secrets.B2_SECRET_ACCESS_KEY }}
           B2_BUCKET_NAME: ${{ secrets.B2_BUCKET_NAME }}
+          B2_S3_ENDPOINT_URL: ${{ secrets.B2_S3_ENDPOINT_URL }}
 
   deploy:
     runs-on: ubuntu-latest
