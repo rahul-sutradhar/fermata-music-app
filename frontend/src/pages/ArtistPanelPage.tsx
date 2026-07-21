@@ -34,6 +34,7 @@ import type { Track, Artist, Album } from '@/types'
 import { useAuthStore } from '@/store/authStore'
 import { usePlayerStore } from '@/store/playerStore'
 import TrackFormModal from '@/components/TrackFormModal'
+import ImageCropperModal from '@/components/ImageCropperModal'
 
 type TabType = 'tracks' | 'albums'
 
@@ -71,6 +72,17 @@ export default function ArtistPanelPage() {
   const [albumCoverFile, setAlbumCoverFile] = useState<File | null>(null)
   const [albumCoverPreview, setAlbumCoverPreview] = useState<string | null>(null)
   const albumCoverInputRef = useRef<HTMLInputElement>(null)
+
+  // Cropper modal state
+  const [cropperOpen, setCropperOpen] = useState(false)
+  const [cropperFile, setCropperFile] = useState<File | null>(null)
+  const [cropCallback, setCropCallback] = useState<((file: File) => void) | null>(null)
+
+  const openImageCropper = (file: File, callback: (croppedFile: File) => void) => {
+    setCropperFile(file)
+    setCropCallback(() => callback)
+    setCropperOpen(true)
+  }
 
   // Upload state tracking
   const [uploadingForId, setUploadingForId] = useState<number | null>(null)
@@ -558,7 +570,9 @@ export default function ArtistPanelPage() {
                               className="hidden"
                               onChange={(e) => {
                                 const file = e.target.files?.[0]
-                                if (file) handleUploadTrackCover(track.id, file)
+                                if (file) {
+                                  openImageCropper(file, (croppedFile) => handleUploadTrackCover(track.id, croppedFile))
+                                }
                                 e.target.value = ''
                               }}
                             />
@@ -711,7 +725,9 @@ export default function ArtistPanelPage() {
                                 className="hidden"
                                 onChange={(e) => {
                                   const file = e.target.files?.[0]
-                                  if (file) handleUploadAlbumCover(al.id, file)
+                                  if (file) {
+                                    openImageCropper(file, (croppedFile) => handleUploadAlbumCover(al.id, croppedFile))
+                                  }
                                   e.target.value = ''
                                 }}
                               />
@@ -828,7 +844,9 @@ export default function ArtistPanelPage() {
                                             className="hidden"
                                             onChange={(e) => {
                                               const file = e.target.files?.[0]
-                                              if (file) handleUploadTrackCover(track.id, file)
+                                              if (file) {
+                                                openImageCropper(file, (croppedFile) => handleUploadTrackCover(track.id, croppedFile))
+                                              }
                                               e.target.value = ''
                                             }}
                                           />
@@ -969,9 +987,12 @@ export default function ArtistPanelPage() {
                   onChange={(e) => {
                     const file = e.target.files?.[0]
                     if (file) {
-                      setAlbumCoverFile(file)
-                      setAlbumCoverPreview(URL.createObjectURL(file))
+                      openImageCropper(file, (croppedFile) => {
+                        setAlbumCoverFile(croppedFile)
+                        setAlbumCoverPreview(URL.createObjectURL(croppedFile))
+                      })
                     }
+                    e.target.value = ''
                   }}
                 />
               </div>
@@ -995,6 +1016,22 @@ export default function ArtistPanelPage() {
           </form>
         </div>
       )}
+
+      {/* Image Cropper Modal */}
+      <ImageCropperModal
+        isOpen={cropperOpen}
+        imageFile={cropperFile}
+        onClose={() => {
+          setCropperOpen(false)
+          setCropperFile(null)
+        }}
+        onCropComplete={(croppedFile) => {
+          if (cropCallback) cropCallback(croppedFile)
+          setCropperOpen(false)
+          setCropperFile(null)
+        }}
+      />
     </div>
   )
 }
+

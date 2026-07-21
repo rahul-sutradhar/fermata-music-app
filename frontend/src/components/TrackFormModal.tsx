@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { X, Upload, Music, Image as ImageIcon } from 'lucide-react'
 import type { Track, Album } from '@/types'
 import { listAlbums } from '@/api/albums'
+import ImageCropperModal from './ImageCropperModal'
 
 interface Props {
   isOpen: boolean
@@ -30,6 +31,10 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
   const [coverFile, setCoverFile] = useState<File | null>(null)
   const [coverPreview, setCoverPreview] = useState<string | null>(null)
   const coverInputRef = useRef<HTMLInputElement>(null)
+
+  // Cropper states
+  const [cropperFile, setCropperFile] = useState<File | null>(null)
+  const [cropperOpen, setCropperOpen] = useState(false)
 
   // Searchable album dropdown states
   const [albumsList, setAlbumsList] = useState<Album[]>([])
@@ -109,11 +114,11 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
   const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-
-    setCoverFile(file)
-    const previewUrl = URL.createObjectURL(file)
-    setCoverPreview(previewUrl)
+    setCropperFile(file)
+    setCropperOpen(true)
+    e.target.value = ''
   }
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -354,6 +359,18 @@ export default function TrackFormModal({ isOpen, onClose, onSubmit, initialData,
           </div>
         </form>
       </div>
+
+      {/* Image Cropper Modal */}
+      <ImageCropperModal
+        isOpen={cropperOpen}
+        imageFile={cropperFile}
+        onClose={() => setCropperOpen(false)}
+        onCropComplete={(croppedFile) => {
+          setCoverFile(croppedFile)
+          setCoverPreview(URL.createObjectURL(croppedFile))
+        }}
+      />
     </div>
   )
 }
+
