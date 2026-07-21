@@ -39,8 +39,9 @@ export default function SearchPage() {
     try {
       const res = await search(q, 20)
       setResults(res)
-    } catch {
-      setResults(null)
+    } catch (err) {
+      console.error('Search query failed:', err)
+      setResults({ query: q, tracks: [], albums: [], artists: [] })
     } finally {
       setLoading(false)
     }
@@ -65,19 +66,25 @@ export default function SearchPage() {
   }
 
   return (
-    <div>
-      <h1 className="text-3xl font-bold mb-6">Search</h1>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Search</h1>
+        <p className="text-sm text-subtext mt-1">
+          Explore tracks, albums, and artists in Fermata
+        </p>
+      </div>
 
       <SearchInput value={query} onChange={handleSearch} />
 
       {loading && (
-        <div className="flex items-center justify-center py-20">
+        <div className="flex flex-col items-center justify-center py-20 gap-3">
           <div className="w-8 h-8 border-2 border-spotify-green border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs text-subtext">Searching music...</p>
         </div>
       )}
 
       {results && !loading && (
-        <div className="mt-8 space-y-8 animate-in fade-in duration-200">
+        <div className="mt-6 space-y-8 animate-in fade-in duration-200">
           {/* Tracks */}
           {results.tracks.length > 0 && (
             <section>
@@ -94,6 +101,7 @@ export default function SearchPage() {
                   key={album.id}
                   title={album.title}
                   subtitle={album.artist_name || 'Unknown Artist'}
+                  imageUrl={album.cover_url}
                   href={`/album/${album.id}`}
                 />
               ))}
@@ -119,16 +127,18 @@ export default function SearchPage() {
           {results.tracks.length === 0 &&
             results.albums.length === 0 &&
             results.artists.length === 0 && (
-              <div className="py-12 text-center text-subtext">
-                <p className="text-lg font-medium">No results found</p>
-                <p className="text-sm mt-1">Try a different search term</p>
+              <div className="py-16 text-center text-subtext bg-surface-highlight/10 rounded-2xl border border-surface-highlight/30">
+                <p className="text-base font-semibold text-primary">No results found for "{query}"</p>
+                <p className="text-xs mt-1 text-subtext">
+                  Please check your spelling or search another artist, song, or album title
+                </p>
               </div>
             )}
         </div>
       )}
 
       {!results && !loading && query === '' && (
-        <div className="mt-8">
+        <div className="mt-6">
           {recentSearchPlayed.length > 0 ? (
             <section className="animate-in fade-in duration-300">
               <h2 className="text-xl font-bold mb-4">Recent Searches / Played Tracks</h2>
@@ -170,6 +180,15 @@ export default function SearchPage() {
               <p className="text-sm mt-1">Find tracks, albums, and artists</p>
             </div>
           )}
+        </div>
+      )}
+
+      {!results && !loading && query !== '' && (
+        <div className="py-16 text-center text-subtext bg-surface-highlight/10 rounded-2xl border border-surface-highlight/30 mt-6">
+          <p className="text-base font-semibold text-primary">No results found for "{query}"</p>
+          <p className="text-xs mt-1 text-subtext">
+            Please check your spelling or search another artist, song, or album title
+          </p>
         </div>
       )}
     </div>

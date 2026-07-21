@@ -39,7 +39,7 @@ def search(*, db: Session, q: str, limit: int = 10) -> SearchResponse:
             artists=[],
         )
 
-    # 1. Tracks Search (join Album and Artist to match all keywords anywhere in the track metadata)
+    # 1. Tracks Search (outerjoin Album and Artist so singles & album tracks both match)
     track_conditions = []
     for word in words:
         word_like = f"%{word}%"
@@ -52,14 +52,14 @@ def search(*, db: Session, q: str, limit: int = 10) -> SearchResponse:
         )
     tracks = db.scalars(
         select(Track)
-        .join(Album)
-        .join(Artist)
+        .outerjoin(Album, Track.album_id == Album.id)
+        .outerjoin(Artist, or_(Track.artist_id == Artist.id, Album.artist_id == Artist.id))
         .where(and_(*track_conditions))
         .order_by(Track.id)
         .limit(limit)
     ).all()
 
-    # 2. Albums Search (join Artist to match keywords in album title or artist name)
+    # 2. Albums Search (outerjoin Artist to match keywords in album title or artist name)
     album_conditions = []
     for word in words:
         word_like = f"%{word}%"
@@ -71,7 +71,7 @@ def search(*, db: Session, q: str, limit: int = 10) -> SearchResponse:
         )
     albums = db.scalars(
         select(Album)
-        .join(Artist)
+        .outerjoin(Artist, Album.artist_id == Artist.id)
         .where(and_(*album_conditions))
         .order_by(Album.id)
         .limit(limit)
@@ -90,11 +90,9 @@ def search(*, db: Session, q: str, limit: int = 10) -> SearchResponse:
     ).all()
 
     # --- Phase 2: Typo-Tolerance / Fuzzy Match Fallback ---
-    # If the database exact keyword query has slots left, run fuzzy string matching
-    THRESHOLD = 0.5  # Match strings with at least 50% character similarity
+    THRESHOLD = 0.45  # Match strings with at least 45% character similarity
 
     if len(tracks) < limit:
-        # Load all tracks with nested eager loads to prevent N+1 queries
         all_tracks = db.scalars(
             select(Track).options(
                 joinedload(Track.album).joinedload(Album.artist)
@@ -103,21 +101,18 @@ def search(*, db: Session, q: str, limit: int = 10) -> SearchResponse:
         
         scored_tracks = []
         for t in all_tracks:
-            # Skip if already in results
             if any(x.id == t.id for x in tracks):
                 continue
             
-            # Compute best matching score between query and title/album/artist
             score = difflib.SequenceMatcher(None, q.lower(), t.title.lower()).ratio()
-            if t.album:
-                score = max(score, difflib.SequenceMatcher(None, q.lower(), t.album.title.lower()).ratio())
-                if t.album.artist:
-                    score = max(score, difflib.SequenceMatcher(None, q.lower(), t.album.artist.name.lower()).ratio())
+            if t.album_title:
+                score = max(score, difflib.SequenceMatcher(None, q.lower(), t.album_title.lower()).ratio())
+            if t.artist_name:
+                score = max(score, difflib.SequenceMatcher(None, q.lower(), t.artist_name.lower()).ratio())
             
             if score >= THRESHOLD:
                 scored_tracks.append((t, score))
         
-        # Sort by score descending and fill the remaining limit slots
         scored_tracks.sort(key=lambda x: x[1], reverse=True)
         for t, s in scored_tracks:
             if len(tracks) >= limit:
@@ -135,8 +130,8 @@ def search(*, db: Session, q: str, limit: int = 10) -> SearchResponse:
                 continue
             
             score = difflib.SequenceMatcher(None, q.lower(), a.title.lower()).ratio()
-            if a.artist:
-                score = max(score, difflib.SequenceMatcher(None, q.lower(), a.artist.name.lower()).ratio())
+            if a.artist_name:
+                score = max(score, difflib.SequenceMatcher(None, q.lower(), a.artist_name.lower()).ratio())
                 
             if score >= THRESHOLD:
                 scored_albums.append((a, score))
@@ -164,6 +159,7 @@ def search(*, db: Session, q: str, limit: int = 10) -> SearchResponse:
             if len(artists) >= limit:
                 break
             artists.append(ar)
+
 
     # --- Result Assembly ---
     items: list[SearchResultItem] = []
