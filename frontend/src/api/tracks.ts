@@ -1,9 +1,10 @@
 import { apiRequest } from './client'
 import type { Track } from '@/types'
 
-export function listTracks(skip = 0, limit = 20, q?: string) {
+export function listTracks(skip = 0, limit = 20, q?: string, artistId?: number) {
   const query = new URLSearchParams({ skip: String(skip), limit: String(limit) })
   if (q) query.set('q', q)
+  if (artistId) query.set('artist_id', String(artistId))
   return apiRequest<Track[]>(`/tracks?${query.toString()}`)
 }
 

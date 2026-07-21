@@ -19,9 +19,10 @@ def list_tracks(
     skip: int = Query(0, ge=0, description="Number of tracks to skip"),
     limit: int = Query(20, ge=1, le=500, description="Maximum tracks to return"),
     q: str | None = Query(None, description="Filter tracks by title"),
+    artist_id: int | None = Query(None, description="Filter tracks by artist ID"),
 ) -> list[TrackResponse]:
-    """List tracks with optional pagination and title search."""
-    return track_service.list_tracks(db=db, skip=skip, limit=limit, q=q)
+    """List tracks with optional pagination and title search/artist filtering."""
+    return track_service.list_tracks(db=db, skip=skip, limit=limit, q=q, artist_id=artist_id)
 
 
 @router.post(

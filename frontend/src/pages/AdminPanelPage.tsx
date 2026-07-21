@@ -87,11 +87,8 @@ export default function AdminPanelPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const [loadError, setLoadError] = useState<string | null>(null)
-
   const loadData = async () => {
     setLoading(true)
-    setLoadError(null)
     try {
       if (activeTab === 'tracks') {
         // Tracks tab – no user fetch needed
@@ -99,7 +96,7 @@ export default function AdminPanelPage() {
         setTracks(data)
 
       } else if (activeTab === 'users') {
-        const allUsers = await listUsers(0, 200)
+        const allUsers = await listUsers(0, 500)
         const map: Record<number, string> = {}
         allUsers.forEach(u => { map[u.id] = u.username })
         setUserMap(map)
@@ -111,7 +108,7 @@ export default function AdminPanelPage() {
         ))
 
       } else if (activeTab === 'admins') {
-        const allUsers = await listUsers(0, 200)
+        const allUsers = await listUsers(0, 500)
         const map: Record<number, string> = {}
         allUsers.forEach(u => { map[u.id] = u.username })
         setUserMap(map)
@@ -125,7 +122,7 @@ export default function AdminPanelPage() {
       } else if (activeTab === 'artists') {
         // Fetch both users and artist profiles in parallel
         const [allUsers, profileData] = await Promise.all([
-          listUsers(0, 200),
+          listUsers(0, 500),
           listArtists(0, 200),
         ])
         const map: Record<number, string> = {}
@@ -150,10 +147,8 @@ export default function AdminPanelPage() {
         setAllArtistsList(artistData)
       }
 
-    } catch (err: any) {
-      const msg = err?.message || String(err)
-      setLoadError(msg)
-      console.error('Admin panel load error:', msg)
+    } catch (err) {
+      console.error('Failed to load admin data:', err)
     } finally {
       setLoading(false)
     }
@@ -489,15 +484,6 @@ export default function AdminPanelPage() {
           className="w-full pl-9 pr-4 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-primary/20 transition-colors placeholder:text-subtext/50"
         />
       </div>
-
-      {/* Error banner */}
-      {loadError && (
-        <div className="mb-4 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm flex items-start gap-2">
-          <span className="font-bold shrink-0">⚠ Load error:</span>
-          <span className="break-all">{loadError}</span>
-          <button onClick={loadData} className="ml-auto shrink-0 underline hover:no-underline">Retry</button>
-        </div>
-      )}
 
       {/* Loading state */}
       {loading ? (
