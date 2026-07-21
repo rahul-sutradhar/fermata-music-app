@@ -879,9 +879,8 @@ export default function AdminPanelPage() {
                       readOnly={isReadOnlyModal}
                       value={userForm.username}
                       onChange={e => setUserForm({ ...userForm, username: e.target.value })}
-                      className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${
-                        isReadOnlyModal ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
+                      className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${isReadOnlyModal ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
                     />
                   </div>
 
@@ -894,9 +893,8 @@ export default function AdminPanelPage() {
                       readOnly={isReadOnlyModal}
                       value={userForm.email}
                       onChange={e => setUserForm({ ...userForm, email: e.target.value })}
-                      className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${
-                        isReadOnlyModal ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
+                      className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${isReadOnlyModal ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
                     />
                   </div>
 
@@ -919,9 +917,8 @@ export default function AdminPanelPage() {
                       value={userForm.role}
                       onChange={e => setUserForm({ ...userForm, role: e.target.value })}
                       disabled={!canChangeRole}
-                      className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors uppercase font-semibold ${
-                        !canChangeRole ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                      }`}
+                      className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors uppercase font-semibold ${!canChangeRole ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                        }`}
                     >
                       <option value="user">USER</option>
                       <option value="artist">ARTIST</option>
@@ -1091,27 +1088,23 @@ export default function AdminPanelPage() {
               </label>
               <div
                 onClick={() => albumCoverInputRef.current?.click()}
-                className="relative aspect-square w-full max-h-64 mx-auto rounded-xl border-2 border-dashed border-surface-highlight hover:border-spotify-green/50 transition-colors flex flex-col items-center justify-center cursor-pointer overflow-hidden group bg-surface-highlight/20 shadow-md"
+                className="w-full border-2 border-dashed border-surface-highlight hover:border-spotify-green/50 rounded-lg p-3 flex items-center gap-3 cursor-pointer transition-colors"
               >
                 {albumCoverPreview ? (
-                  <>
-                    <img
-                      src={albumCoverPreview}
-                      alt="Cover Preview"
-                      className="w-full h-full object-cover rounded-lg"
-                    />
-                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs font-medium gap-1.5 p-4 text-center backdrop-blur-[2px]">
-                      <ImageIcon size={24} />
-                      <span>Click to change album cover</span>
-                    </div>
-                  </>
+                  <img src={albumCoverPreview} alt="Album cover preview" className="w-12 h-12 rounded-md object-cover shrink-0 shadow" />
                 ) : (
-                  <div className="flex flex-col items-center gap-2 text-subtext group-hover:text-primary transition-colors p-4 text-center">
-                    <ImageIcon size={32} />
-                    <span className="text-xs font-medium">Click to attach album cover image</span>
-                    <span className="text-[10px] text-subtext/70">Square PNG or JPG recommended</span>
+                  <div className="w-12 h-12 rounded-md bg-surface-highlight flex items-center justify-center shrink-0">
+                    <ImageIcon size={20} className="text-subtext/60" />
                   </div>
                 )}
+                <div className="min-w-0 flex-1">
+                  <span className="text-xs font-semibold text-primary block truncate">
+                    {albumCoverFile ? albumCoverFile.name : (albumCoverPreview ? 'Click to replace album cover' : 'Attach album cover image...')}
+                  </span>
+                  <span className="text-[10px] text-subtext block mt-0.5">
+                    Recommended square PNG or JPG
+                  </span>
+                </div>
                 <input
                   ref={albumCoverInputRef}
                   type="file"
@@ -1127,6 +1120,7 @@ export default function AdminPanelPage() {
                 />
               </div>
             </div>
+
 
             <div>
               <label className="block text-sm font-medium text-subtext mb-1">Album Title</label>
