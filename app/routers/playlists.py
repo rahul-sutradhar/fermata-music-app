@@ -139,6 +139,7 @@ def delete_playlist(
     db: DbSession,
     current_user: CurrentUser,
 ) -> None:
-    """Delete a playlist owned by the current user (or Admin)."""
+    """Delete a playlist owned by current user."""
     playlist_service.delete_playlist(db=db, playlist_id=playlist_id, user=current_user)
+
 
