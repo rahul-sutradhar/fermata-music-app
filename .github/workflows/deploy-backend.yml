@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'app/**'
+      - 'agentic_ai/**'
       - 'alembic/**'
       - 'tests/**'
       - 'requirements.txt'
@@ -16,6 +17,7 @@ on:
     branches: [main]
     paths:
       - 'app/**'
+      - 'agentic_ai/**'
       - 'alembic/**'
       - 'tests/**'
       - 'requirements.txt'
