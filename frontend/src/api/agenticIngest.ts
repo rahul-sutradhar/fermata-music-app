@@ -86,3 +86,9 @@ export async function rejectIngestionRequest(requestId: number): Promise<{ messa
     method: 'POST',
   })
 }
+
+export async function deleteIngestionRequest(requestId: number): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>(`/api/v1/agentic-ingest/requests/${requestId}`, {
+    method: 'DELETE',
+  })
+}

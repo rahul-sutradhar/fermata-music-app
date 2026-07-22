@@ -39,7 +39,8 @@ import type { Track, User as UserType, Artist, Album } from '@/types'
 import {
   listIngestionRequests,
   approveIngestionRequest,
-  rejectIngestionRequest
+  rejectIngestionRequest,
+  deleteIngestionRequest
 } from '@/api/agenticIngest'
 import type { IngestionRequestItem } from '@/api/agenticIngest'
 import { useAuthStore } from '@/store/authStore'
@@ -334,6 +335,17 @@ export default function AdminPanelPage() {
       loadData()
     } catch (err: any) {
       alert(err.message || 'Failed to reject request')
+    }
+  }
+
+  const handleDeleteRequest = async (requestId: number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    if (!confirm('Are you sure you want to delete this ingestion request? This will permanently remove it from the queue.')) return
+    try {
+      await deleteIngestionRequest(requestId)
+      loadData()
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete request')
     }
   }
 
@@ -1484,7 +1496,7 @@ export default function AdminPanelPage() {
 
                       {/* Actions */}
                       <div className="flex items-center gap-2 justify-end">
-                        {req.status === 'pending' ? (
+                        {req.status === 'pending' && (
                           <>
                             <button
                               onClick={(e) => handleApproveRequest(req.id, e)}
@@ -1499,14 +1511,25 @@ export default function AdminPanelPage() {
                               Reject
                             </button>
                           </>
-                        ) : req.status === 'processing' ? (
-                          <div className="flex items-center gap-1.5 text-xs text-subtext">
+                        )}
+                        {req.status === 'processing' && (
+                          <div className="flex items-center gap-1.5 text-xs text-subtext mr-1">
                             <RefreshCw size={12} className="animate-spin text-spotify-green" />
                             Running...
                           </div>
-                        ) : (
-                          <span className="text-xs text-subtext uppercase font-semibold">Processed</span>
                         )}
+                        {req.status !== 'pending' && req.status !== 'processing' && (
+                          <span className="text-xs text-subtext uppercase font-semibold mr-1">Processed</span>
+                        )}
+                        
+                        {/* Always show a delete/trash button for queue cleanup */}
+                        <button
+                          onClick={(e) => handleDeleteRequest(req.id, e)}
+                          className="p-1.5 rounded-md text-subtext hover:text-red-400 hover:bg-surface-highlight transition-colors"
+                          title="Delete Request"
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </div>
                     </div>
                   ))

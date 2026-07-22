@@ -325,3 +325,21 @@ def reject_ingestion_request(request_id: int, db: DbSession, current_admin: Curr
     db.commit()
     
     return {"message": "Request rejected successfully."}
+
+
+@router.delete("/requests/{request_id}")
+def delete_ingestion_request(request_id: int, db: DbSession, current_admin: CurrentAdmin):
+    """
+    Delete / remove an ingestion request from the queue (Admin only).
+    """
+    db_req = db.scalar(
+        select(IngestionRequest)
+        .where(IngestionRequest.id == request_id)
+    )
+    if not db_req:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found.")
+        
+    db.delete(db_req)
+    db.commit()
+    
+    return {"message": "Request deleted successfully from queue."}
