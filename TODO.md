@@ -293,15 +293,15 @@ Notes / Next steps:
   - [ ] **Draft Track Management**: Save recorded vocal performances as private draft tracks with audio preview and mix adjustments.
   - [ ] **Publish Flow**: Option for creators/artists to publish drafted recordings as official tracks/covers in their albums.
 
-- [ ] **Agentic AI Automated Music Sourcing Workflow (HITL + Auto-Ingestion)** (Unique Feature):
-  - [ ] **Missing Song Query Report**: When a user searches for a missing song, they can submit a "Report Missing Song" query request.
-  - [ ] **LLM Metadata Fetcher Agent**: LLM agent searches and fetches top 10 candidate songs with rich metadata (Artist name, track title, cover photo URL, duration).
-  - [ ] **Candidate Selection & Admin HITL Queue**: User selects their target song from candidates, submitting a request to the Admin Panel Human-in-the-Loop (HITL) approval queue.
-  - [ ] **Automated Ingestion Pipeline**: On Admin Approval, trigger background execution workflow to:
-    - Download audio via third-party download services (ssyoutube / spotdown APIs / yt-dlp).
-    - Fetch, crop, and optimize track cover photo & artist metadata.
-    - Upload audio file and cover image to Backblaze B2 / CDN.
-    - Automatically populate database tables (`Track`, `Album`, `Artist`) and notify the requesting user.
+- [x] **Agentic AI Automated Music Sourcing Workflow (HITL + Auto-Ingestion)** (Unique Feature):
+  - [x] **Missing Song Query Report**: When a user searches for a missing song, they can submit a "Report Missing Song" query request.
+  - [x] **LLM Metadata Fetcher Agent**: LLM agent searches and fetches candidate songs with rich metadata (Artist name, track title, cover photo URL, duration).
+  - [x] **Candidate Selection & Admin HITL Queue**: User selects their target song from candidates, submitting a request to the Admin Panel Human-in-the-Loop (HITL) approval queue.
+  - [x] **Automated Ingestion Pipeline**: On Admin Approval, trigger background execution workflow to:
+    - [x] Download audio via third-party download services (ssyoutube / spotdown APIs / yt-dlp).
+    - [x] Fetch, crop, and optimize track cover photo & artist metadata.
+    - [x] Upload audio file and cover image to Backblaze B2 / CDN.
+    - [x] Automatically populate database tables (`Track`, `Album`, `Artist`) and notify the requesting user.
 
 
 
