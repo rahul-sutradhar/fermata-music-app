@@ -85,6 +85,7 @@ export default function AdminPanelPage() {
   const [albums, setAlbums] = useState<Album[]>([])
   const [userMap, setUserMap] = useState<Record<number, string>>({})
   const [ingestionRequests, setIngestionRequests] = useState<IngestionRequestItem[]>([])
+  const [approvingRequestId, setApprovingRequestId] = useState<number | null>(null)
 
   // Accordion state for albums expansion
   const [expandedAlbumIds, setExpandedAlbumIds] = useState<Set<number>>(new Set())
@@ -307,23 +308,14 @@ export default function AdminPanelPage() {
 
   const handleApproveRequest = async (requestId: number, e?: React.MouseEvent) => {
     if (e) e.stopPropagation()
+    setApprovingRequestId(requestId)
     try {
       await approveIngestionRequest(requestId)
-      // Instantly load data to show processing status
-      loadData()
-
-      // Since it runs in the background, set a recurring check for status changes every 2 seconds for a bit
-      let checks = 0
-      const interval = setInterval(async () => {
-        checks++
-        if (checks > 10) {
-          clearInterval(interval)
-          return
-        }
-        await loadData()
-      }, 2000)
+      await loadData()
     } catch (err: any) {
       alert(err.message || 'Failed to approve request')
+    } finally {
+      setApprovingRequestId(null)
     }
   }
 
@@ -1500,13 +1492,26 @@ export default function AdminPanelPage() {
                           <>
                             <button
                               onClick={(e) => handleApproveRequest(req.id, e)}
-                              className="px-2.5 py-1 rounded bg-spotify-green hover:bg-spotify-green/80 text-black text-xs font-bold transition-all transform hover:scale-105"
+                              disabled={approvingRequestId !== null}
+                              className={`px-2.5 py-1 rounded bg-spotify-green hover:bg-spotify-green/80 text-black text-xs font-bold transition-all flex items-center gap-1 ${
+                                approvingRequestId !== null ? 'opacity-50 cursor-not-allowed' : 'transform hover:scale-105'
+                              }`}
                             >
-                              Approve
+                              {approvingRequestId === req.id ? (
+                                <>
+                                  <RefreshCw size={12} className="animate-spin" />
+                                  Ingesting...
+                                </>
+                              ) : (
+                                'Approve'
+                              )}
                             </button>
                             <button
                               onClick={(e) => handleRejectRequest(req.id, e)}
-                              className="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold border border-surface-highlight/30 transition-all transform hover:scale-105"
+                              disabled={approvingRequestId !== null}
+                              className={`px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold border border-surface-highlight/30 transition-all ${
+                                approvingRequestId !== null ? 'opacity-50 cursor-not-allowed' : 'transform hover:scale-105'
+                              }`}
                             >
                               Reject
                             </button>

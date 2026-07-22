@@ -195,6 +195,7 @@ def run_ingestion_background(request_id: int, thread_id: str, db_url: str):
     """
     Runs the LangGraph audio extraction and database population pipeline in the background.
     """
+    print(f"[Ingestion Task] Starting ingestion flow for Request ID: {request_id}, Thread ID: {thread_id}", flush=True)
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
     from app.models.ingestion_request import IngestionRequest
@@ -208,6 +209,7 @@ def run_ingestion_background(request_id: int, thread_id: str, db_url: str):
         # 1. Re-fetch request inside task transaction
         db_req = db.scalar(select(IngestionRequest).where(IngestionRequest.id == request_id))
         if not db_req:
+            print(f"[Ingestion Task ERROR] Request ID {request_id} not found in database.", flush=True)
             return
             
         # 2. First pre-create/allocate the Track in database to obtain a real track_id
@@ -220,6 +222,7 @@ def run_ingestion_background(request_id: int, thread_id: str, db_url: str):
         db.add(db_track)
         db.commit()
         db.refresh(db_track)
+        print(f"[Ingestion Task] Allocated Track ID: {db_track.id} for song '{db_req.song_name}'", flush=True)
         
         # 3. Create graph and run using the newly created track_id
         from agentic_ai.src.graph import create_workflow
@@ -238,7 +241,7 @@ def run_ingestion_background(request_id: int, thread_id: str, db_url: str):
             "admin_notes": "Approved via Admin Console"
         })
         
-        # Run to completion
+        print(f"[Ingestion Task] Invoking LangGraph workflow for Track ID {db_track.id}...", flush=True)
         events = list(bg_workflow.stream(None, config, stream_mode="values"))
         
         # Verify track updated correctly
@@ -246,11 +249,16 @@ def run_ingestion_background(request_id: int, thread_id: str, db_url: str):
         db.refresh(db_req)
         if db_track.audio_file_key:
             db_req.status = "completed"
+            print(f"[Ingestion Task SUCCESS] Ingestion completed successfully for Request ID: {request_id}. Track ID: {db_track.id}", flush=True)
         else:
             db_req.status = "failed"
+            print(f"[Ingestion Task FAILED] Ingestion failed (no audio key generated) for Request ID: {request_id}.", flush=True)
             
         db.commit()
     except Exception as e:
+        import traceback
+        print(f"[Ingestion Task CRITICAL ERROR] Failed for Request ID {request_id}: {str(e)}", flush=True)
+        traceback.print_exc()
         db.rollback()
         # Mark as failed
         db_req = db.scalar(select(IngestionRequest).where(IngestionRequest.id == request_id))
@@ -264,13 +272,12 @@ def run_ingestion_background(request_id: int, thread_id: str, db_url: str):
 @router.post("/requests/{request_id}/approve")
 def approve_ingestion_request(
     request_id: int, 
-    background_tasks: BackgroundTasks, 
     db: DbSession, 
     current_admin: CurrentAdmin
 ):
     """
     Approve ingestion request with Postgres row-level locking (Admin only).
-    Spawns background ingestion task.
+    Runs ingestion synchronously to prevent Render Free Tier from freezing background tasks.
     """
     # 1. Lock the row for update immediately (binary lock)
     db_req = db.scalar(
@@ -291,15 +298,14 @@ def approve_ingestion_request(
     db_req.status = "processing"
     db.commit()
     
-    # 3. Queue execution to background task
-    background_tasks.add_task(
-        run_ingestion_background,
+    # 3. Execute synchronously (keeps connection active to avoid Render Free Tier freezing)
+    run_ingestion_background(
         request_id=db_req.id,
         thread_id=db_req.thread_id,
         db_url=str(db.bind.url)
     )
     
-    return {"message": "Request approved. Ingestion started in background."}
+    return {"message": "Request approved and processed."}
 
 
 @router.post("/requests/{request_id}/reject")
