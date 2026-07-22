@@ -185,7 +185,10 @@ def search_candidates(state: AgenticState) -> Dict[str, Any]:
         except Exception as e:
             new_logs.append(f"[Search] Direct link metadata extraction failed: {str(e)}. Proceeding to search query.")
 
-    # Try Spotify Search API if credentials are provided in env
+    candidates = []
+    spotify_success = False
+    
+    # 1. Try Spotify Search API first if credentials are provided in env
     spotify_id = os.getenv("SPOTIFY_CLIENT_ID")
     spotify_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
     if spotify_id and spotify_secret:
@@ -194,25 +197,61 @@ def search_candidates(state: AgenticState) -> Dict[str, Any]:
             candidates = _search_spotify_candidates(song_name, spotify_id, spotify_secret)
             if candidates:
                 new_logs.append(f"[Search] Successfully retrieved {len(candidates)} candidates using Spotify API.")
-                # Resolve real YouTube URLs concurrently for all Spotify candidates
-                new_logs.append("[Search] Resolving direct YouTube video URLs in parallel...")
-                with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-                    urls = list(executor.map(_resolve_candidate_url, candidates))
-                    for cand, url in zip(candidates, urls):
-                        cand['source_url'] = url
-                return {
-                    "candidates": candidates,
-                    "logs": new_logs
-                }
+                spotify_success = True
             else:
-                new_logs.append("[Search] Spotify search returned empty results. Falling back to mock search.")
+                new_logs.append("[Search] Spotify search returned empty results. Falling back to LLM/mock search.")
         except Exception as e:
-            new_logs.append(f"[Search] Spotify search failed: {str(e)}. Falling back to mock search.")
+            new_logs.append(f"[Search] Spotify search failed: {str(e)}. Falling back to LLM/mock search.")
             
-    # Fall back directly to mock search (removing the LLM entirely)
-    new_logs.append("[Search] Using high-fidelity mock search fallback.")
-    candidates = _generate_mock_candidates(song_name)
-    
+    # 2. Try Mistral LLM if Spotify is down/unconfigured
+    if not spotify_success:
+        if MISTRAL_AVAILABLE:
+            try:
+                new_logs.append("[Search] Attempting Mistral AI metadata search...")
+                model_name = os.getenv("MISTRAL_MODEL", "mistral-large-latest")
+                llm = ChatMistralAI(model=model_name, temperature=0.2)
+                
+                prompt = f"""
+                You are a music metadata fetcher. The user is searching for song candidates matching '{song_name}'.
+                Retrieve 10 candidates that match or are highly relevant to this query.
+                Return ONLY a valid JSON list of objects. Do not include markdown code block formatting (like ```json), just the raw JSON.
+                Each object must contain these exact keys:
+                  - "id": string (unique ID like "cand_1", "cand_2"...)
+                  - "title": string (song title)
+                  - "artist": string (artist name)
+                  - "album": string (album name)
+                  - "duration_seconds": integer (duration in seconds)
+                  - "source_url": string (a realistic-looking YouTube or Spotify URL)
+                  - "cover_url": string (a realistic-looking URL for the album cover photo)
+                """
+                
+                response = llm.invoke([HumanMessage(content=prompt)])
+                content = response.content.strip()
+                
+                # Remove any markdown formatting if present
+                if content.startswith("```"):
+                    content = content.split("\n", 1)[1]
+                if content.endswith("```"):
+                    content = content.rsplit("\n", 1)[0]
+                content = content.strip()
+                
+                candidates = json.loads(content)
+                new_logs.append(f"[Search] Successfully retrieved {len(candidates)} candidates using Mistral AI.")
+            except Exception as e:
+                new_logs.append(f"[Search] Mistral AI search failed or key is invalid: {str(e)}. Falling back to mock search.")
+                candidates = _generate_mock_candidates(song_name)
+        else:
+            new_logs.append("[Search] Mistral AI is not configured or MISTRAL_API_KEY is missing. Using high-fidelity mock search.")
+            candidates = _generate_mock_candidates(song_name)
+            
+    # 3. Resolve real YouTube URLs concurrently for all retrieved candidates
+    if candidates:
+        new_logs.append("[Search] Resolving direct YouTube video URLs in parallel...")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            urls = list(executor.map(_resolve_candidate_url, candidates))
+            for cand, url in zip(candidates, urls):
+                cand['source_url'] = url
+                
     return {
         "candidates": candidates,
         "logs": new_logs
@@ -564,6 +603,23 @@ def _get_artist_genres(artist_name: str) -> List[str]:
     elif "metal" in artist_lower or "rock" in artist_lower:
         return ["Metal", "Hard Rock", "Alternative Rock"]
         
+    # Attempt to query Mistral for the actual genres if available (fallback if Spotify is down)
+    if MISTRAL_AVAILABLE:
+        try:
+            llm = ChatMistralAI(model=os.getenv("MISTRAL_MODEL"), temperature=0.1)
+            prompt = f"What are the typical music genres for the artist '{artist_name}'? Return ONLY a valid JSON list of strings (e.g. ['Pop', 'Rock']). Do not include markdown formatting or explanations."
+            response = llm.invoke([HumanMessage(content=prompt)])
+            content = response.content.strip()
+            if content.startswith("```"):
+                content = content.split("\n", 1)[1]
+            if content.endswith("```"):
+                content = content.rsplit("\n", 1)[0]
+            genres = json.loads(content.strip())
+            if isinstance(genres, list):
+                return [str(g).title() for g in genres]
+        except Exception:
+            pass
+            
     return ["Pop", "Rock", "Indie"]
 
 
