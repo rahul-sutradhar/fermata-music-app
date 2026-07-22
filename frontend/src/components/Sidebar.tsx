@@ -16,6 +16,7 @@ import {
   History,
   Radio,
   Trash2,
+  HelpCircle,
 } from 'lucide-react'
 
 import { useAuthStore } from '@/store/authStore'
@@ -174,6 +175,10 @@ export default function Sidebar() {
         <NavLink to="/search" className={linkClass}>
           <Search size={20} />
           Search
+        </NavLink>
+        <NavLink to="/report-missing" className={linkClass}>
+          <HelpCircle size={20} />
+          Report Missing
         </NavLink>
         {token && (
           <>

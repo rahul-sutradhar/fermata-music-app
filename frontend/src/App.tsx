@@ -20,6 +20,7 @@ import ArtistRoute from '@/components/ArtistRoute'
 import ArtistPanelPage from '@/pages/ArtistPanelPage'
 import RecentsPage from '@/pages/RecentsPage'
 import NotFound from '@/pages/NotFound'
+import ReportMissingPage from '@/pages/ReportMissingPage'
 
 export default function App() {
   const theme = useThemeStore((s) => s.theme)
@@ -41,6 +42,7 @@ export default function App() {
       <Route element={<Layout />}>
         <Route index element={<HomePage />} />
         <Route path="search" element={<SearchPage />} />
+        <Route path="report-missing" element={<ReportMissingPage />} />
         <Route path="album/:id" element={<AlbumPage />} />
         <Route path="artist/:id" element={<ArtistPage />} />
         <Route path="playlist/:id" element={<PlaylistPage />} />

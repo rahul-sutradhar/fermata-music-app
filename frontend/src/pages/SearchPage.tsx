@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { X, Music } from 'lucide-react'
 import SearchInput from '@/components/SearchInput'
 import CardGrid from '@/components/CardGrid'
@@ -123,6 +124,24 @@ export default function SearchPage() {
             </CardGrid>
           )}
 
+          {/* Subtle banner at bottom of active results */}
+          {(results.tracks.length > 0 || results.albums.length > 0 || results.artists.length > 0) && (
+            <div className="mt-12 pt-6 border-t border-surface-highlight/20 text-center animate-in fade-in duration-300">
+              <p className="text-sm text-subtext">
+                Don't see the exact version you wanted?
+              </p>
+              <div className="mt-3">
+                <Link
+                  to="/report-missing"
+                  state={{ prefilledQuery: query }}
+                  className="inline-flex items-center gap-2 px-5 py-2 text-xs font-semibold rounded-full bg-surface-highlight hover:bg-surface-highlight/80 text-primary transition-all transform hover:scale-105"
+                >
+                  Report Missing Song
+                </Link>
+              </div>
+            </div>
+          )}
+
           {/* No results */}
           {results.tracks.length === 0 &&
             results.albums.length === 0 &&
@@ -132,6 +151,15 @@ export default function SearchPage() {
                 <p className="text-xs mt-1 text-subtext">
                   Please check your spelling or search another artist, song, or album title
                 </p>
+                <div className="mt-5">
+                  <Link
+                    to="/report-missing"
+                    state={{ prefilledQuery: query }}
+                    className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold rounded-full bg-spotify-green hover:bg-spotify-green/80 text-black transition-all transform hover:scale-105"
+                  >
+                    Report Missing Song
+                  </Link>
+                </div>
               </div>
             )}
         </div>
@@ -189,6 +217,15 @@ export default function SearchPage() {
           <p className="text-xs mt-1 text-subtext">
             Please check your spelling or search another artist, song, or album title
           </p>
+          <div className="mt-5">
+            <Link
+              to="/report-missing"
+              state={{ prefilledQuery: query }}
+              className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold rounded-full bg-spotify-green hover:bg-spotify-green/80 text-black transition-all transform hover:scale-105"
+            >
+              Report Missing Song
+            </Link>
+          </div>
         </div>
       )}
     </div>
