@@ -22,6 +22,24 @@ async def lifespan(app: FastAPI):
         
         alembic_cfg = Config("alembic.ini")
         command.upgrade(alembic_cfg, "head")
+        
+        # Self-healing: ensure any admin in 'users' table has a corresponding record in 'admins' table
+        try:
+            from sqlalchemy.orm import Session
+            from sqlalchemy import text
+            with Session(engine) as session:
+                admin_users = session.execute(text("SELECT id, username FROM users WHERE role = 'admin'")).fetchall()
+                for uid, uname in admin_users:
+                    exists = session.execute(text("SELECT id FROM admins WHERE id = :id"), {"id": uid}).first()
+                    if not exists:
+                        print(f"[Startup Repair] Inserting missing admin record for ID {uid} ({uname})", flush=True)
+                        session.execute(
+                            text("INSERT INTO admins (id, name) VALUES (:id, :name)"),
+                            {"id": uid, "name": uname or "Admin"}
+                        )
+                session.commit()
+        except Exception as repair_exc:
+            print(f"[Startup Repair Warning] Admin self-healing warning: {repair_exc}", flush=True)
     except Exception as exc:
         print(f"Alembic auto-migration startup warning: {exc}")
     yield

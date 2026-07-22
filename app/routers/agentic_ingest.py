@@ -298,8 +298,8 @@ def approve_ingestion_request(
     db_req.status = "processing"
     db.commit()
     
-    # 3. Execute synchronously using the active DB session
-    print(f"[Ingestion Task] Starting ingestion flow for Request ID: {db_req.id}, Thread ID: {db_req.thread_id}", flush=True)
+    # 3. Execute synchronously using the active DB session (to bypass transient checkpointer issues)
+    print(f"[Ingestion Task] Starting ingestion flow for Request ID: {db_req.id}", flush=True)
     try:
         from app.models.track import Track
         
@@ -315,25 +315,54 @@ def approve_ingestion_request(
         db.refresh(db_track)
         print(f"[Ingestion Task] Allocated Track ID: {db_track.id} for song '{db_req.song_name}'", flush=True)
         
-        # Create and run workflow
-        from agentic_ai.src.graph import create_workflow
-        bg_workflow = create_workflow()
-        
-        config = {
-            "configurable": {
-                "thread_id": db_req.thread_id,
-                "db": db
-            }
-        }
-        
-        bg_workflow.update_state(config, {
+        # Prepare state values
+        state = {
+            "song_name": db_req.song_name,
+            "selected_song": {
+                "title": db_req.song_name,
+                "artist": db_req.artist_name,
+                "source_url": db_req.source_url,
+                "cover_url": "https://picsum.photos/500/500"
+            },
             "admin_approved": True,
             "track_id": db_track.id,
             "admin_notes": "Approved via Admin Console"
-        })
+        }
         
-        print(f"[Ingestion Task] Invoking LangGraph workflow for Track ID {db_track.id}...", flush=True)
-        events = list(bg_workflow.stream(None, config, stream_mode="values"))
+        from agentic_ai.src.nodes import (
+            download_and_upload_audio,
+            process_and_upload_cover,
+            fetch_artist_metadata,
+            populate_artist,
+            populate_track
+        )
+        
+        # 3.1. Download and upload audio
+        print(f"[Ingestion Task] Executing download_and_upload_audio...", flush=True)
+        audio_res = download_and_upload_audio(state)
+        state.update(audio_res)
+        
+        # 3.2. Download and upload cover photo
+        print(f"[Ingestion Task] Executing process_and_upload_cover...", flush=True)
+        cover_res = process_and_upload_cover(state)
+        state.update(cover_res)
+        
+        # 3.3. Fetch artist details
+        print(f"[Ingestion Task] Executing fetch_artist_metadata...", flush=True)
+        artist_res = fetch_artist_metadata(state)
+        state.update(artist_res)
+        
+        config = {"configurable": {"db": db}}
+        
+        # 3.4. Populate artist table
+        print(f"[Ingestion Task] Executing populate_artist...", flush=True)
+        artist_pop_res = populate_artist(state, config)
+        state.update(artist_pop_res)
+        
+        # 3.5. Populate track table
+        print(f"[Ingestion Task] Executing populate_track...", flush=True)
+        track_pop_res = populate_track(state, config)
+        state.update(track_pop_res)
         
         # Verify track updated correctly
         db.refresh(db_track)
@@ -359,7 +388,6 @@ def approve_ingestion_request(
         # Clean up Track if created
         try:
             if 'db_track' in locals() and db_track.id:
-                # Re-fetch and delete
                 t_del = db.get(Track, db_track.id)
                 if t_del:
                     db.delete(t_del)

@@ -1470,20 +1470,26 @@ export default function AdminPanelPage() {
 
                       {/* Status badge */}
                       <div>
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase transition-all duration-300 ${req.status === 'completed'
-                            ? 'bg-spotify-green/20 text-spotify-green'
-                            : req.status === 'processing'
-                              ? 'bg-blue-500/20 text-blue-400'
-                              : req.status === 'pending'
-                                ? 'bg-amber-500/20 text-amber-400 animate-pulse'
-                                : req.status === 'rejected'
-                                  ? 'bg-red-500/20 text-red-400'
-                                  : 'bg-zinc-700 text-zinc-300'
-                            }`}
-                        >
-                          {req.status}
-                        </span>
+                        {(() => {
+                          const displayStatus = approvingRequestId === req.id ? 'processing' : req.status
+                          return (
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase transition-all duration-300 ${
+                                displayStatus === 'completed'
+                                  ? 'bg-spotify-green/20 text-spotify-green'
+                                  : displayStatus === 'processing'
+                                    ? 'bg-blue-500/20 text-blue-400 animate-pulse'
+                                    : displayStatus === 'pending'
+                                      ? 'bg-amber-500/20 text-amber-400 animate-pulse'
+                                      : displayStatus === 'rejected'
+                                        ? 'bg-red-500/20 text-red-400'
+                                        : 'bg-zinc-700 text-zinc-300'
+                              }`}
+                            >
+                              {displayStatus}
+                            </span>
+                          )
+                        })()}
                       </div>
 
                       {/* Actions */}
