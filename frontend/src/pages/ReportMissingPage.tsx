@@ -140,7 +140,7 @@ export default function ReportMissingPage() {
           {
             id: botMsgId,
             sender: 'bot',
-            text: `Report filed successfully! Song "${songName}" has been registered in the missing songs registry. Thank you for reporting!`,
+            text: "Request submitted successfully - Song will be available in a day.",
             type: 'status',
             statusType: 'success'
           }
@@ -151,8 +151,9 @@ export default function ReportMissingPage() {
           {
             id: botMsgId,
             sender: 'bot',
-            text: `Successfully submitted request to the Human-in-the-Loop Queue! Awaiting Administrator Review.`,
-            type: 'admin_simulation'
+            text: "Request submitted successfully - Song will be available in a day.",
+            type: 'status',
+            statusType: 'success'
           }
         ])
       }

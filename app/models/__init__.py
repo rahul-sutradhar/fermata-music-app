@@ -9,6 +9,7 @@ from app.models.player import PlayerState, RecentlyPlayed
 from app.models.refresh_token import RefreshToken
 from app.models.track import Track
 from app.models.user import User
+from app.models.ingestion_request import IngestionRequest
 
 __all__ = [
     "Album",
@@ -26,4 +27,5 @@ __all__ = [
     "Track",
     "User",
     "UserLibrary",
+    "IngestionRequest",
 ]

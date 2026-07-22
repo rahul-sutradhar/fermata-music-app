@@ -57,3 +57,32 @@ export async function simulateAdminApproval(
     body: JSON.stringify({ thread_id: threadId, approved, notes }),
   })
 }
+
+export interface IngestionRequestItem {
+  id: number
+  thread_id: string
+  song_name: string
+  artist_name: string
+  requested_by: string
+  created_at: string | null
+  source_url: string
+  status: 'pending' | 'processing' | 'completed' | 'rejected' | 'failed'
+}
+
+export async function listIngestionRequests(): Promise<IngestionRequestItem[]> {
+  return apiRequest<IngestionRequestItem[]>('/api/v1/agentic-ingest/requests', {
+    method: 'GET',
+  })
+}
+
+export async function approveIngestionRequest(requestId: number): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>(`/api/v1/agentic-ingest/requests/${requestId}/approve`, {
+    method: 'POST',
+  })
+}
+
+export async function rejectIngestionRequest(requestId: number): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>(`/api/v1/agentic-ingest/requests/${requestId}/reject`, {
+    method: 'POST',
+  })
+}

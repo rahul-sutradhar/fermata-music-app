@@ -1,9 +1,12 @@
 import uuid
 from typing import Dict, Any, List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from pydantic import BaseModel
+from sqlalchemy import select, func
 
-from app.core.deps import DbSession, CurrentUser
+from app.core.deps import DbSession, CurrentUser, CurrentAdmin
+from app.models.ingestion_request import IngestionRequest
+from app.core.config import settings
 from agentic_ai.src.graph import create_workflow
 
 router = APIRouter(prefix="/agentic-ingest", tags=["agentic-ingest"])
@@ -19,12 +22,6 @@ class SearchRequest(BaseModel):
 class SelectRequest(BaseModel):
     thread_id: str
     selected_song_id: str
-
-
-class AdminReviewRequest(BaseModel):
-    thread_id: str
-    approved: bool
-    notes: str = ""
 
 
 @router.post("/search")
@@ -141,6 +138,19 @@ def select_candidate(payload: SelectRequest, db: DbSession, current_user: Curren
                 "logs": state.values.get("logs", [])
             }
             
+        # Add a record to the ingestion_requests database queue table
+        matching_cand = state.values.get("selected_song", {})
+        db_req = IngestionRequest(
+            thread_id=payload.thread_id,
+            song_name=matching_cand.get("title", "Unknown"),
+            artist_name=matching_cand.get("artist", "Unknown Artist"),
+            user_id=current_user.id,
+            source_url=matching_cand.get("source_url", ""),
+            status="pending"
+        )
+        db.add(db_req)
+        db.commit()
+        
         # Otherwise, paused at admin_reviews_request queue
         return {
             "status": "pending_admin_approval",
@@ -153,53 +163,165 @@ def select_candidate(payload: SelectRequest, db: DbSession, current_user: Curren
         )
 
 
-@router.post("/admin-review")
-def admin_review(payload: AdminReviewRequest, db: DbSession, current_user: CurrentUser):
+# Admin Ingestion Queue endpoints
+@router.get("/requests")
+def get_ingestion_requests(db: DbSession, current_admin: CurrentAdmin):
     """
-    Submits administrative review decision (approve/reject).
-    Resumes graph and executes B2 file streaming and DB insertion.
+    Retrieve list of ingestion requests in the queue (Admin only).
     """
-    config = {
-        "configurable": {
-            "thread_id": payload.thread_id,
-            "db": db
-        }
-    }
+    # Join with User to display requested_by username
+    query = (
+        select(IngestionRequest)
+        .order_by(IngestionRequest.created_at.asc())
+    )
+    requests = db.scalars(query).all()
     
-    state = workflow.get_state(config)
-    if not state.values or "admin_reviews_request" not in state.next:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session thread not found or not awaiting admin review."
-        )
-        
+    return [
+        {
+            "id": r.id,
+            "thread_id": r.thread_id,
+            "song_name": r.song_name,
+            "artist_name": r.artist_name,
+            "requested_by": r.user.username if r.user else "Unknown User",
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "source_url": r.source_url,
+            "status": r.status
+        }
+        for r in requests
+    ]
+
+
+def run_ingestion_background(request_id: int, thread_id: str, db_url: str):
+    """
+    Runs the LangGraph audio extraction and database population pipeline in the background.
+    """
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from app.models.ingestion_request import IngestionRequest
+    from app.models.track import Track
+    
+    engine = create_engine(db_url)
+    SessionLocal = sessionmaker(bind=engine)
+    db = SessionLocal()
+    
     try:
-        # 1. Update admin review decision in state
-        workflow.update_state(config, {
-            "admin_approved": payload.approved,
-            "admin_notes": payload.notes or ("Approved" if payload.approved else "Rejected")
+        # 1. Re-fetch request inside task transaction
+        db_req = db.scalar(select(IngestionRequest).where(IngestionRequest.id == request_id))
+        if not db_req:
+            return
+            
+        # 2. First pre-create/allocate the Track in database to obtain a real track_id
+        db_track = Track(
+            title=db_req.song_name,
+            duration_seconds=200,  # fallback default
+            audio_file_key=None,
+            cover_image_key=None
+        )
+        db.add(db_track)
+        db.commit()
+        db.refresh(db_track)
+        
+        # 3. Create graph and run using the newly created track_id
+        from agentic_ai.src.graph import create_workflow
+        bg_workflow = create_workflow()
+        
+        config = {
+            "configurable": {
+                "thread_id": thread_id,
+                "db": db
+            }
+        }
+        
+        bg_workflow.update_state(config, {
+            "admin_approved": True,
+            "track_id": db_track.id,
+            "admin_notes": "Approved via Admin Console"
         })
         
-        # 2. Resume graph execution to the end
-        events = list(workflow.stream(None, config, stream_mode="values"))
+        # Run to completion
+        events = list(bg_workflow.stream(None, config, stream_mode="values"))
         
-        final_state = workflow.get_state(config).values
-        
-        if payload.approved:
-            return {
-                "status": "completed",
-                "track_id": final_state.get("track_id"),
-                "audio_url": final_state.get("audio_url"),
-                "cover_url": final_state.get("cover_url"),
-                "logs": final_state.get("logs", [])
-            }
+        # Verify track updated correctly
+        db.refresh(db_track)
+        db.refresh(db_req)
+        if db_track.audio_file_key:
+            db_req.status = "completed"
         else:
-            return {
-                "status": "rejected",
-                "logs": final_state.get("logs", [])
-            }
+            db_req.status = "failed"
+            
+        db.commit()
     except Exception as e:
+        db.rollback()
+        # Mark as failed
+        db_req = db.scalar(select(IngestionRequest).where(IngestionRequest.id == request_id))
+        if db_req:
+            db_req.status = "failed"
+            db.commit()
+    finally:
+        db.close()
+
+
+@router.post("/requests/{request_id}/approve")
+def approve_ingestion_request(
+    request_id: int, 
+    background_tasks: BackgroundTasks, 
+    db: DbSession, 
+    current_admin: CurrentAdmin
+):
+    """
+    Approve ingestion request with Postgres row-level locking (Admin only).
+    Spawns background ingestion task.
+    """
+    # 1. Lock the row for update immediately (binary lock)
+    db_req = db.scalar(
+        select(IngestionRequest)
+        .where(IngestionRequest.id == request_id)
+        .with_for_update()
+    )
+    if not db_req:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found.")
+        
+    if db_req.status != "pending":
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Admin review execution failed: {str(e)}"
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="This request is already being processed or completed."
         )
+        
+    # 2. Acquire lock and set status to processing
+    db_req.status = "processing"
+    db.commit()
+    
+    # 3. Queue execution to background task
+    background_tasks.add_task(
+        run_ingestion_background,
+        request_id=db_req.id,
+        thread_id=db_req.thread_id,
+        db_url=str(db.bind.url)
+    )
+    
+    return {"message": "Request approved. Ingestion started in background."}
+
+
+@router.post("/requests/{request_id}/reject")
+def reject_ingestion_request(request_id: int, db: DbSession, current_admin: CurrentAdmin):
+    """
+    Reject ingestion request (Admin only).
+    """
+    db_req = db.scalar(
+        select(IngestionRequest)
+        .where(IngestionRequest.id == request_id)
+        .with_for_update()
+    )
+    if not db_req:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found.")
+        
+    if db_req.status != "pending":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="This request is already being processed or completed."
+        )
+        
+    db_req.status = "rejected"
+    db.commit()
+    
+    return {"message": "Request rejected successfully."}

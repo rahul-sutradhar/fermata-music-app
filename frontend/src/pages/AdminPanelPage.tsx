@@ -15,6 +15,8 @@ import {
   ChevronDown,
   ChevronRight,
   FolderMinus,
+  RefreshCw,
+  ExternalLink,
 } from 'lucide-react'
 import {
   listTracks,
@@ -34,12 +36,18 @@ import {
   uploadAlbumCover,
 } from '@/api/albums'
 import type { Track, User as UserType, Artist, Album } from '@/types'
+import {
+  listIngestionRequests,
+  approveIngestionRequest,
+  rejectIngestionRequest
+} from '@/api/agenticIngest'
+import type { IngestionRequestItem } from '@/api/agenticIngest'
 import { useAuthStore } from '@/store/authStore'
 import { usePlayerStore } from '@/store/playerStore'
 import TrackFormModal from '@/components/TrackFormModal'
 import ImageCropperModal from '@/components/ImageCropperModal'
 
-type TabType = 'tracks' | 'albums' | 'users' | 'artists' | 'admins'
+type TabType = 'tracks' | 'albums' | 'users' | 'artists' | 'admins' | 'ingestion'
 
 function formatDate(dateStr?: string | null): string {
   if (!dateStr) return '—'
@@ -75,6 +83,7 @@ export default function AdminPanelPage() {
   const [artists, setArtists] = useState<Artist[]>([])
   const [albums, setAlbums] = useState<Album[]>([])
   const [userMap, setUserMap] = useState<Record<number, string>>({})
+  const [ingestionRequests, setIngestionRequests] = useState<IngestionRequestItem[]>([])
 
   // Accordion state for albums expansion
   const [expandedAlbumIds, setExpandedAlbumIds] = useState<Set<number>>(new Set())
@@ -229,6 +238,15 @@ export default function AdminPanelPage() {
           )
         ))
         setArtistAccountsList(allUsers.filter(u => u.role === 'artist'))
+      } else if (activeTab === 'ingestion') {
+        const reqs = await listIngestionRequests().catch((err) => {
+          console.error('Failed to load ingestion requests:', err)
+          return []
+        })
+        setIngestionRequests(reqs.filter(r =>
+          r.song_name.toLowerCase().includes(searchQ.toLowerCase()) ||
+          r.artist_name.toLowerCase().includes(searchQ.toLowerCase())
+        ))
       }
     } catch (err) {
       console.error('Failed to load admin data tab:', err)
@@ -280,6 +298,39 @@ export default function AdminPanelPage() {
       loadData()
     } catch (err: any) {
       alert(err.message || 'Failed to remove track from album')
+    }
+  }
+
+  const handleApproveRequest = async (requestId: number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    try {
+      await approveIngestionRequest(requestId)
+      // Instantly load data to show processing status
+      loadData()
+
+      // Since it runs in the background, set a recurring check for status changes every 2 seconds for a bit
+      let checks = 0
+      const interval = setInterval(async () => {
+        checks++
+        if (checks > 10) {
+          clearInterval(interval)
+          return
+        }
+        await loadData()
+      }, 2000)
+    } catch (err: any) {
+      alert(err.message || 'Failed to approve request')
+    }
+  }
+
+  const handleRejectRequest = async (requestId: number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    if (!confirm('Are you sure you want to reject this song ingestion request?')) return
+    try {
+      await rejectIngestionRequest(requestId)
+      loadData()
+    } catch (err: any) {
+      alert(err.message || 'Failed to reject request')
     }
   }
 
@@ -612,48 +663,51 @@ export default function AdminPanelPage() {
       <div className="flex border-b border-surface-highlight mb-4 gap-2 overflow-x-auto scrollbar-none">
         <button
           onClick={() => { setActiveTab('tracks'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
-            activeTab === 'tracks' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
-          }`}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'tracks' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+            }`}
         >
           <Music size={16} />
           Tracks ({tracks.length})
         </button>
         <button
           onClick={() => { setActiveTab('albums'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
-            activeTab === 'albums' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
-          }`}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'albums' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+            }`}
         >
           <Disc size={16} />
           Albums ({albums.length})
         </button>
         <button
           onClick={() => { setActiveTab('users'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
-            activeTab === 'users' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
-          }`}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'users' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+            }`}
         >
           <User size={16} />
           Users
         </button>
         <button
           onClick={() => { setActiveTab('artists'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
-            activeTab === 'artists' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
-          }`}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'artists' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+            }`}
         >
           <Radio size={16} />
           Artists
         </button>
         <button
           onClick={() => { setActiveTab('admins'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
-            activeTab === 'admins' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
-          }`}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'admins' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+            }`}
         >
           <Shield size={16} />
           Admins
+        </button>
+        <button
+          onClick={() => { setActiveTab('ingestion'); setSearchQ('') }}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'ingestion' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+            }`}
+        >
+          <RefreshCw size={16} />
+          Ingestion Queue ({ingestionRequests.length})
         </button>
       </div>
 
@@ -825,11 +879,10 @@ export default function AdminPanelPage() {
                       <div
                         key={track.id}
                         onClick={() => handlePlayTrack(track, tracks)}
-                        className={`grid grid-cols-[40px_1fr_140px_110px_110px_90px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${
-                          isCurrentPlaying
-                            ? 'bg-spotify-green/15 text-spotify-green font-semibold'
-                            : 'hover:bg-surface-highlight/20'
-                        }`}
+                        className={`grid grid-cols-[40px_1fr_140px_110px_110px_90px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${isCurrentPlaying
+                          ? 'bg-spotify-green/15 text-spotify-green font-semibold'
+                          : 'hover:bg-surface-highlight/20'
+                          }`}
                       >
                         <span className="text-xs font-semibold text-subtext tabular-nums">{index + 1}</span>
                         <div className="flex items-center gap-3 min-w-0">
@@ -1082,9 +1135,8 @@ export default function AdminPanelPage() {
                         {/* Album Row */}
                         <div
                           onClick={(e) => toggleAlbumExpand(al.id, e)}
-                          className={`grid grid-cols-[40px_1fr_180px_90px_110px_110px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${
-                            isExpanded ? 'bg-surface-highlight/40' : 'hover:bg-surface-highlight/20'
-                          }`}
+                          className={`grid grid-cols-[40px_1fr_180px_90px_110px_110px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${isExpanded ? 'bg-surface-highlight/40' : 'hover:bg-surface-highlight/20'
+                            }`}
                         >
                           {/* Frontend Serial Number */}
                           <span className="text-xs font-semibold text-subtext tabular-nums">
@@ -1197,11 +1249,10 @@ export default function AdminPanelPage() {
                                     <div
                                       key={track.id}
                                       onClick={() => handlePlayTrack(track, albumTracks)}
-                                      className={`grid grid-cols-[30px_1fr_130px_80px_180px] gap-3 items-center py-2 px-3 rounded-lg cursor-pointer transition-colors ${
-                                        isActiveTrack
-                                          ? 'bg-spotify-green/15 text-spotify-green font-semibold'
-                                          : 'hover:bg-surface-highlight/30 text-primary'
-                                      }`}
+                                      className={`grid grid-cols-[30px_1fr_130px_80px_180px] gap-3 items-center py-2 px-3 rounded-lg cursor-pointer transition-colors ${isActiveTrack
+                                        ? 'bg-spotify-green/15 text-spotify-green font-semibold'
+                                        : 'hover:bg-surface-highlight/30 text-primary'
+                                        }`}
                                     >
                                       {/* Track Serial # */}
                                       <span className="text-xs text-subtext tabular-nums text-center">
@@ -1270,9 +1321,8 @@ export default function AdminPanelPage() {
                                         {/* Upload Cover */}
                                         <label
                                           onClick={(e) => e.stopPropagation()}
-                                          className={`p-1.5 rounded-md text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${
-                                            uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''
-                                          }`}
+                                          className={`p-1.5 rounded-md text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''
+                                            }`}
                                           title="Upload Cover Image"
                                         >
                                           <ImageIcon size={13} />
@@ -1291,9 +1341,8 @@ export default function AdminPanelPage() {
                                         {/* Upload Audio */}
                                         <label
                                           onClick={(e) => e.stopPropagation()}
-                                          className={`p-1.5 rounded-md text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${
-                                            uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''
-                                          }`}
+                                          className={`p-1.5 rounded-md text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors cursor-pointer ${uploadingForId === track.id ? 'opacity-50 pointer-events-none' : ''
+                                            }`}
                                           title="Upload Audio File"
                                         >
                                           <Upload size={13} />
@@ -1340,6 +1389,124 @@ export default function AdminPanelPage() {
                       </div>
                     )
                   })
+                )}
+              </div>
+            </>
+          )}
+
+          {/* INGESTION QUEUE TABLE */}
+          {activeTab === 'ingestion' && (
+            <>
+              <div className="grid grid-cols-[40px_1.5fr_1.2fr_1.2fr_120px_150px_100px_140px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+                <span>#</span>
+                <span>Song Name</span>
+                <span>Artists</span>
+                <span>Requested By</span>
+                <span>Date Applied</span>
+                <span>Source Link</span>
+                <span>Status</span>
+                <span className="text-right">Actions</span>
+              </div>
+              <div className="divide-y divide-surface-highlight/30">
+                {ingestionRequests.length === 0 ? (
+                  <div className="py-16 text-center text-subtext text-sm">
+                    {searchQ ? 'No matching requests found' : 'No ingestion requests in the queue'}
+                  </div>
+                ) : (
+                  ingestionRequests.map((req, index) => (
+                    <div
+                      key={req.id}
+                      className="grid grid-cols-[40px_1.5fr_1.2fr_1.2fr_120px_150px_100px_140px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors"
+                    >
+                      {/* Serial Number */}
+                      <span className="text-xs font-semibold text-subtext tabular-nums">
+                        {index + 1}
+                      </span>
+
+                      {/* Song Name */}
+                      <span className="text-sm font-medium truncate text-primary animate-in fade-in" title={req.song_name}>
+                        {req.song_name}
+                      </span>
+
+                      {/* Artists Name */}
+                      <span className="text-sm text-subtext truncate animate-in fade-in" title={req.artist_name}>
+                        {req.artist_name}
+                      </span>
+
+                      {/* Requested By User */}
+                      <span className="text-sm text-subtext truncate animate-in fade-in" title={req.requested_by}>
+                        {req.requested_by}
+                      </span>
+
+                      {/* Date Applied */}
+                      <span className="text-xs text-subtext truncate">
+                        {formatDate(req.created_at)}
+                      </span>
+
+                      {/* Clickable Youtube URL */}
+                      <div className="flex items-center min-w-0">
+                        {req.source_url ? (
+                          <a
+                            href={req.source_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-spotify-green hover:underline flex items-center gap-1 truncate"
+                            title={req.source_url}
+                          >
+                            <ExternalLink size={12} className="shrink-0" />
+                            YouTube URL
+                          </a>
+                        ) : (
+                          <span className="text-xs text-subtext">—</span>
+                        )}
+                      </div>
+
+                      {/* Status badge */}
+                      <div>
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase transition-all duration-300 ${req.status === 'completed'
+                            ? 'bg-spotify-green/20 text-spotify-green'
+                            : req.status === 'processing'
+                              ? 'bg-blue-500/20 text-blue-400'
+                              : req.status === 'pending'
+                                ? 'bg-amber-500/20 text-amber-400 animate-pulse'
+                                : req.status === 'rejected'
+                                  ? 'bg-red-500/20 text-red-400'
+                                  : 'bg-zinc-700 text-zinc-300'
+                            }`}
+                        >
+                          {req.status}
+                        </span>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-2 justify-end">
+                        {req.status === 'pending' ? (
+                          <>
+                            <button
+                              onClick={(e) => handleApproveRequest(req.id, e)}
+                              className="px-2.5 py-1 rounded bg-spotify-green hover:bg-spotify-green/80 text-black text-xs font-bold transition-all transform hover:scale-105"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={(e) => handleRejectRequest(req.id, e)}
+                              className="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold border border-surface-highlight/30 transition-all transform hover:scale-105"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        ) : req.status === 'processing' ? (
+                          <div className="flex items-center gap-1.5 text-xs text-subtext">
+                            <RefreshCw size={12} className="animate-spin text-spotify-green" />
+                            Running...
+                          </div>
+                        ) : (
+                          <span className="text-xs text-subtext uppercase font-semibold">Processed</span>
+                        )}
+                      </div>
+                    </div>
+                  ))
                 )}
               </div>
             </>
@@ -1408,9 +1575,8 @@ export default function AdminPanelPage() {
                     readOnly={isReadOnlyModal}
                     value={userForm.username}
                     onChange={e => setUserForm({ ...userForm, username: e.target.value })}
-                    className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${
-                      isReadOnlyModal ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
+                    className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${isReadOnlyModal ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
                   />
                 </div>
 
@@ -1422,9 +1588,8 @@ export default function AdminPanelPage() {
                     readOnly={isReadOnlyModal}
                     value={userForm.email}
                     onChange={e => setUserForm({ ...userForm, email: e.target.value })}
-                    className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${
-                      isReadOnlyModal ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
+                    className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${isReadOnlyModal ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
                   />
                 </div>
 
@@ -1449,9 +1614,8 @@ export default function AdminPanelPage() {
                     value={userForm.role}
                     onChange={e => setUserForm({ ...userForm, role: e.target.value })}
                     disabled={!canChangeRole}
-                    className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors uppercase font-semibold ${
-                      !canChangeRole ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                    }`}
+                    className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors uppercase font-semibold ${!canChangeRole ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                      }`}
                   >
                     <option value="user">USER</option>
                     <option value="artist">ARTIST</option>

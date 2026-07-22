@@ -15,6 +15,11 @@ from alembic.config import Config
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
+        from app.db.session import engine
+        from app.db.base import Base
+        import app.models
+        Base.metadata.create_all(bind=engine)
+        
         alembic_cfg = Config("alembic.ini")
         command.upgrade(alembic_cfg, "head")
     except Exception as exc:

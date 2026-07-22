@@ -367,10 +367,45 @@ def process_and_upload_cover(state: AgenticState) -> Dict[str, Any]:
         
     except Exception as e:
         new_logs.append(f"[Pipeline] Branch B Error: {str(e)}")
-        new_logs.append("[Pipeline] Branch B Fallback: Simulating successful upload due to execution error (e.g. invalid credentials).")
+        new_logs.append("[Pipeline] Branch B Fallback: Generating solid placeholder cover image...")
         track_id = state.get("track_id", 9901)
-        cover_url = f"https://cdn.fermata.example.com/tracks/{track_id}/cover.jpg"
+        s3_key = f"tracks/{track_id}/cover.jpg"
         
+        try:
+            # Generate solid color placeholder with PIL
+            from PIL import ImageDraw
+            fallback_img = Image.new("RGB", (500, 500), color=(18, 18, 18))
+            draw = ImageDraw.Draw(fallback_img)
+            # Draw a border box
+            draw.rectangle([(20, 20), (480, 480)], outline=(30, 215, 96), width=4)
+            # Draw abbreviation text
+            draw.text((180, 220), title[:2].upper(), fill=(255, 255, 255))
+            
+            fallback_buffer = io.BytesIO()
+            fallback_img.save(fallback_buffer, format="JPEG", quality=80)
+            fallback_buffer.seek(0)
+            
+            # Upload placeholder to B2
+            s3_client = boto3.client(
+                's3',
+                endpoint_url=os.getenv("B2_S3_ENDPOINT_URL"),
+                aws_access_key_id=os.getenv("B2_ACCESS_KEY_ID"),
+                aws_secret_access_key=os.getenv("B2_SECRET_ACCESS_KEY"),
+                region_name=os.getenv("B2_REGION_NAME", "us-east-005")
+            )
+            bucket_name = os.getenv("B2_BUCKET_NAME", "fermata-music-app")
+            s3_client.upload_fileobj(
+                Fileobj=fallback_buffer,
+                Bucket=bucket_name,
+                Key=s3_key,
+                ExtraArgs={'ContentType': 'image/jpeg'}
+            )
+            cover_url = f"{os.getenv('B2_S3_ENDPOINT_URL')}/{bucket_name}/{s3_key}"
+            new_logs.append(f"[Pipeline] Branch B Fallback: Solid placeholder uploaded successfully. B2 URL: {cover_url}")
+        except Exception as upload_err:
+            new_logs.append(f"[Pipeline] Branch B Fallback Error: {str(upload_err)}")
+            cover_url = f"https://cdn.fermata.example.com/tracks/{track_id}/cover.jpg"
+            
     return {
         "cover_url": cover_url,
         "cover_status": "completed",
@@ -444,6 +479,10 @@ def populate_artist(state: AgenticState, config: RunnableConfig) -> Dict[str, An
     artist_metadata = state.get("artist_metadata", {}) or {}
     name = artist_metadata.get("name", "Unknown")
     
+    # Incase artist is missing, attach as "Unknown Artist"
+    if not name or name.strip() == "" or name.lower() in ("unknown", "unknown artist"):
+        name = "Unknown Artist"
+        
     new_logs = [f"[Pipeline] Branch C: Populating Artist table in DB with '{name}'..."]
     
     # Retrieve DB session from config
@@ -461,20 +500,23 @@ def populate_artist(state: AgenticState, config: RunnableConfig) -> Dict[str, An
                 artist_id = db_artist.id
                 new_logs.append(f"[Pipeline] Branch C: Artist '{name}' already exists in DB (ID: {artist_id}).")
             else:
-                # Create base user/artist. Since User has email, hashed_password, role
-                import random
-                email = f"artist_{name.replace(' ', '_').lower()}_{random.randint(1000, 9999)}@fermata-placeholder.com"
-                db_artist = Artist(
-                    email=email,
-                    hashed_password="placeholder_hash",
-                    role="artist",
-                    name=name
-                )
-                db.add(db_artist)
-                db.commit()
-                db.refresh(db_artist)
-                artist_id = db_artist.id
-                new_logs.append(f"[Pipeline] Branch C: Created new Artist '{name}' in DB (ID: {artist_id}).")
+                new_logs.append(f"[Pipeline] Branch C: Artist '{name}' has no profile in DB. Falling back to 'Unknown Artist'.")
+                # Retrieve or create "Unknown Artist"
+                unknown_artist = db.scalars(select(Artist).where(func.lower(Artist.name) == "unknown artist")).first()
+                if not unknown_artist:
+                    import random
+                    email = f"artist_unknown_{random.randint(1000, 9999)}@fermata-placeholder.com"
+                    unknown_artist = Artist(
+                        email=email,
+                        hashed_password="placeholder_hash",
+                        role="artist",
+                        name="Unknown Artist"
+                    )
+                    db.add(unknown_artist)
+                    db.commit()
+                    db.refresh(unknown_artist)
+                    new_logs.append(f"[Pipeline] Branch C: Created 'Unknown Artist' profile (ID: {unknown_artist.id}).")
+                artist_id = unknown_artist.id
         except Exception as e:
             db.rollback()
             new_logs.append(f"[Pipeline] Branch C Error during DB population: {str(e)}")
