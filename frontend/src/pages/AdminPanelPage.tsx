@@ -1523,7 +1523,18 @@ export default function AdminPanelPage() {
                                 Running...
                               </div>
                             )}
-                            {req.status !== 'pending' && req.status !== 'processing' && (
+                            {req.status === 'failed' && (
+                              <button
+                                onClick={(e) => handleApproveRequest(req.id, e)}
+                                disabled={approvingRequestId !== null}
+                                className={`px-2.5 py-1 rounded bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold transition-all mr-1 ${
+                                  approvingRequestId !== null ? 'opacity-50 cursor-not-allowed' : 'transform hover:scale-105'
+                                }`}
+                              >
+                                Retry
+                              </button>
+                            )}
+                            {req.status !== 'pending' && req.status !== 'processing' && req.status !== 'failed' && (
                               <span className="text-xs text-subtext uppercase font-semibold mr-1">Processed</span>
                             )}
                             

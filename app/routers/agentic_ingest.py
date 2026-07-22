@@ -288,7 +288,7 @@ def approve_ingestion_request(
     if not db_req:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found.")
         
-    if db_req.status != "pending":
+    if db_req.status not in ["pending", "failed"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail="This request is already being processed or completed."
@@ -344,6 +344,11 @@ def approve_ingestion_request(
         else:
             db_req.status = "failed"
             print(f"[Ingestion Task FAILED] Ingestion failed (no audio key generated) for Request ID: {request_id}.", flush=True)
+            # Delete empty track to keep catalog clean
+            try:
+                db.delete(db_track)
+            except Exception:
+                pass
             
         db.commit()
     except Exception as e:
@@ -351,6 +356,16 @@ def approve_ingestion_request(
         print(f"[Ingestion Task CRITICAL ERROR] Failed for Request ID {request_id}: {str(e)}", flush=True)
         traceback.print_exc()
         db.rollback()
+        # Clean up Track if created
+        try:
+            if 'db_track' in locals() and db_track.id:
+                # Re-fetch and delete
+                t_del = db.get(Track, db_track.id)
+                if t_del:
+                    db.delete(t_del)
+                    db.commit()
+        except Exception:
+            pass
         # Mark as failed inside a separate try block to ensure status is persisted
         try:
             db_req = db.scalar(select(IngestionRequest).where(IngestionRequest.id == request_id))
