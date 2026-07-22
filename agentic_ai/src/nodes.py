@@ -74,6 +74,64 @@ def _resolve_candidate_url(cand: Dict[str, Any]) -> str:
     return f"https://www.youtube.com/results?search_query={urllib.parse.quote_plus(query)}"
 
 
+def _search_spotify_candidates(query: str, client_id: str, client_secret: str) -> List[Dict[str, Any]]:
+    """
+    Search Spotify for tracks matching query and return candidates with metadata.
+    """
+    try:
+        # 1. Get access token
+        token_url = "https://accounts.spotify.com/api/token"
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded"
+        }
+        data = {
+            "grant_type": "client_credentials",
+            "client_id": client_id,
+            "client_secret": client_secret
+        }
+        res = requests.post(token_url, headers=headers, data=data, timeout=5)
+        if res.status_code != 200:
+            return []
+        access_token = res.json().get("access_token")
+        if not access_token:
+            return []
+            
+        # 2. Search Spotify tracks
+        search_url = "https://api.spotify.com/v1/search"
+        params = {
+            "q": query,
+            "type": "track",
+            "limit": 10
+        }
+        headers = {
+            "Authorization": f"Bearer {access_token}"
+        }
+        search_res = requests.get(search_url, params=params, headers=headers, timeout=5)
+        if search_res.status_code != 200:
+            return []
+            
+        tracks = search_res.json().get("tracks", {}).get("items", [])
+        candidates = []
+        for idx, t in enumerate(tracks):
+            images = t.get("album", {}).get("images", [])
+            cover_url = images[0].get("url") if images else ""
+            
+            artists = ", ".join([a.get("name") for a in t.get("artists", [])])
+            
+            candidates.append({
+                "id": f"cand_{idx + 1}",
+                "title": t.get("name"),
+                "artist": artists if artists else "Unknown Artist",
+                "album": t.get("album", {}).get("name") or "Single",
+                "duration_seconds": int(t.get("duration_ms", 0) / 1000),
+                "source_url": "", # Will be resolved to a YouTube watch link
+                "cover_url": cover_url
+            })
+        return candidates
+    except Exception:
+        return []
+
+
 def search_candidates(state: AgenticState) -> Dict[str, Any]:
     song_name = state.get("song_name", "")
     new_logs = [f"[Search] Activating external source search for: '{song_name}'"]
@@ -128,6 +186,30 @@ def search_candidates(state: AgenticState) -> Dict[str, Any]:
             new_logs.append(f"[Search] Direct link metadata extraction failed: {str(e)}. Proceeding to search query.")
 
     candidates = []
+    
+    # Try Spotify Search API if credentials are provided in env
+    spotify_id = os.getenv("SPOTIFY_CLIENT_ID")
+    spotify_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
+    if spotify_id and spotify_secret:
+        new_logs.append("[Search] Spotify API credentials detected. Attempting Spotify Web API search...")
+        try:
+            candidates = _search_spotify_candidates(song_name, spotify_id, spotify_secret)
+            if candidates:
+                new_logs.append(f"[Search] Successfully retrieved {len(candidates)} candidates using Spotify API.")
+                # Resolve real YouTube URLs concurrently for all Spotify candidates
+                new_logs.append("[Search] Resolving direct YouTube video URLs in parallel...")
+                with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                    urls = list(executor.map(_resolve_candidate_url, candidates))
+                    for cand, url in zip(candidates, urls):
+                        cand['source_url'] = url
+                return {
+                    "candidates": candidates,
+                    "logs": new_logs
+                }
+            else:
+                new_logs.append("[Search] Spotify search returned empty results. Falling back to LLM/mock search.")
+        except Exception as e:
+            new_logs.append(f"[Search] Spotify search trial failed: {str(e)}. Falling back to LLM/mock search.")
     
     if MISTRAL_AVAILABLE:
         try:
