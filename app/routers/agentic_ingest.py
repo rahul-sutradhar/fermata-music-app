@@ -277,7 +277,7 @@ def approve_ingestion_request(
 ):
     """
     Approve ingestion request with Postgres row-level locking (Admin only).
-    Runs ingestion synchronously to prevent Render Free Tier from freezing background tasks.
+    Runs ingestion synchronously using the active DB session to prevent Render Free Tier from freezing.
     """
     # 1. Lock the row for update immediately (binary lock)
     db_req = db.scalar(
@@ -298,12 +298,71 @@ def approve_ingestion_request(
     db_req.status = "processing"
     db.commit()
     
-    # 3. Execute synchronously (keeps connection active to avoid Render Free Tier freezing)
-    run_ingestion_background(
-        request_id=db_req.id,
-        thread_id=db_req.thread_id,
-        db_url=str(db.bind.url)
-    )
+    # 3. Execute synchronously using the active DB session
+    print(f"[Ingestion Task] Starting ingestion flow for Request ID: {db_req.id}, Thread ID: {db_req.thread_id}", flush=True)
+    try:
+        from app.models.track import Track
+        
+        # Allocate Track
+        db_track = Track(
+            title=db_req.song_name,
+            duration_seconds=200,  # fallback default
+            audio_file_key=None,
+            cover_image_key=None
+        )
+        db.add(db_track)
+        db.commit()
+        db.refresh(db_track)
+        print(f"[Ingestion Task] Allocated Track ID: {db_track.id} for song '{db_req.song_name}'", flush=True)
+        
+        # Create and run workflow
+        from agentic_ai.src.graph import create_workflow
+        bg_workflow = create_workflow()
+        
+        config = {
+            "configurable": {
+                "thread_id": db_req.thread_id,
+                "db": db
+            }
+        }
+        
+        bg_workflow.update_state(config, {
+            "admin_approved": True,
+            "track_id": db_track.id,
+            "admin_notes": "Approved via Admin Console"
+        })
+        
+        print(f"[Ingestion Task] Invoking LangGraph workflow for Track ID {db_track.id}...", flush=True)
+        events = list(bg_workflow.stream(None, config, stream_mode="values"))
+        
+        # Verify track updated correctly
+        db.refresh(db_track)
+        db.refresh(db_req)
+        if db_track.audio_file_key:
+            db_req.status = "completed"
+            print(f"[Ingestion Task SUCCESS] Ingestion completed successfully for Request ID: {request_id}. Track ID: {db_track.id}", flush=True)
+        else:
+            db_req.status = "failed"
+            print(f"[Ingestion Task FAILED] Ingestion failed (no audio key generated) for Request ID: {request_id}.", flush=True)
+            
+        db.commit()
+    except Exception as e:
+        import traceback
+        print(f"[Ingestion Task CRITICAL ERROR] Failed for Request ID {request_id}: {str(e)}", flush=True)
+        traceback.print_exc()
+        db.rollback()
+        # Mark as failed inside a separate try block to ensure status is persisted
+        try:
+            db_req = db.scalar(select(IngestionRequest).where(IngestionRequest.id == request_id))
+            if db_req:
+                db_req.status = "failed"
+                db.commit()
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ingestion failed: {str(e)}"
+        )
     
     return {"message": "Request approved and processed."}
 

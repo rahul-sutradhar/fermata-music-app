@@ -1488,53 +1488,58 @@ export default function AdminPanelPage() {
 
                       {/* Actions */}
                       <div className="flex items-center gap-2 justify-end">
-                        {req.status === 'pending' && (
+                        {approvingRequestId === req.id ? (
+                          <div className="flex items-center gap-1.5 text-xs text-subtext mr-1">
+                            <RefreshCw size={12} className="animate-spin text-spotify-green" />
+                            Ingesting...
+                          </div>
+                        ) : (
                           <>
+                            {req.status === 'pending' && (
+                              <>
+                                <button
+                                  onClick={(e) => handleApproveRequest(req.id, e)}
+                                  disabled={approvingRequestId !== null}
+                                  className={`px-2.5 py-1 rounded bg-spotify-green hover:bg-spotify-green/80 text-black text-xs font-bold transition-all ${
+                                    approvingRequestId !== null ? 'opacity-50 cursor-not-allowed' : 'transform hover:scale-105'
+                                  }`}
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={(e) => handleRejectRequest(req.id, e)}
+                                  disabled={approvingRequestId !== null}
+                                  className={`px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold border border-surface-highlight/30 transition-all ${
+                                    approvingRequestId !== null ? 'opacity-50 cursor-not-allowed' : 'transform hover:scale-105'
+                                  }`}
+                                >
+                                  Reject
+                                </button>
+                              </>
+                            )}
+                            {req.status === 'processing' && (
+                              <div className="flex items-center gap-1.5 text-xs text-subtext mr-1">
+                                <RefreshCw size={12} className="animate-spin text-spotify-green" />
+                                Running...
+                              </div>
+                            )}
+                            {req.status !== 'pending' && req.status !== 'processing' && (
+                              <span className="text-xs text-subtext uppercase font-semibold mr-1">Processed</span>
+                            )}
+                            
+                            {/* Always show a delete/trash button for queue cleanup */}
                             <button
-                              onClick={(e) => handleApproveRequest(req.id, e)}
+                              onClick={(e) => handleDeleteRequest(req.id, e)}
                               disabled={approvingRequestId !== null}
-                              className={`px-2.5 py-1 rounded bg-spotify-green hover:bg-spotify-green/80 text-black text-xs font-bold transition-all flex items-center gap-1 ${
-                                approvingRequestId !== null ? 'opacity-50 cursor-not-allowed' : 'transform hover:scale-105'
+                              className={`p-1.5 rounded-md text-subtext hover:text-red-400 hover:bg-surface-highlight transition-colors ${
+                                approvingRequestId !== null ? 'opacity-50 cursor-not-allowed' : ''
                               }`}
+                              title="Delete Request"
                             >
-                              {approvingRequestId === req.id ? (
-                                <>
-                                  <RefreshCw size={12} className="animate-spin" />
-                                  Ingesting...
-                                </>
-                              ) : (
-                                'Approve'
-                              )}
-                            </button>
-                            <button
-                              onClick={(e) => handleRejectRequest(req.id, e)}
-                              disabled={approvingRequestId !== null}
-                              className={`px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold border border-surface-highlight/30 transition-all ${
-                                approvingRequestId !== null ? 'opacity-50 cursor-not-allowed' : 'transform hover:scale-105'
-                              }`}
-                            >
-                              Reject
+                              <Trash2 size={13} />
                             </button>
                           </>
                         )}
-                        {req.status === 'processing' && (
-                          <div className="flex items-center gap-1.5 text-xs text-subtext mr-1">
-                            <RefreshCw size={12} className="animate-spin text-spotify-green" />
-                            Running...
-                          </div>
-                        )}
-                        {req.status !== 'pending' && req.status !== 'processing' && (
-                          <span className="text-xs text-subtext uppercase font-semibold mr-1">Processed</span>
-                        )}
-                        
-                        {/* Always show a delete/trash button for queue cleanup */}
-                        <button
-                          onClick={(e) => handleDeleteRequest(req.id, e)}
-                          className="p-1.5 rounded-md text-subtext hover:text-red-400 hover:bg-surface-highlight transition-colors"
-                          title="Delete Request"
-                        >
-                          <Trash2 size={13} />
-                        </button>
                       </div>
                     </div>
                   ))
