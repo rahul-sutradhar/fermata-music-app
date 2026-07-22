@@ -37,6 +37,23 @@ def _resolve_candidate_url(cand: Dict[str, Any]) -> str:
     title = cand.get("title", "")
     artist = cand.get("artist", "")
     query = f"{title} {artist}"
+    
+    # 1. Try lightweight HTML parsing of YouTube search results page first (fast, reliable, avoids 429)
+    try:
+        import re
+        search_url = f"https://www.youtube.com/results?search_query={urllib.parse.quote_plus(query)}"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+        }
+        res = requests.get(search_url, headers=headers, timeout=5)
+        if res.status_code == 200:
+            matches = re.findall(r'/watch\?v=([a-zA-Z0-9_-]{11})', res.text)
+            if matches:
+                return f"https://www.youtube.com/watch?v={matches[0]}"
+    except Exception:
+        pass
+
+    # 2. Fall back to yt-dlp lookup
     ydl_opts = {
         'format': 'bestaudio/best',
         'noplaylist': True,
@@ -52,7 +69,8 @@ def _resolve_candidate_url(cand: Dict[str, Any]) -> str:
                 return f"https://www.youtube.com/watch?v={video_id}"
     except Exception:
         pass
-    # Fallback to search query link
+        
+    # 3. Final fallback to results page link
     return f"https://www.youtube.com/results?search_query={urllib.parse.quote_plus(query)}"
 
 
@@ -253,25 +271,38 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             'no_warnings': True,
             'skip_download': True,
         }
-        query = f"{title} {artist}"
-        new_logs.append(f"[Pipeline] Branch A: Searching YouTube for best audio match for query: '{query}'")
-        
+        # Use direct watch URL if available in selection metadata
+        source_url = selected_song.get("source_url")
+        if source_url and ("youtube.com/watch" in source_url or "youtu.be" in source_url):
+            target_link = source_url
+            new_logs.append(f"[Pipeline] Branch A: Extracting stream directly from URL: '{target_link}'")
+        else:
+            target_link = f"ytsearch1:{title} {artist}"
+            new_logs.append(f"[Pipeline] Branch A: Searching YouTube for query: '{title} {artist}'")
+            
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(f"ytsearch1:{query}", download=False)
-            if 'entries' not in info or not info['entries']:
-                raise ValueError("No search results found on YouTube.")
-            entry = info['entries'][0]
+            info = ydl.extract_info(target_link, download=False)
+            if 'entries' in info:
+                if not info['entries']:
+                    raise ValueError("No search results found on YouTube.")
+                entry = info['entries'][0]
+            else:
+                entry = info
+                
             stream_url = entry['url']
             ext = entry.get('ext', 'mp3')
-            new_logs.append(f"[Pipeline] Branch A: Matched YouTube video: '{entry['title']}' (Duration: {entry.get('duration')}s)")
+            new_logs.append(f"[Pipeline] Branch A: Matched YouTube video: '{entry.get('title', 'Unknown')}' (Duration: {entry.get('duration')}s)")
             
-        # Download stream directly into memory (BytesIO)
+        # Download stream directly into memory (BytesIO) with timeout check
         new_logs.append("[Pipeline] Branch A: Streaming audio bytes directly into memory buffer...")
-        response = requests.get(stream_url, stream=True, timeout=30)
+        start_time = time.time()
+        response = requests.get(stream_url, stream=True, timeout=15)
         response.raise_for_status()
         
         audio_buffer = io.BytesIO()
         for chunk in response.iter_content(chunk_size=1024 * 64):
+            if time.time() - start_time > 60:
+                raise TimeoutError("Audio stream download exceeded maximum allowed time of 60 seconds.")
             audio_buffer.write(chunk)
         audio_buffer.seek(0)
         

@@ -192,7 +192,7 @@ export default function AdminPanelPage() {
 
     try {
       const trackSearch = activeTab === 'tracks' ? (searchQ || undefined) : undefined
-      const [allTracksData, allAlbumsData, allArtistsData] = await Promise.all([
+      const [allTracksData, allAlbumsData, allArtistsData, allRequestsData] = await Promise.all([
         listTracks(0, 100, trackSearch).catch((err) => {
           console.error('Failed to load tracks:', err)
           return [] as Track[]
@@ -204,6 +204,10 @@ export default function AdminPanelPage() {
         listArtists(0, 100).catch((err) => {
           console.error('Failed to load artists:', err)
           return [] as Artist[]
+        }),
+        listIngestionRequests().catch((err) => {
+          console.error('Failed to load ingestion requests:', err)
+          return [] as IngestionRequestItem[]
         }),
       ])
 
@@ -238,15 +242,14 @@ export default function AdminPanelPage() {
           )
         ))
         setArtistAccountsList(allUsers.filter(u => u.role === 'artist'))
+        setIngestionRequests(allRequestsData)
       } else if (activeTab === 'ingestion') {
-        const reqs = await listIngestionRequests().catch((err) => {
-          console.error('Failed to load ingestion requests:', err)
-          return []
-        })
-        setIngestionRequests(reqs.filter(r =>
+        setIngestionRequests(allRequestsData.filter(r =>
           r.song_name.toLowerCase().includes(searchQ.toLowerCase()) ||
           r.artist_name.toLowerCase().includes(searchQ.toLowerCase())
         ))
+      } else {
+        setIngestionRequests(allRequestsData)
       }
     } catch (err) {
       console.error('Failed to load admin data tab:', err)
