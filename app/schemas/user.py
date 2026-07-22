@@ -61,3 +61,4 @@ class AdminUserUpdate(BaseModel):
     username: str | None = Field(None, min_length=1, max_length=50)
     email: EmailStr | None = None
     role: str | None = Field(None, pattern="^(user|artist|admin)$")
+    password: str | None = Field(None, min_length=8, max_length=128)

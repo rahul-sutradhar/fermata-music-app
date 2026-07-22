@@ -201,6 +201,10 @@ def admin_update_user(
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
         user.email = payload.email
         
+    if payload.password is not None:
+        from app.core.oauth import hash_password
+        user.hashed_password = hash_password(payload.password)
+        
     if payload.role is not None and payload.role != user.role:
         from sqlalchemy import text
         # If demoting from old subclass, delete from subclass tables
