@@ -185,8 +185,6 @@ def search_candidates(state: AgenticState) -> Dict[str, Any]:
         except Exception as e:
             new_logs.append(f"[Search] Direct link metadata extraction failed: {str(e)}. Proceeding to search query.")
 
-    candidates = []
-    
     # Try Spotify Search API if credentials are provided in env
     spotify_id = os.getenv("SPOTIFY_CLIENT_ID")
     spotify_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
@@ -207,56 +205,14 @@ def search_candidates(state: AgenticState) -> Dict[str, Any]:
                     "logs": new_logs
                 }
             else:
-                new_logs.append("[Search] Spotify search returned empty results. Falling back to LLM/mock search.")
+                new_logs.append("[Search] Spotify search returned empty results. Falling back to mock search.")
         except Exception as e:
-            new_logs.append(f"[Search] Spotify search trial failed: {str(e)}. Falling back to LLM/mock search.")
+            new_logs.append(f"[Search] Spotify search failed: {str(e)}. Falling back to mock search.")
+            
+    # Fall back directly to mock search (removing the LLM entirely)
+    new_logs.append("[Search] Using high-fidelity mock search fallback.")
+    candidates = _generate_mock_candidates(song_name)
     
-    if MISTRAL_AVAILABLE:
-        try:
-            model_name = os.getenv("MISTRAL_MODEL", "mistral-large-latest")
-            llm = ChatMistralAI(model=model_name, temperature=0.2)
-            
-            prompt = f"""
-            You are a music metadata fetcher. The user is searching for song candidates matching '{song_name}'.
-            Retrieve 10 candidates that match or are highly relevant to this query.
-            Return ONLY a valid JSON list of objects. Do not include markdown code block formatting (like ```json), just the raw JSON.
-            Each object must contain these exact keys:
-              - "id": string (unique ID like "cand_1", "cand_2"...)
-              - "title": string (song title)
-              - "artist": string (artist name)
-              - "album": string (album name)
-              - "duration_seconds": integer (duration in seconds)
-              - "source_url": string (a realistic-looking YouTube or Spotify URL)
-              - "cover_url": string (a realistic-looking URL for the album cover photo)
-            """
-            
-            response = llm.invoke([HumanMessage(content=prompt)])
-            content = response.content.strip()
-            
-            # Remove any markdown formatting if present
-            if content.startswith("```"):
-                content = content.split("\n", 1)[1]
-            if content.endswith("```"):
-                content = content.rsplit("\n", 1)[0]
-            content = content.strip()
-            
-            candidates = json.loads(content)
-            
-            # Resolve real YouTube URLs concurrently for all 10 candidates
-            new_logs.append("[Search] Resolving direct YouTube video URLs in parallel...")
-            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-                urls = list(executor.map(_resolve_candidate_url, candidates))
-                for cand, url in zip(candidates, urls):
-                    cand['source_url'] = url
-                    
-            new_logs.append("[Search] Successfully retrieved 10 candidates using Mistral AI.")
-        except Exception as e:
-            new_logs.append(f"[Search] Mistral AI search failed or key is invalid: {str(e)}. Falling back to mock search.")
-            candidates = _generate_mock_candidates(song_name)
-    else:
-        new_logs.append("[Search] Mistral AI is not configured or MISTRAL_API_KEY is missing. Using high-fidelity mock search.")
-        candidates = _generate_mock_candidates(song_name)
-        
     return {
         "candidates": candidates,
         "logs": new_logs
@@ -362,8 +318,21 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             target_link = f"ytsearch1:{title} {artist}"
             new_logs.append(f"[Pipeline] Branch A: Searching YouTube for query: '{title} {artist}'")
             
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(target_link, download=False)
+        track_id = state.get("track_id", 9901)
+        
+        # Download audio using yt-dlp to a temp file (highly optimized and fast)
+        temp_dir = tempfile.gettempdir()
+        temp_file_path = os.path.join(temp_dir, f"audio_{track_id}")
+        
+        ydl_opts_download = {
+            'format': 'bestaudio/best',
+            'outtmpl': temp_file_path + '.%(ext)s',
+            'quiet': True,
+            'no_warnings': True,
+        }
+        
+        with yt_dlp.YoutubeDL(ydl_opts_download) as ydl:
+            info = ydl.extract_info(target_link, download=True)
             if 'entries' in info:
                 if not info['entries']:
                     raise ValueError("No search results found on YouTube.")
@@ -371,29 +340,27 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             else:
                 entry = info
                 
-            stream_url = entry['url']
             ext = entry.get('ext', 'mp3')
-            new_logs.append(f"[Pipeline] Branch A: Matched YouTube video: '{entry.get('title', 'Unknown')}' (Duration: {entry.get('duration')}s)")
+            new_logs.append(f"[Pipeline] Branch A: Matched and downloaded YouTube video: '{entry.get('title', 'Unknown')}' (Duration: {entry.get('duration')}s)")
             
-        # Download stream directly into memory (BytesIO) with timeout check
-        new_logs.append("[Pipeline] Branch A: Streaming audio bytes directly into memory buffer...")
-        start_time = time.time()
-        response = requests.get(stream_url, stream=True, timeout=15)
-        response.raise_for_status()
+        downloaded_file = f"{temp_file_path}.{ext}"
         
-        audio_buffer = io.BytesIO()
-        for chunk in response.iter_content(chunk_size=1024 * 64):
-            if time.time() - start_time > 60:
-                raise TimeoutError("Audio stream download exceeded maximum allowed time of 60 seconds.")
-            audio_buffer.write(chunk)
-        audio_buffer.seek(0)
+        # Read the file into memory
+        with open(downloaded_file, "rb") as f:
+            audio_bytes = f.read()
+        audio_buffer = io.BytesIO(audio_bytes)
         
+        # Clean up the temp file
+        try:
+            os.remove(downloaded_file)
+        except Exception:
+            pass
+            
         size_mb = len(audio_buffer.getvalue()) / (1024 * 1024)
         new_logs.append(f"[Pipeline] Branch A: Stream download finished. Buffer size: {size_mb:.2f} MB")
         
         # Upload buffer directly to Backblaze B2 S3 bucket
         new_logs.append("[Pipeline] Branch A: Uploading in-memory buffer to Backblaze B2/CDN...")
-        track_id = state.get("track_id", 9901)
         s3_key = f"tracks/{track_id}/audio.{ext}"
         
         s3_client = boto3.client(
@@ -526,6 +493,57 @@ def process_and_upload_cover(state: AgenticState) -> Dict[str, Any]:
     }
 
 
+def _get_spotify_artist_details(artist_name: str, client_id: str, client_secret: str) -> Dict[str, Any]:
+    """
+    Search Spotify for artist by name and extract genres and high-resolution image URL.
+    """
+    try:
+        # 1. Get access token
+        token_url = "https://accounts.spotify.com/api/token"
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        data = {
+            "grant_type": "client_credentials",
+            "client_id": client_id,
+            "client_secret": client_secret
+        }
+        res = requests.post(token_url, headers=headers, data=data, timeout=5)
+        if res.status_code != 200:
+            return {}
+        access_token = res.json().get("access_token")
+        if not access_token:
+            return {}
+            
+        # 2. Search Spotify for the artist
+        search_url = "https://api.spotify.com/v1/search"
+        params = {
+            "q": artist_name,
+            "type": "artist",
+            "limit": 1
+        }
+        headers = {
+            "Authorization": f"Bearer {access_token}"
+        }
+        search_res = requests.get(search_url, params=params, headers=headers, timeout=5)
+        if search_res.status_code != 200:
+            return {}
+            
+        artists = search_res.json().get("artists", {}).get("items", [])
+        if not artists:
+            return {}
+            
+        artist = artists[0]
+        genres = artist.get("genres", [])
+        images = artist.get("images", [])
+        image_url = images[0].get("url") if images else ""
+        
+        return {
+            "genres": [g.title() for g in genres] if genres else ["Pop", "Rock"],
+            "image_url": image_url
+        }
+    except Exception:
+        return {}
+
+
 def _get_artist_genres(artist_name: str) -> List[str]:
     # Dynamic genre mapping based on artist name keywords
     artist_lower = artist_name.lower()
@@ -546,23 +564,6 @@ def _get_artist_genres(artist_name: str) -> List[str]:
     elif "metal" in artist_lower or "rock" in artist_lower:
         return ["Metal", "Hard Rock", "Alternative Rock"]
         
-    # Attempt to query Mistral for the actual genres if available
-    if MISTRAL_AVAILABLE:
-        try:
-            llm = ChatMistralAI(model=os.getenv("MISTRAL_MODEL"), temperature=0.1)
-            prompt = f"What are the typical music genres for the artist '{artist_name}'? Return ONLY a valid JSON list of strings (e.g. ['Pop', 'Rock']). Do not include markdown formatting or explanations."
-            response = llm.invoke([HumanMessage(content=prompt)])
-            content = response.content.strip()
-            if content.startswith("```"):
-                content = content.split("\n", 1)[1]
-            if content.endswith("```"):
-                content = content.rsplit("\n", 1)[0]
-            genres = json.loads(content.strip())
-            if isinstance(genres, list):
-                return [str(g).title() for g in genres]
-        except Exception:
-            pass
-            
     return ["Pop", "Rock", "Indie"]
 
 
@@ -573,12 +574,30 @@ def fetch_artist_metadata(state: AgenticState) -> Dict[str, Any]:
     new_logs = [f"[Pipeline] Branch C: Fetching extended artist metadata for '{artist_name}'..."]
     time.sleep(0.5)
     
-    genres = _get_artist_genres(artist_name)
+    # Try fetching artist details from Spotify if available
+    genres = []
+    artist_image = ""
+    spotify_id = os.getenv("SPOTIFY_CLIENT_ID")
+    spotify_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
+    if spotify_id and spotify_secret:
+        new_logs.append("[Pipeline] Branch C: Querying Spotify API for artist details...")
+        details = _get_spotify_artist_details(artist_name, spotify_id, spotify_secret)
+        if details:
+            genres = details.get("genres", [])
+            artist_image = details.get("image_url", "")
+            new_logs.append("[Pipeline] Branch C: Successfully retrieved artist details from Spotify.")
+            
+    if not genres:
+        new_logs.append("[Pipeline] Branch C: Falling back to rule-based keyword mapping for genres.")
+        genres = _get_artist_genres(artist_name)
+        
     artist_metadata = {
         "name": artist_name,
-        "bio": f"Bio of {artist_name} fetched dynamically from music registry.",
-        "genres": genres
+        "bio": f"Official Spotify bio and details for {artist_name}." if artist_image else f"Bio of {artist_name} fetched dynamically from music registry.",
+        "genres": genres,
+        "image_url": artist_image or "https://images.unsplash.com/photo-1506157786151-b8491531f063?w=500&auto=format&fit=crop&q=60"
     }
+    
     new_logs.append(f"[Pipeline] Branch C: Artist metadata retrieved successfully. Genres: {', '.join(genres)}")
     
     return {
