@@ -178,6 +178,44 @@ export default function AdminPanelPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  const sortIngestionRequests = (requests: IngestionRequestItem[]): IngestionRequestItem[] => {
+    const getStatusPriority = (status: string) => {
+      switch (status) {
+        case 'pending':
+        case 'processing':
+          return 1;
+        case 'completed':
+          return 2;
+        case 'rejected':
+          return 3;
+        case 'failed':
+          return 4;
+        default:
+          return 5;
+      }
+    }
+
+    return [...requests].sort((a, b) => {
+      const priorityA = getStatusPriority(a.status)
+      const priorityB = getStatusPriority(b.status)
+
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB
+      }
+
+      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0
+      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0
+
+      // Priority 1: pending/processing - ASCENDING order by date
+      if (priorityA === 1) {
+        return timeA - timeB
+      }
+
+      // Priority 2, 3, 4: completed, rejected, failed - DESCENDING order by date
+      return timeB - timeA
+    })
+  }
+
   const loadData = async () => {
     setLoading(true)
     let allUsers: UserType[] = []
@@ -221,6 +259,9 @@ export default function AdminPanelPage() {
       setAlbums(sortedAlbums.filter(a => a.title.toLowerCase().includes(searchQ.toLowerCase())))
       setAllArtistsList(allArtistsData)
 
+      // Apply custom sorting rules to ingestion requests
+      const sortedRequests = sortIngestionRequests(allRequestsData)
+
       if (activeTab === 'users') {
         setUsers(allUsers.filter(u =>
           u.role === 'user' && (
@@ -244,14 +285,14 @@ export default function AdminPanelPage() {
           )
         ))
         setArtistAccountsList(allUsers.filter(u => u.role === 'artist'))
-        setIngestionRequests(allRequestsData)
+        setIngestionRequests(sortedRequests)
       } else if (activeTab === 'ingestion') {
-        setIngestionRequests(allRequestsData.filter(r =>
+        setIngestionRequests(sortedRequests.filter(r =>
           r.song_name.toLowerCase().includes(searchQ.toLowerCase()) ||
           r.artist_name.toLowerCase().includes(searchQ.toLowerCase())
         ))
       } else {
-        setIngestionRequests(allRequestsData)
+        setIngestionRequests(sortedRequests)
       }
     } catch (err) {
       console.error('Failed to load admin data tab:', err)

@@ -347,18 +347,38 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
         youtube_cookies_env = os.getenv("YOUTUBE_COOKIES")
         if youtube_cookies_env:
             try:
+                import base64
                 import tempfile
+                
+                # Check if Base64 encoded
+                try:
+                    cleaned_env = "".join(youtube_cookies_env.split())
+                    decoded_bytes = base64.b64decode(cleaned_env, validate=True)
+                    decoded_str = decoded_bytes.decode("utf-8")
+                    if "youtube.com" in decoded_str or "# Netscape" in decoded_str:
+                        youtube_cookies_env = decoded_str
+                        new_logs.append("[Pipeline] Branch A: Successfully decoded Base64 YOUTUBE_COOKIES.")
+                        print("[Pipeline] Branch A: Successfully decoded Base64 YOUTUBE_COOKIES.", flush=True)
+                except Exception:
+                    # Not valid base64 or doesn't match cookies format, use raw string
+                    pass
+                
                 fd, temp_path = tempfile.mkstemp(suffix=".txt", prefix="yt_cookies_")
-                with os.fdopen(fd, "w", encoding="utf-8") as tmp_f:
+                with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as tmp_f:
                     tmp_f.write(youtube_cookies_env)
                 cookie_path = temp_path
                 temp_cookie_file = temp_path
                 new_logs.append("[Pipeline] Branch A: Found YOUTUBE_COOKIES environment variable. Injected cookies to bypass YouTube bot detection.")
+                print("[Pipeline] Branch A: Found YOUTUBE_COOKIES environment variable. Injected cookies to bypass YouTube bot detection.", flush=True)
             except Exception as e:
                 new_logs.append(f"[Pipeline] Branch A: Failed to parse YOUTUBE_COOKIES env var: {str(e)}")
+                print(f"[Pipeline] Branch A: Failed to parse YOUTUBE_COOKIES env var: {str(e)}", flush=True)
         elif os.path.exists("cookies.txt"):
             cookie_path = "cookies.txt"
             new_logs.append("[Pipeline] Branch A: Found 'cookies.txt' in root. Injecting cookies to bypass YouTube bot detection.")
+            print("[Pipeline] Branch A: Found 'cookies.txt' in root. Injecting cookies to bypass YouTube bot detection.", flush=True)
+        else:
+            print("[Pipeline] Branch A: No YouTube cookies provided (cookies.txt or YOUTUBE_COOKIES env var not found).", flush=True)
             
         # Search and extract audio stream URL from YouTube using yt-dlp
         ydl_opts = {
