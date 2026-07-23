@@ -16,11 +16,12 @@ FROM python:3.11-slim
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 WORKDIR /app
 
-# Added ca-certificates (needed for yt-dlp's EJS remote-component HTTPS fetch)
-# and pinned nodejs explicitly so it's not left to whatever apt resolves
+# Install runtime dependencies and Node.js v22.11.0 (required by yt-dlp, which needs Node >= 22.0.0)
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-       libpq5 ffmpeg nodejs ca-certificates \
+       libpq5 ffmpeg ca-certificates curl xz-utils \
+    && curl -fsSL https://nodejs.org/dist/v22.11.0/node-v22.11.0-linux-x64.tar.xz | tar -xJ --strip-components=1 -C /usr/local \
+    && apt-get purge -y --auto-remove curl xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /wheels /wheels
