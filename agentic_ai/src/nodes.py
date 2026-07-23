@@ -465,12 +465,17 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
         
         with yt_dlp.YoutubeDL(ydl_opts_download) as ydl:
             info = ydl.extract_info(target_link, download=True)
+            if info is None:
+                raise ValueError("yt-dlp returned no info for this URL (extraction failed silently).")
             if 'entries' in info:
-                if not info['entries']:
-                    raise ValueError("No search results found on YouTube.")
-                entry = info['entries'][0]
+                entries = [e for e in info['entries'] if e is not None] # Filter out any None entries
+                if not entries:
+                    raise ValueError("No usable search results found on YouTube (all entries were empty/None).")
+                entry = entries[0]
             else:
                 entry = info
+            if entry is None:
+                raise ValueError("yt-dlp returned a None entry for this video.")
                 
             ext = entry.get('ext', 'mp3')
             new_logs.append(f"[Pipeline] Branch A: Matched and downloaded YouTube video: '{entry.get('title', 'Unknown')}' (Duration: {entry.get('duration')}s)")
@@ -515,7 +520,11 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
         new_logs.append(f"[Pipeline] Branch A: Upload successful. B2 URL: {audio_url}")
         
     except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
         new_logs.append(f"[Pipeline] Branch A Error: {str(e)}")
+        new_logs.append(f"[Pipeline] Branch A Traceback: {tb}")
+        print(f"[Pipeline] Branch A Traceback:\n{tb}", flush=True)
         env_name = os.getenv("ENVIRONMENT", "development").lower()
         if env_name in ("development", "testing"):
             new_logs.append("[Pipeline] Branch A Fallback: Simulating successful upload due to execution error (e.g. invalid credentials).")
