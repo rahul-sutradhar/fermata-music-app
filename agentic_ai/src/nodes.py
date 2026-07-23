@@ -383,6 +383,17 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
     artist = selected_song.get("artist", "Unknown")
     
     new_logs = [f"[Pipeline] Branch A: Starting in-memory audio extraction for '{title}' by {artist}..."]
+    
+    # Diagnostic check for node runtime
+    import subprocess
+    try:
+        res = subprocess.run(["node", "--version"], capture_output=True, text=True)
+        new_logs.append(f"[Pipeline] Branch A Diagnostics: node --version stdout: {res.stdout.strip()}, stderr: {res.stderr.strip()}")
+        print(f"[Pipeline] Branch A Diagnostics: node --version stdout: {res.stdout.strip()}, stderr: {res.stderr.strip()}", flush=True)
+    except Exception as e:
+        new_logs.append(f"[Pipeline] Branch A Diagnostics Error: node --version failed: {str(e)}")
+        print(f"[Pipeline] Branch A Diagnostics Error: node --version failed: {str(e)}", flush=True)
+
     cookie_path = None
     if os.path.exists("cookies.txt"):
         cookie_path = "cookies.txt"
