@@ -486,6 +486,7 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             ydl_opts_with_cookies = {
                 **common_opts,
                 'cookiefile': temp_cookie_file or cookie_path,
+                'verbose': True,
             }
             entry = _try_download(ydl_opts_with_cookies, target_link, "cookies/default-client")
 
