@@ -381,13 +381,13 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
     selected_song = state.get("selected_song", {}) or {}
     title = selected_song.get("title", "Unknown")
     artist = selected_song.get("artist", "Unknown")
-    
+
     new_logs = [f"[Pipeline] Branch A: Starting in-memory audio extraction for '{title}' by {artist}..."]
-    
+
     # Diagnostic check for node runtime
     import yt_dlp
     new_logs.append(f"[Pipeline] Branch A Diagnostics: yt-dlp version: {yt_dlp.version.__version__}")
-    
+
     import subprocess
     try:
         res = subprocess.run(["node", "--version"], capture_output=True, text=True)
@@ -412,7 +412,7 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
         cookie_path = "cookies.txt"
     elif os.path.exists("/etc/secrets/cookies.txt"):
         cookie_path = "/etc/secrets/cookies.txt"
-        
+
     temp_cookie_file = None
     if cookie_path:
         try:
@@ -422,24 +422,28 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
         except Exception as e:
             new_logs.append(f"[Pipeline] Branch A Warning: Failed to normalize cookies file: {str(e)}")
             print(f"[Pipeline] Branch A Warning: Failed to normalize cookies file: {str(e)}", flush=True)
-            
-    base_ydl_opts = {
-        'format': 'bestaudio/best/ba/b',
-        'quiet': False,
-        'no_warnings': False,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'remote_components': ['ejs:npm', 'ejs:github'],
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android_vr', 'android', 'ios']
-            }
-        },
-    }
-    if temp_cookie_file:
-        base_ydl_opts['cookiefile'] = temp_cookie_file
-    elif cookie_path:
-        base_ydl_opts['cookiefile'] = cookie_path
-    
+
+    def _try_download(ydl_opts, target_link, label):
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(target_link, download=True)
+                if info is None:
+                    raise ValueError(f"yt-dlp returned no info ({label})")
+                if 'entries' in info:
+                    entries = [e for e in info['entries'] if e is not None]
+                    if not entries:
+                        raise ValueError(f"No usable search results ({label})")
+                    entry = entries[0]
+                else:
+                    entry = info
+                if entry is None:
+                    raise ValueError(f"yt-dlp returned a None entry ({label})")
+                return entry
+        except Exception as e:
+            new_logs.append(f"[Pipeline] Branch A: '{label}' attempt failed: {str(e)}")
+            print(f"[Pipeline] Branch A: '{label}' attempt failed: {str(e)}", flush=True)
+            return None
+
     try:
         # Use direct watch URL if available in selection metadata
         source_url = selected_song.get("source_url")
@@ -449,55 +453,68 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
         else:
             target_link = f"ytsearch1:{title} {artist}"
             new_logs.append(f"[Pipeline] Branch A: Searching YouTube for query: '{title} {artist}'")
-            
+
         track_id = state.get("track_id", 9901)
-        
-        # Download audio using yt-dlp to a temp file (highly optimized and fast)
+
         temp_dir = tempfile.gettempdir()
         temp_file_path = os.path.join(temp_dir, f"audio_{track_id}")
-        
-        ydl_opts_download = {
-            **base_ydl_opts,
+
+        common_opts = {
+            'format': 'bestaudio/best/ba/b',
+            'quiet': False,
+            'no_warnings': False,
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'remote_components': ['ejs:npm', 'ejs:github'],
             'outtmpl': temp_file_path + '.%(ext)s',
         }
-        
-        with yt_dlp.YoutubeDL(ydl_opts_download) as ydl:
-            info = ydl.extract_info(target_link, download=True)
-            if info is None:
-                raise ValueError("yt-dlp returned no info for this URL (extraction failed silently).")
-            if 'entries' in info:
-                entries = [e for e in info['entries'] if e is not None] # Filter out any None entries
-                if not entries:
-                    raise ValueError("No usable search results found on YouTube (all entries were empty/None).")
-                entry = entries[0]
-            else:
-                entry = info
-            if entry is None:
-                raise ValueError("yt-dlp returned a None entry for this video.")
-                
-            ext = entry.get('ext', 'mp3')
-            new_logs.append(f"[Pipeline] Branch A: Matched and downloaded YouTube video: '{entry.get('title', 'Unknown')}' (Duration: {entry.get('duration')}s)")
-            
+
+        # --- Attempt 1: no cookies, lightweight clients (works for most public videos) ---
+        ydl_opts_no_cookies = {
+            **common_opts,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android_vr', 'android', 'ios']
+                }
+            },
+        }
+        new_logs.append("[Pipeline] Branch A: Attempting download without cookies (android_vr/android/ios clients)...")
+        entry = _try_download(ydl_opts_no_cookies, target_link, "no-cookies/android_vr")
+
+        # --- Attempt 2: fall back to cookies + default client if attempt 1 failed ---
+        if entry is None and (temp_cookie_file or cookie_path):
+            new_logs.append("[Pipeline] Branch A: Falling back to cookie-authenticated default client...")
+            ydl_opts_with_cookies = {
+                **common_opts,
+                'cookiefile': temp_cookie_file or cookie_path,
+            }
+            entry = _try_download(ydl_opts_with_cookies, target_link, "cookies/default-client")
+
+        if entry is None:
+            raise ValueError("All download attempts failed (no-cookies and cookie-authenticated).")
+
+        ext = entry.get('ext', 'mp3')
+        new_logs.append(f"[Pipeline] Branch A: Matched and downloaded YouTube video: '{entry.get('title', 'Unknown')}' (Duration: {entry.get('duration')}s)")
+
         downloaded_file = f"{temp_file_path}.{ext}"
-        
+
         # Read the file into memory
         with open(downloaded_file, "rb") as f:
             audio_bytes = f.read()
         audio_buffer = io.BytesIO(audio_bytes)
-        
+
         # Clean up the temp file
         try:
             os.remove(downloaded_file)
         except Exception:
             pass
-            
+
         size_mb = len(audio_buffer.getvalue()) / (1024 * 1024)
         new_logs.append(f"[Pipeline] Branch A: Stream download finished. Buffer size: {size_mb:.2f} MB")
-        
+
         # Upload buffer directly to Backblaze B2 S3 bucket
         new_logs.append("[Pipeline] Branch A: Uploading in-memory buffer to Backblaze B2/CDN...")
         s3_key = f"tracks/{track_id}/audio.{ext}"
-        
+
         s3_client = boto3.client(
             's3',
             endpoint_url=os.getenv("B2_S3_ENDPOINT_URL"),
@@ -505,7 +522,7 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             aws_secret_access_key=os.getenv("B2_SECRET_ACCESS_KEY"),
             region_name=os.getenv("B2_REGION_NAME")
         )
-        
+
         bucket_name = os.getenv("B2_BUCKET_NAME", "fermata-music-app")
         s3_client.upload_fileobj(
             Fileobj=audio_buffer,
@@ -513,10 +530,10 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             Key=s3_key,
             ExtraArgs={'ContentType': f'audio/{ext}'}
         )
-        
+
         audio_url = f"{os.getenv('B2_S3_ENDPOINT_URL')}/{bucket_name}/{s3_key}"
         new_logs.append(f"[Pipeline] Branch A: Upload successful. B2 URL: {audio_url}")
-        
+
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
@@ -538,8 +555,6 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             except Exception:
                 pass
 
-
-        
     return {
         "audio_url": audio_url,
         "audio_status": "completed",
