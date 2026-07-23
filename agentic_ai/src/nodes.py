@@ -387,7 +387,12 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             'quiet': True,
             'no_warnings': True,
             'skip_download': True,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['ios', 'android', 'tv']
+                }
+            }
         }
         if cookie_path:
             ydl_opts['cookiefile'] = cookie_path
@@ -412,7 +417,12 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             'outtmpl': temp_file_path + '.%(ext)s',
             'quiet': True,
             'no_warnings': True,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['ios', 'android', 'tv']
+                }
+            }
         }
         if cookie_path:
             ydl_opts_download['cookiefile'] = cookie_path
