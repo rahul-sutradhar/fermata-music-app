@@ -841,6 +841,7 @@ def populate_artist(state: AgenticState, config: RunnableConfig) -> Dict[str, An
                 new_artist = Artist(
                     username=test_username,
                     email=test_email,
+                    full_name=name,
                     hashed_password=hashed_pass,
                     role="artist",
                     name=name
