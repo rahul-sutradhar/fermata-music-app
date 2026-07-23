@@ -384,28 +384,6 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
 
     new_logs = [f"[Pipeline] Branch A: Starting in-memory audio extraction for '{title}' by {artist}..."]
 
-    # Diagnostic check for node runtime
-    import yt_dlp
-    new_logs.append(f"[Pipeline] Branch A Diagnostics: yt-dlp version: {yt_dlp.version.__version__}")
-
-    import subprocess
-    try:
-        res = subprocess.run(["node", "--version"], capture_output=True, text=True)
-        new_logs.append(f"[Pipeline] Branch A Diagnostics: node --version stdout: {res.stdout.strip()}, stderr: {res.stderr.strip()}")
-        print(f"[Pipeline] Branch A Diagnostics: node --version stdout: {res.stdout.strip()}, stderr: {res.stderr.strip()}", flush=True)
-    except Exception as e:
-        new_logs.append(f"[Pipeline] Branch A Diagnostics Error: node --version failed: {str(e)}")
-        print(f"[Pipeline] Branch A Diagnostics Error: node --version failed: {str(e)}", flush=True)
-
-    # Diagnostic check for ffmpeg runtime
-    try:
-        res = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True)
-        first_line = res.stdout.split("\n")[0] if res.stdout else ""
-        new_logs.append(f"[Pipeline] Branch A Diagnostics: ffmpeg -version: {first_line.strip()}, stderr: {res.stderr.strip()}")
-        print(f"[Pipeline] Branch A Diagnostics: ffmpeg -version: {first_line.strip()}, stderr: {res.stderr.strip()}", flush=True)
-    except Exception as e:
-        new_logs.append(f"[Pipeline] Branch A Diagnostics Error: ffmpeg -version failed: {str(e)}")
-        print(f"[Pipeline] Branch A Diagnostics Error: ffmpeg -version failed: {str(e)}", flush=True)
 
     cookie_path = None
     if os.path.exists("cookies.txt"):
