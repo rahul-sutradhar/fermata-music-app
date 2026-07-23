@@ -333,6 +333,50 @@ def notify_rejection(state: AgenticState) -> Dict[str, Any]:
 
 # Inmemory Ingestion pipeline parallel branches
 
+def _get_normalized_cookie_file(cookie_path: str) -> str:
+    """
+    Reads a Netscape cookies file which might have had its tabs converted to spaces
+    (e.g., during copy-pasting into a web dashboard), normalizes it to valid tab-separation,
+    and writes it to a secure temporary file.
+    """
+    import tempfile
+    
+    with open(cookie_path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+        
+    normalized_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            normalized_lines.append(line)
+            continue
+            
+        parts = stripped.split()
+        if len(parts) >= 7:
+            domain = parts[0]
+            subdomains = parts[1]
+            path = parts[2]
+            secure = parts[3]
+            expires = parts[4]
+            name = parts[5]
+            value = " ".join(parts[6:])
+            
+            if subdomains.upper() in ("TRUE", "FALSE"):
+                subdomains = subdomains.upper()
+            if secure.upper() in ("TRUE", "FALSE"):
+                secure = secure.upper()
+                
+            normalized_line = f"{domain}\t{subdomains}\t{path}\t{secure}\t{expires}\t{name}\t{value}\n"
+            normalized_lines.append(normalized_line)
+        else:
+            normalized_lines.append(line)
+            
+    fd, temp_path = tempfile.mkstemp(suffix=".txt", prefix="yt_normalized_cookies_")
+    with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as tmp_f:
+        tmp_f.writelines(normalized_lines)
+    return temp_path
+
+
 def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
     selected_song = state.get("selected_song", {}) or {}
     title = selected_song.get("title", "Unknown")
@@ -346,14 +390,20 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
     elif os.path.exists("/etc/secrets/cookies.txt"):
         cookie_path = "/etc/secrets/cookies.txt"
         
+    temp_cookie_file = None
     if cookie_path:
-        new_logs.append(f"[Pipeline] Branch A: Found cookies file at '{cookie_path}'. Injecting cookies into yt-dlp to bypass bot check.")
-        print(f"[Pipeline] Branch A: Found cookies file at '{cookie_path}'. Injecting cookies into yt-dlp to bypass bot check.", flush=True)
+        try:
+            temp_cookie_file = _get_normalized_cookie_file(cookie_path)
+            new_logs.append(f"[Pipeline] Branch A: Found cookies file at '{cookie_path}'. Normalized to temp file: '{temp_cookie_file}'.")
+            print(f"[Pipeline] Branch A: Found cookies file at '{cookie_path}'. Normalized to temp file: '{temp_cookie_file}'.", flush=True)
+        except Exception as e:
+            new_logs.append(f"[Pipeline] Branch A Warning: Failed to normalize cookies file: {str(e)}")
+            print(f"[Pipeline] Branch A Warning: Failed to normalize cookies file: {str(e)}", flush=True)
     
     base_ydl_opts = {
         'format': 'bestaudio/best/ba/b',
-        'quiet': True,
-        'no_warnings': True,
+        'quiet': False,
+        'no_warnings': False,
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'extractor_args': {
             'youtube': {
@@ -361,7 +411,9 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             }
         }
     }
-    if cookie_path:
+    if temp_cookie_file:
+        base_ydl_opts['cookiefile'] = temp_cookie_file
+    elif cookie_path:
         base_ydl_opts['cookiefile'] = cookie_path
     
     try:
@@ -447,7 +499,11 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             new_logs.append("[Pipeline] Branch A: Refusing to apply fallback url in production environment.")
             raise e
     finally:
-        pass
+        if temp_cookie_file and os.path.exists(temp_cookie_file):
+            try:
+                os.remove(temp_cookie_file)
+            except Exception:
+                pass
 
 
         
