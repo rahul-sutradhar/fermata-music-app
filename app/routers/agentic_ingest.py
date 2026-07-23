@@ -340,6 +340,13 @@ def approve_ingestion_request(
         # 3.1. Download and upload audio
         print(f"[Ingestion Task] Executing download_and_upload_audio...", flush=True)
         audio_res = download_and_upload_audio(state)
+        
+        # Check if the audio download encountered any error (to fail fast and clean up catalog/S3)
+        has_audio_error = any("Branch A Error" in log for log in audio_res.get("logs", []))
+        if has_audio_error:
+            err_log = next((log for log in audio_res.get("logs", []) if "Branch A Error" in log), "Audio download failed")
+            raise ValueError(f"Audio download failed: {err_log}")
+            
         state.update(audio_res)
         
         # 3.2. Download and upload cover photo
