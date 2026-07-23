@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy import DateTime, ForeignKey, String, func, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -17,6 +17,7 @@ class IngestionRequest(Base):
     source_url: Mapped[str] = mapped_column(String(512), nullable=False)
     cover_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     genres: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    lyrics: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(50), server_default="pending", nullable=False)
     lock_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
 

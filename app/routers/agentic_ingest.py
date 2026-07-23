@@ -397,6 +397,8 @@ def approve_ingestion_request(
         db.refresh(db_req)
         if db_track.audio_file_key:
             db_req.status = "completed"
+            db_req.genres = db_track.genres
+            db_req.lyrics = db_track.lyrics
             print(f"[Ingestion Task SUCCESS] Ingestion completed successfully for Request ID: {request_id}. Track ID: {db_track.id}", flush=True)
         else:
             db_req.status = "failed"

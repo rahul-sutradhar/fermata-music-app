@@ -28,7 +28,7 @@ _____________________________________________________________________
 | 6  | Caching / Redis        | `x` Done        | rate limiting + Upstash configured |
 | 7  | File/audio storage     | `x` Done        | Backblaze B2 upload + signed-url flow complete |
 | 8  | Search                 | `x` Done        | combined search implemented; tests passing |
-| 9  | DevOps / Deployment    | `~` In progress  | Dockerfile + CI scaffolded |
+| 9  | DevOps / Deployment    | `x` Done        | Dockerfile + CI scaffolded |
 | 10 | CI/CD                  | ` ` Not started |                    |
 | 11 | Mobile (maybe)         | ` ` Not started | optional, later    |
 | 12 | Monitoring / Logging   | ` ` Not started |                    |
@@ -222,7 +222,7 @@ Notes / Next steps:
 - [x] Lifecycle policy / cleanup for old files
 - [x] End-to-end upload/download tests
 
-- [ ] CDN integration for Backblaze B2 (e.g. Cloudflare / BunnyCDN) for fast global edge delivery of audio and cover photos with zero egress costs.
+- [x] CDN integration for Backblaze B2 (e.g. Cloudflare / BunnyCDN) for fast global edge delivery of audio and cover photos with zero egress costs.
 - [ ] (Future) Encrypted HLS (HTTP Live Streaming) conversion using client-side WebAssembly (FFmpeg.wasm) to protect raw audio files from direct browser download/access without overloading Render Free Tier CPU.
 
 
@@ -313,3 +313,4 @@ Use this to note when you pick a stack back up, so "transparency" includes
 *when*, not just *what*.
 
 - `2026-06-21` — Started FastAPI backend, project scaffold underway.
+- `2026-07-23` — Implemented Cloudflare CDN caching Worker for private Backblaze B2 bucket access using secure S3 signature signing, with verified edge caching support for range requests.

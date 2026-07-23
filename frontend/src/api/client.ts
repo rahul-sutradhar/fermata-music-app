@@ -1,3 +1,5 @@
+import { useAuthStore } from '@/store/authStore'
+
 const API_BASE =
   import.meta.env.VITE_API_BASE ||
   import.meta.env.VITE_API_HOSTED_BASE ||
@@ -58,14 +60,7 @@ function doTokenRefresh(): Promise<string | null> {
         const refreshData = await refreshResponse.json()
         const newAccessToken = refreshData.access_token
         if (newAccessToken) {
-          const stored = localStorage.getItem('fermata-auth')
-          if (stored) {
-            const parsed = JSON.parse(stored)
-            if (parsed.state) {
-              parsed.state.token = newAccessToken
-              localStorage.setItem('fermata-auth', JSON.stringify(parsed))
-            }
-          }
+          useAuthStore.getState().setAuth(newAccessToken, rToken)
           return newAccessToken
         }
       }
@@ -73,7 +68,7 @@ function doTokenRefresh(): Promise<string | null> {
       console.error('Failed to auto-refresh token:', err)
     }
 
-    localStorage.removeItem('fermata-auth')
+    useAuthStore.getState().logout()
     window.location.hash = '/login'
     return null
   })().finally(() => {

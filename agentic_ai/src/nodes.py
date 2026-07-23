@@ -750,6 +750,31 @@ def _get_artist_genres(artist_name: str) -> List[str]:
     return ["Pop", "Rock", "Indie"]
 
 
+def _fetch_lyrics_via_llm(song_name: str, artist_name: str) -> str:
+    """
+    Use LLM (Mistral or mock) to fetch lyrics for a given song and artist.
+    """
+    if MISTRAL_AVAILABLE:
+        try:
+            llm = ChatMistralAI(model=os.getenv("MISTRAL_MODEL", "mistral-large-latest"), temperature=0.1)
+            prompt = (
+                f"What are the typical lyrics for the song '{song_name}' by '{artist_name}'? "
+                "Provide ONLY the lyrics of the song. Do not include chord charts, metadata, intro/outro descriptions, "
+                "or commentary of any kind. If you do not know the lyrics, return an empty string."
+            )
+            response = llm.invoke([HumanMessage(content=prompt)])
+            return response.content.strip()
+        except Exception:
+            pass
+    # Fallback simulated lyrics
+    return (
+        f"[Verse 1]\nThis is a simulation of the lyrics for '{song_name}' by '{artist_name}'.\n"
+        "Singing along to the melody of life,\nFinding joy amidst the strife.\n\n"
+        "[Chorus]\nOh, let the music play,\nChasing all the clouds away.\n"
+        "Fermata holds the note today!"
+    )
+
+
 def fetch_artist_metadata(state: AgenticState) -> Dict[str, Any]:
     selected_song = state.get("selected_song", {}) or {}
     artist_name = selected_song.get("artist", "Unknown")
@@ -912,10 +937,10 @@ def populate_track(state: AgenticState, config: RunnableConfig) -> Dict[str, Any
             from app.models.album import Album
             from sqlalchemy import select, func
             
-            # 1. Resolve Album (create if missing for the artist)
+            # 1. Resolve Album (create if missing for the artist - skip Single albums)
             album_title = selected_song.get("album", "Single") or "Single"
             db_album = None
-            if artist_id and artist_id != 404:
+            if artist_id and artist_id != 404 and album_title.lower() != "single":
                 db_album = db.scalars(
                     select(Album)
                     .where(func.lower(Album.title) == album_title.lower())
@@ -936,15 +961,30 @@ def populate_track(state: AgenticState, config: RunnableConfig) -> Dict[str, Any
             
             album_id = db_album.id if db_album else None
             genres = selected_song.get("genres")
+            if not genres:
+                artist_metadata = state.get("artist_metadata", {}) or {}
+                artist_genres_list = artist_metadata.get("genres", [])
+                if artist_genres_list:
+                    genres = ", ".join(artist_genres_list[:3])
             
-            # 2. Retrieve the track allocated during approval, or fall back to searching by title
+            # 1.5. Resolve Lyrics (fetch via LLM if not present in candidate)
+            lyrics = selected_song.get("lyrics")
+            if not lyrics:
+                new_logs.append(f"[Database] Fetching lyrics for '{title}' by '{selected_song.get('artist', 'Unknown')}' using LLM...")
+                lyrics = _fetch_lyrics_via_llm(title, selected_song.get("artist", "Unknown"))
+            
+            # 2. Retrieve the track allocated during approval, or fall back to searching by title and artist
             db_track = None
             state_track_id = state.get("track_id")
             if state_track_id:
                 db_track = db.get(Track, state_track_id)
                 
             if not db_track:
-                db_track = db.scalars(select(Track).where(func.lower(Track.title) == title.lower())).first()
+                db_track = db.scalars(
+                    select(Track)
+                    .where(func.lower(Track.title) == title.lower())
+                    .where(Track.artist_id == artist_id)
+                ).first()
                 
             if db_track:
                 db_track.artist_id = artist_id
@@ -952,6 +992,7 @@ def populate_track(state: AgenticState, config: RunnableConfig) -> Dict[str, Any
                 db_track.audio_file_key = audio_key
                 db_track.cover_image_key = cover_key
                 db_track.genres = genres
+                db_track.lyrics = lyrics
                 db_track.duration_seconds = selected_song.get("duration_seconds", 200)
                 db.commit()
                 db.refresh(db_track)
@@ -965,7 +1006,8 @@ def populate_track(state: AgenticState, config: RunnableConfig) -> Dict[str, Any
                     duration_seconds=selected_song.get("duration_seconds", 200),
                     audio_file_key=audio_key,
                     cover_image_key=cover_key,
-                    genres=genres
+                    genres=genres,
+                    lyrics=lyrics
                 )
                 db.add(db_track)
                 db.commit()

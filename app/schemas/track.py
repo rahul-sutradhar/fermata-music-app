@@ -40,6 +40,7 @@ class TrackResponse(BaseModel):
     artist_id: int | None = None
     artist_name: str | None = None
     genres: str | None = None
+    lyrics: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

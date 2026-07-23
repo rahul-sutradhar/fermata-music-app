@@ -8,6 +8,7 @@ export default function RegisterPage() {
 
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
+  const [fullName, setFullName] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -18,7 +19,7 @@ export default function RegisterPage() {
     setLoading(true)
 
     try {
-      await register(username, email, password)
+      await register(username, email, password, fullName)
       navigate('/login')
     } catch (err: any) {
       setError(err.message || 'Registration failed')
@@ -48,6 +49,20 @@ export default function RegisterPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-subtext mb-1.5">
+                Full Name
+              </label>
+              <input
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                required
+                className="w-full px-4 py-2.5 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors placeholder:text-subtext/50"
+                placeholder="Your full name"
+              />
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-subtext mb-1.5">
                 Username

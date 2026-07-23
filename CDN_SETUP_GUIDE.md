@@ -19,16 +19,10 @@ Run these commands in an empty directory on your machine to deploy the proxy:
 
 ### 1. Initialize Project
 ```bash
-# Install Wrangler CLI globally
-npm install -g wrangler
-
-# Log in to your Cloudflare account
-wrangler login
-
 # Create a project folder and initialize
 mkdir fermata-cdn-worker
 cd fermata-cdn-worker
-wrangler init -y
+npx wrangler init -y
 ```
 
 ### 2. Add Worker Code
@@ -40,7 +34,7 @@ export default {
     const url = new URL(request.url);
     
     // Construct the direct Backblaze B2 URL
-    const B2_ORIGIN = `https://f000.backblazeb2.com/file/${env.B2_BUCKET_NAME}`;
+    const B2_ORIGIN = `https://f005.backblazeb2.com/file/${env.B2_BUCKET_NAME}`;
     const b2Url = new URL(url.pathname, B2_ORIGIN);
     
     // Standard Cloudflare cache key (ignores query parameters like ?t=...)
@@ -76,19 +70,17 @@ export default {
 ```
 
 ### 3. Add Wrangler Configuration
-Edit your `wrangler.toml` file to include your B2 Bucket Name variable:
-```toml
-name = "fermata-cdn"
-main = "src/index.js"
-compatibility_date = "2024-01-01"
-
-[vars]
-B2_BUCKET_NAME = "fermata-music-app"
+Edit your `wrangler.jsonc` file to include your B2 Bucket Name variable inside `"vars"`:
+```json
+	"vars": {
+		"B2_BUCKET_NAME": "fermata-music-app"
+	}
 ```
 
 ### 4. Deploy
 ```bash
-wrangler deploy
+npx wrangler login
+npx wrangler deploy
 ```
 *Note down the generated Worker URL (e.g. `https://fermata-cdn.<your-username>.workers.dev`).*
 

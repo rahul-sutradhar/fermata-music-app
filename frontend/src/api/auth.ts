@@ -1,10 +1,10 @@
 import { apiRequest } from './client'
 import type { User, TokenResponse } from '@/types'
 
-export function register(username: string, email: string, password: string) {
+export function register(username: string, email: string, password: string, fullName?: string) {
   return apiRequest<User>('/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ username, email, password }),
+    body: JSON.stringify({ username, email, password, full_name: fullName }),
   })
 }
 
