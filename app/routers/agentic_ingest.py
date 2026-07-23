@@ -305,11 +305,14 @@ def approve_ingestion_request(
     try:
         from app.models.track import Track
         from app.models.artist import Artist
+        from app.models.album import Album
+        from sqlalchemy import or_
         
-        # Check if the exact song (title + artist name) already exists in database
+        # Check if the exact song (title + artist name) already exists in database (matching either track artist or album artist)
         existing_track = db.scalars(
             select(Track)
-            .join(Artist, Track.artist_id == Artist.id)
+            .outerjoin(Album, Track.album_id == Album.id)
+            .outerjoin(Artist, or_(Track.artist_id == Artist.id, Album.artist_id == Artist.id))
             .where(func.lower(Track.title) == func.lower(db_req.song_name))
             .where(func.lower(Artist.name) == func.lower(db_req.artist_name))
         ).first()
