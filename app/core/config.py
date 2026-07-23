@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     b2_bucket_name: str | None = None
     b2_region_name: str | None = None
     audio_upload_max_bytes: int = 50 * 1024 * 1024
+    
+    # CDN URL prefix (e.g., Cloudflare Worker URL or Supabase Storage URL)
+    cdn_url: str | None = None
 
     # Rate limiting (requests per window)
     rate_limit_requests: int = 60

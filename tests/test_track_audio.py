@@ -95,3 +95,21 @@ def test_play_track_audio_redirects_to_signed_url(auth_client, db_session, sampl
 
         assert response.status_code == 307
         assert response.headers["location"] == "https://example.com/tracks/1/test.mp3"
+
+
+def test_get_audio_url_with_cdn_url():
+    from app.core.config import settings
+    from app.core.storage import get_audio_url
+    
+    original_cdn_url = settings.cdn_url
+    try:
+        settings.cdn_url = "https://cdn.fermata.example.com"
+        url = get_audio_url("tracks/1/test.mp3")
+        assert url == "https://cdn.fermata.example.com/tracks/1/test.mp3"
+        
+        # Test leading/trailing slash handling
+        settings.cdn_url = "https://cdn.fermata.example.com/"
+        url = get_audio_url("/tracks/1/test.mp3")
+        assert url == "https://cdn.fermata.example.com/tracks/1/test.mp3"
+    finally:
+        settings.cdn_url = original_cdn_url

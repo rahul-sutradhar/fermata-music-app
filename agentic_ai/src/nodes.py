@@ -339,6 +339,7 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
     artist = selected_song.get("artist", "Unknown")
     
     new_logs = [f"[Pipeline] Branch A: Starting in-memory audio extraction for '{title}' by {artist}..."]
+    
     cookie_path = None
     if os.path.exists("cookies.txt"):
         cookie_path = "cookies.txt"
@@ -348,26 +349,22 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
     if cookie_path:
         new_logs.append(f"[Pipeline] Branch A: Found cookies file at '{cookie_path}'. Injecting cookies into yt-dlp to bypass bot check.")
         print(f"[Pipeline] Branch A: Found cookies file at '{cookie_path}'. Injecting cookies into yt-dlp to bypass bot check.", flush=True)
-        
-    try:
-        # Search and extract audio stream URL from YouTube using yt-dlp
-        ydl_opts = {
-            'format': 'bestaudio/best/ba/b',
-            'noplaylist': True,
-            'quiet': True,
-            'no_warnings': True,
-            'skip_download': True,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        }
-        if cookie_path:
-            ydl_opts['cookiefile'] = cookie_path
-        else:
-            ydl_opts['extractor_args'] = {
-                'youtube': {
-                    'player_client': 'mweb,ios,android,web'
-                }
+    
+    base_ydl_opts = {
+        'format': 'bestaudio/best/ba/b',
+        'quiet': True,
+        'no_warnings': True,
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'extractor_args': {
+            'youtube': {
+                'player_client': 'mweb,ios,android,web'
             }
-            
+        }
+    }
+    if cookie_path:
+        base_ydl_opts['cookiefile'] = cookie_path
+    
+    try:
         # Use direct watch URL if available in selection metadata
         source_url = selected_song.get("source_url")
         if source_url and ("youtube.com/watch" in source_url or "youtu.be" in source_url):
@@ -384,21 +381,10 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
         temp_file_path = os.path.join(temp_dir, f"audio_{track_id}")
         
         ydl_opts_download = {
-            'format': 'bestaudio/best/ba/b',
+            **base_ydl_opts,
             'outtmpl': temp_file_path + '.%(ext)s',
-            'quiet': True,
-            'no_warnings': True,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         }
-        if cookie_path:
-            ydl_opts_download['cookiefile'] = cookie_path
-        else:
-            ydl_opts_download['extractor_args'] = {
-                'youtube': {
-                    'player_client': 'mweb,ios,android,web'
-                }
-            }
-            
+        
         with yt_dlp.YoutubeDL(ydl_opts_download) as ydl:
             info = ydl.extract_info(target_link, download=True)
             if 'entries' in info:
@@ -436,7 +422,7 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             endpoint_url=os.getenv("B2_S3_ENDPOINT_URL"),
             aws_access_key_id=os.getenv("B2_ACCESS_KEY_ID"),
             aws_secret_access_key=os.getenv("B2_SECRET_ACCESS_KEY"),
-            region_name=os.getenv("B2_REGION_NAME", "us-east-005")
+            region_name=os.getenv("B2_REGION_NAME")
         )
         
         bucket_name = os.getenv("B2_BUCKET_NAME", "fermata-music-app")
