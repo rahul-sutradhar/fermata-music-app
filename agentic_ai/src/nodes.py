@@ -3,6 +3,7 @@ import json
 import time
 import io
 import tempfile
+import base64
 import urllib.parse
 import concurrent.futures
 import requests
@@ -347,9 +348,6 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
         youtube_cookies_env = os.getenv("YOUTUBE_COOKIES")
         if youtube_cookies_env:
             try:
-                import base64
-                import tempfile
-                
                 # Check if Base64 encoded
                 try:
                     cleaned_env = "".join(youtube_cookies_env.split())
