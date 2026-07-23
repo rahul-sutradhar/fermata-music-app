@@ -20,7 +20,7 @@ WORKDIR /app
 
 # Minimal runtime deps (libpq for Postgres client libs)
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libpq5 ffmpeg nodejs \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libpq5 ffmpeg nodejs \
     && ln -sf /usr/bin/nodejs /usr/bin/node \
     && rm -rf /var/lib/apt/lists/*
 
