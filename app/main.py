@@ -28,6 +28,10 @@ async def lifespan(app: FastAPI):
             from sqlalchemy.orm import Session
             from sqlalchemy import text
             with Session(engine) as session:
+                # Delete conflicting artist profiles for admins to prevent polymorphic mapping issues
+                session.execute(text("DELETE FROM artists WHERE id IN (SELECT id FROM admins)"))
+                session.commit()
+                
                 # Restore 'admin' role to any user present in the 'admins' table
                 session.execute(text("UPDATE users SET role = 'admin' WHERE id IN (SELECT id FROM admins)"))
                 session.commit()
