@@ -352,7 +352,7 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
     try:
         # Search and extract audio stream URL from YouTube using yt-dlp
         ydl_opts = {
-            'format': 'bestaudio/best/best',
+            'format': 'bestaudio/best/ba/b',
             'noplaylist': True,
             'quiet': True,
             'no_warnings': True,
@@ -360,7 +360,7 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['ios', 'android', 'tv']
+                    'player_client': 'mweb,ios,android,web'
                 }
             }
         }
@@ -383,14 +383,14 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
         temp_file_path = os.path.join(temp_dir, f"audio_{track_id}")
         
         ydl_opts_download = {
-            'format': 'bestaudio/best/best',
+            'format': 'bestaudio/best/ba/b',
             'outtmpl': temp_file_path + '.%(ext)s',
             'quiet': True,
             'no_warnings': True,
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'extractor_args': {
                 'youtube': {
-                    'player_client': 'mweb,ios,androidtv'
+                    'player_client': 'mweb,ios,android,web'
                 }
             }
         }
