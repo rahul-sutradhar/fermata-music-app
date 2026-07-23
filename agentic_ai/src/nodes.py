@@ -358,14 +358,15 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             'no_warnings': True,
             'skip_download': True,
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'extractor_args': {
+        }
+        if cookie_path:
+            ydl_opts['cookiefile'] = cookie_path
+        else:
+            ydl_opts['extractor_args'] = {
                 'youtube': {
                     'player_client': 'mweb,ios,android,web'
                 }
             }
-        }
-        if cookie_path:
-            ydl_opts['cookiefile'] = cookie_path
             
         # Use direct watch URL if available in selection metadata
         source_url = selected_song.get("source_url")
@@ -388,14 +389,15 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             'quiet': True,
             'no_warnings': True,
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'extractor_args': {
+        }
+        if cookie_path:
+            ydl_opts_download['cookiefile'] = cookie_path
+        else:
+            ydl_opts_download['extractor_args'] = {
                 'youtube': {
                     'player_client': 'mweb,ios,android,web'
                 }
             }
-        }
-        if cookie_path:
-            ydl_opts_download['cookiefile'] = cookie_path
             
         with yt_dlp.YoutubeDL(ydl_opts_download) as ydl:
             info = ydl.extract_info(target_link, download=True)
