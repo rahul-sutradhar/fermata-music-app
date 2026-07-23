@@ -339,10 +339,15 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
     artist = selected_song.get("artist", "Unknown")
     
     new_logs = [f"[Pipeline] Branch A: Starting in-memory audio extraction for '{title}' by {artist}..."]
-    cookie_path = "cookies.txt" if os.path.exists("cookies.txt") else None
+    cookie_path = None
+    if os.path.exists("cookies.txt"):
+        cookie_path = "cookies.txt"
+    elif os.path.exists("/etc/secrets/cookies.txt"):
+        cookie_path = "/etc/secrets/cookies.txt"
+        
     if cookie_path:
-        new_logs.append("[Pipeline] Branch A: Found 'cookies.txt' file in root. Injecting cookies into yt-dlp to bypass bot check.")
-        print("[Pipeline] Branch A: Found 'cookies.txt' file in root. Injecting cookies into yt-dlp to bypass bot check.", flush=True)
+        new_logs.append(f"[Pipeline] Branch A: Found cookies file at '{cookie_path}'. Injecting cookies into yt-dlp to bypass bot check.")
+        print(f"[Pipeline] Branch A: Found cookies file at '{cookie_path}'. Injecting cookies into yt-dlp to bypass bot check.", flush=True)
         
     try:
         # Search and extract audio stream URL from YouTube using yt-dlp
@@ -385,7 +390,7 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['ios', 'android', 'tv']
+                    'player_client': 'mweb,ios,androidtv'
                 }
             }
         }
