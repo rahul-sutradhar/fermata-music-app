@@ -146,6 +146,7 @@ def select_candidate(payload: SelectRequest, db: DbSession, current_user: Curren
             artist_name=matching_cand.get("artist", "Unknown Artist"),
             user_id=current_user.id,
             source_url=matching_cand.get("source_url", ""),
+            cover_url=matching_cand.get("cover_url", ""),
             status="pending"
         )
         db.add(db_req)
@@ -322,7 +323,7 @@ def approve_ingestion_request(
                 "title": db_req.song_name,
                 "artist": db_req.artist_name,
                 "source_url": db_req.source_url,
-                "cover_url": "https://picsum.photos/500/500"
+                "cover_url": db_req.cover_url or "https://picsum.photos/500/500"
             },
             "admin_approved": True,
             "track_id": db_track.id,
