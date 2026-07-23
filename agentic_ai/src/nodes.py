@@ -339,7 +339,27 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
     
     new_logs = [f"[Pipeline] Branch A: Starting in-memory audio extraction for '{title}' by {artist}..."]
     
+    cookie_path = None
+    temp_cookie_file = None
+    
     try:
+        # Check for cookies.txt file or YOUTUBE_COOKIES environment variable to bypass bot check
+        youtube_cookies_env = os.getenv("YOUTUBE_COOKIES")
+        if youtube_cookies_env:
+            try:
+                import tempfile
+                fd, temp_path = tempfile.mkstemp(suffix=".txt", prefix="yt_cookies_")
+                with os.fdopen(fd, "w", encoding="utf-8") as tmp_f:
+                    tmp_f.write(youtube_cookies_env)
+                cookie_path = temp_path
+                temp_cookie_file = temp_path
+                new_logs.append("[Pipeline] Branch A: Found YOUTUBE_COOKIES environment variable. Injected cookies to bypass YouTube bot detection.")
+            except Exception as e:
+                new_logs.append(f"[Pipeline] Branch A: Failed to parse YOUTUBE_COOKIES env var: {str(e)}")
+        elif os.path.exists("cookies.txt"):
+            cookie_path = "cookies.txt"
+            new_logs.append("[Pipeline] Branch A: Found 'cookies.txt' in root. Injecting cookies to bypass YouTube bot detection.")
+            
         # Search and extract audio stream URL from YouTube using yt-dlp
         ydl_opts = {
             'format': 'bestaudio/best',
@@ -348,6 +368,9 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             'no_warnings': True,
             'skip_download': True,
         }
+        if cookie_path:
+            ydl_opts['cookiefile'] = cookie_path
+            
         # Use direct watch URL if available in selection metadata
         source_url = selected_song.get("source_url")
         if source_url and ("youtube.com/watch" in source_url or "youtu.be" in source_url):
@@ -369,7 +392,9 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             'quiet': True,
             'no_warnings': True,
         }
-        
+        if cookie_path:
+            ydl_opts_download['cookiefile'] = cookie_path
+            
         with yt_dlp.YoutubeDL(ydl_opts_download) as ydl:
             info = ydl.extract_info(target_link, download=True)
             if 'entries' in info:
@@ -423,9 +448,22 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
         
     except Exception as e:
         new_logs.append(f"[Pipeline] Branch A Error: {str(e)}")
-        new_logs.append("[Pipeline] Branch A Fallback: Simulating successful upload due to execution error (e.g. invalid credentials).")
-        track_id = state.get("track_id", 9901)
-        audio_url = f"https://cdn.fermata.example.com/tracks/{track_id}/audio.mp3"
+        env_name = os.getenv("ENVIRONMENT", "development").lower()
+        if env_name in ("development", "testing"):
+            new_logs.append("[Pipeline] Branch A Fallback: Simulating successful upload due to execution error (e.g. invalid credentials).")
+            track_id = state.get("track_id", 9901)
+            audio_url = f"https://cdn.fermata.example.com/tracks/{track_id}/audio.mp3"
+        else:
+            new_logs.append("[Pipeline] Branch A: Refusing to apply fallback url in production environment.")
+            raise e
+    finally:
+        # Clean up temp cookie file
+        if temp_cookie_file and os.path.exists(temp_cookie_file):
+            try:
+                os.remove(temp_cookie_file)
+            except Exception:
+                pass
+
         
     return {
         "audio_url": audio_url,
