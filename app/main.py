@@ -28,6 +28,10 @@ async def lifespan(app: FastAPI):
             from sqlalchemy.orm import Session
             from sqlalchemy import text
             with Session(engine) as session:
+                # Restore 'admin' role to any user present in the 'admins' table
+                session.execute(text("UPDATE users SET role = 'admin' WHERE id IN (SELECT id FROM admins)"))
+                session.commit()
+                
                 admin_users = session.execute(text("SELECT id, username FROM users WHERE role = 'admin'")).fetchall()
                 for uid, uname in admin_users:
                     exists = session.execute(text("SELECT id FROM admins WHERE id = :id"), {"id": uid}).first()

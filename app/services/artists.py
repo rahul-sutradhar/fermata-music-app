@@ -55,7 +55,8 @@ def create_artist(*, db: Session, name: str, user_id: int | None = None) -> Arti
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"User {user_id} not found",
             )
-        user.role = "artist"
+        if user.role != "admin":
+            user.role = "artist"
         db.commit()
         
         # Direct insert into the artists subclass table
@@ -101,7 +102,8 @@ def update_artist(*, db: Session, artist_id: int, name: str | None = None, user_
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"User {user_id} not found",
             )
-        user.role = "artist"
+        if user.role != "admin":
+            user.role = "artist"
         db.commit()
         
         # Move profile to new user_id JTI row
