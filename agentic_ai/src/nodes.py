@@ -112,10 +112,29 @@ def _search_spotify_candidates(query: str, client_id: str, client_secret: str) -
             return []
             
         tracks = search_res.json().get("tracks", {}).get("items", [])
+        
+        # Collect unique artist IDs to fetch genres in batch
+        artist_ids = list(set([t.get("artists", [{}])[0].get("id") for t in tracks if t.get("artists")]))
+        artist_genres = {}
+        if artist_ids:
+            try:
+                artists_url = "https://api.spotify.com/v1/artists"
+                artists_res = requests.get(artists_url, params={"ids": ",".join(artist_ids)}, headers=headers, timeout=5)
+                if artists_res.status_code == 200:
+                    for a_data in artists_res.json().get("artists", []):
+                        if a_data:
+                            artist_genres[a_data.get("id")] = a_data.get("genres", [])
+            except Exception:
+                pass
+
         candidates = []
         for idx, t in enumerate(tracks):
             images = t.get("album", {}).get("images", [])
             cover_url = images[0].get("url") if images else ""
+            
+            primary_artist_id = t.get("artists", [{}])[0].get("id") if t.get("artists") else None
+            genres_list = artist_genres.get(primary_artist_id, [])
+            genres_str = ", ".join(genres_list[:3]) # Top 3 genres
             
             artists = ", ".join([a.get("name") for a in t.get("artists", [])])
             
@@ -126,7 +145,8 @@ def _search_spotify_candidates(query: str, client_id: str, client_secret: str) -
                 "album": t.get("album", {}).get("name") or "Single",
                 "duration_seconds": int(t.get("duration_ms", 0) / 1000),
                 "source_url": "", # Will be resolved to a YouTube watch link
-                "cover_url": cover_url
+                "cover_url": cover_url,
+                "genres": genres_str
             })
         return candidates
     except Exception:
@@ -795,23 +815,41 @@ def populate_artist(state: AgenticState, config: RunnableConfig) -> Dict[str, An
                 artist_id = db_artist.id
                 new_logs.append(f"[Pipeline] Branch C: Artist '{name}' already exists in DB (ID: {artist_id}).")
             else:
-                new_logs.append(f"[Pipeline] Branch C: Artist '{name}' has no profile in DB. Falling back to 'Unknown Artist'.")
-                # Retrieve or create "Unknown Artist"
-                unknown_artist = db.scalars(select(Artist).where(func.lower(Artist.name) == "unknown artist")).first()
-                if not unknown_artist:
-                    import random
-                    email = f"artist_unknown_{random.randint(1000, 9999)}@fermata-placeholder.com"
-                    unknown_artist = Artist(
-                        email=email,
-                        hashed_password="placeholder_hash",
-                        role="artist",
-                        name="Unknown Artist"
-                    )
-                    db.add(unknown_artist)
-                    db.commit()
-                    db.refresh(unknown_artist)
-                    new_logs.append(f"[Pipeline] Branch C: Created 'Unknown Artist' profile (ID: {unknown_artist.id}).")
-                artist_id = unknown_artist.id
+                new_logs.append(f"[Pipeline] Branch C: Artist '{name}' has no profile in DB. Creating new Artist profile...")
+                import uuid
+                import random
+                from app.core.oauth import hash_password
+                
+                # Check for username collision in User table and handle gracefully
+                test_username = name[:50]
+                exists_user = db.scalars(select(User).where(func.lower(User.username) == test_username.lower())).first()
+                if exists_user:
+                    suffix = f"_{random.randint(1000, 9999)}"
+                    test_username = f"{name[:44]}{suffix}"
+                
+                clean_email = "".join(c for c in name.lower() if c.isalnum() or c == "_")
+                test_email = f"{clean_email}@fermata.com"
+                if len(test_email) > 255:
+                    test_email = test_email[:255]
+                exists_email = db.scalars(select(User).where(func.lower(User.email) == test_email.lower())).first()
+                if exists_email:
+                    suffix = f"_{random.randint(1000, 9999)}"
+                    test_email = f"{clean_email[:200]}{suffix}@fermata.com"
+                
+                hashed_pass = hash_password(uuid.uuid4().hex + "StrongPassword123!")
+                
+                new_artist = Artist(
+                    username=test_username,
+                    email=test_email,
+                    hashed_password=hashed_pass,
+                    role="artist",
+                    name=name
+                )
+                db.add(new_artist)
+                db.commit()
+                db.refresh(new_artist)
+                artist_id = new_artist.id
+                new_logs.append(f"[Pipeline] Branch C: Successfully created Artist profile (ID: {artist_id}, Username: '{test_username}').")
         except Exception as e:
             db.rollback()
             new_logs.append(f"[Pipeline] Branch C Error during DB population: {str(e)}")
@@ -870,32 +908,69 @@ def populate_track(state: AgenticState, config: RunnableConfig) -> Dict[str, Any
     if db is not None:
         try:
             from app.models.track import Track
+            from app.models.album import Album
             from sqlalchemy import select, func
             
-            # Query if track already exists by title
-            db_track = db.scalars(select(Track).where(func.lower(Track.title) == title.lower())).first()
+            # 1. Resolve Album (create if missing for the artist)
+            album_title = selected_song.get("album", "Single") or "Single"
+            db_album = None
+            if artist_id and artist_id != 404:
+                db_album = db.scalars(
+                    select(Album)
+                    .where(func.lower(Album.title) == album_title.lower())
+                    .where(Album.artist_id == artist_id)
+                ).first()
+                
+                if not db_album:
+                    new_logs.append(f"[Database] Album '{album_title}' not found for artist ID {artist_id}. Creating new Album...")
+                    db_album = Album(
+                        title=album_title,
+                        artist_id=artist_id,
+                        cover_image_key=cover_key
+                    )
+                    db.add(db_album)
+                    db.commit()
+                    db.refresh(db_album)
+                    new_logs.append(f"[Database] Successfully created Album '{album_title}' (ID: {db_album.id}).")
+            
+            album_id = db_album.id if db_album else None
+            genres = selected_song.get("genres")
+            
+            # 2. Retrieve the track allocated during approval, or fall back to searching by title
+            db_track = None
+            state_track_id = state.get("track_id")
+            if state_track_id:
+                db_track = db.get(Track, state_track_id)
+                
+            if not db_track:
+                db_track = db.scalars(select(Track).where(func.lower(Track.title) == title.lower())).first()
+                
             if db_track:
                 db_track.artist_id = artist_id
+                db_track.album_id = album_id
                 db_track.audio_file_key = audio_key
                 db_track.cover_image_key = cover_key
+                db_track.genres = genres
                 db_track.duration_seconds = selected_song.get("duration_seconds", 200)
                 db.commit()
                 db.refresh(db_track)
                 track_id = db_track.id
-                new_logs.append(f"[Database] Track '{title}' already exists. Updated existing record in DB (Track ID: {track_id}).")
+                new_logs.append(f"[Database] Updated track '{title}' in DB (Track ID: {track_id}, Album ID: {album_id}).")
             else:
                 db_track = Track(
                     title=title,
                     artist_id=artist_id,
+                    album_id=album_id,
                     duration_seconds=selected_song.get("duration_seconds", 200),
                     audio_file_key=audio_key,
-                    cover_image_key=cover_key
+                    cover_image_key=cover_key,
+                    genres=genres
                 )
                 db.add(db_track)
                 db.commit()
                 db.refresh(db_track)
                 track_id = db_track.id
-                new_logs.append(f"[Database] Created new Track '{title}' in DB (Track ID: {track_id}).")
+                new_logs.append(f"[Database] Created new Track '{title}' in DB (Track ID: {track_id}, Album ID: {album_id}).")
         except Exception as e:
             db.rollback()
             new_logs.append(f"[Database] Error during DB track insertion: {str(e)}")

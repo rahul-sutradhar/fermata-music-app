@@ -15,6 +15,7 @@ class Track(Base):
     duration_seconds: Mapped[int | None] = mapped_column(nullable=True)
     audio_file_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
     cover_image_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    genres: Mapped[str | None] = mapped_column(String(512), nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=True)
 

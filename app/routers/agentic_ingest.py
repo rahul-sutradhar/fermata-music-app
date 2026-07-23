@@ -147,6 +147,7 @@ def select_candidate(payload: SelectRequest, db: DbSession, current_user: Curren
             user_id=current_user.id,
             source_url=matching_cand.get("source_url", ""),
             cover_url=matching_cand.get("cover_url", ""),
+            genres=matching_cand.get("genres", ""),
             status="pending"
         )
         db.add(db_req)
@@ -303,6 +304,21 @@ def approve_ingestion_request(
     print(f"[Ingestion Task] Starting ingestion flow for Request ID: {db_req.id}", flush=True)
     try:
         from app.models.track import Track
+        from app.models.artist import Artist
+        
+        # Check if the exact song (title + artist name) already exists in database
+        existing_track = db.scalars(
+            select(Track)
+            .join(Artist, Track.artist_id == Artist.id)
+            .where(func.lower(Track.title) == func.lower(db_req.song_name))
+            .where(func.lower(Artist.name) == func.lower(db_req.artist_name))
+        ).first()
+        
+        if existing_track:
+            db_req.status = "Exists"
+            db.commit()
+            print(f"[Ingestion Task Short-Circuit] Song '{db_req.song_name}' by '{db_req.artist_name}' already exists in DB (ID: {existing_track.id}). Skipping ingestion.", flush=True)
+            return {"message": "Track already exists in the database.", "status": "Exists"}
         
         # Allocate Track
         db_track = Track(
@@ -323,7 +339,8 @@ def approve_ingestion_request(
                 "title": db_req.song_name,
                 "artist": db_req.artist_name,
                 "source_url": db_req.source_url,
-                "cover_url": db_req.cover_url or "https://picsum.photos/500/500"
+                "cover_url": db_req.cover_url or "https://picsum.photos/500/500",
+                "genres": db_req.genres or ""
             },
             "admin_approved": True,
             "track_id": db_track.id,
@@ -393,16 +410,50 @@ def approve_ingestion_request(
         print(f"[Ingestion Task CRITICAL ERROR] Failed for Request ID {request_id}: {str(e)}", flush=True)
         traceback.print_exc()
         db.rollback()
-        # Clean up Track if created
+        
+        # 1. Clean up Backblaze B2 objects if uploaded before the failure
+        try:
+            import boto3
+            import os
+            s3_client = boto3.client(
+                's3',
+                endpoint_url=os.getenv("B2_S3_ENDPOINT_URL"),
+                aws_access_key_id=os.getenv("B2_ACCESS_KEY_ID"),
+                aws_secret_access_key=os.getenv("B2_SECRET_ACCESS_KEY"),
+                region_name=os.getenv("B2_REGION_NAME", "us-east-005")
+            )
+            bucket_name = os.getenv("B2_BUCKET_NAME", "fermata-music-app")
+            
+            # Clean up audio file
+            if 'audio_res' in locals() and isinstance(audio_res, dict) and audio_res.get("audio_url"):
+                audio_url = audio_res.get("audio_url")
+                if "tracks/" in audio_url:
+                    audio_key = "tracks/" + audio_url.split("tracks/")[1]
+                    s3_client.delete_object(Bucket=bucket_name, Key=audio_key)
+                    print(f"[Cleanup] Deleted failed audio upload from B2: {audio_key}", flush=True)
+            
+            # Clean up cover file
+            if 'cover_res' in locals() and isinstance(cover_res, dict) and cover_res.get("cover_url"):
+                cover_url = cover_res.get("cover_url")
+                if "tracks/" in cover_url:
+                    cover_key = "tracks/" + cover_url.split("tracks/")[1]
+                    s3_client.delete_object(Bucket=bucket_name, Key=cover_key)
+                    print(f"[Cleanup] Deleted failed cover upload from B2: {cover_key}", flush=True)
+        except Exception as b2_exc:
+            print(f"[Cleanup Warning] Failed to clean up B2 files: {str(b2_exc)}", flush=True)
+            
+        # 2. Clean up Track record from database if created
         try:
             if 'db_track' in locals() and db_track.id:
                 t_del = db.get(Track, db_track.id)
                 if t_del:
                     db.delete(t_del)
                     db.commit()
-        except Exception:
-            pass
-        # Mark as failed inside a separate try block to ensure status is persisted
+                    print(f"[Cleanup] Deleted allocated track record ID {db_track.id} from DB.", flush=True)
+        except Exception as db_exc:
+            print(f"[Cleanup Warning] Failed to delete track record from DB: {str(db_exc)}", flush=True)
+            
+        # 3. Mark request as failed inside a separate transaction
         try:
             db_req = db.scalar(select(IngestionRequest).where(IngestionRequest.id == request_id))
             if db_req:
@@ -410,6 +461,7 @@ def approve_ingestion_request(
                 db.commit()
         except Exception:
             pass
+            
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ingestion failed: {str(e)}"
