@@ -57,3 +57,12 @@ storage/playlist_covers/*
 ~$*
 out.txt
 recover.py
+
+# Node dependencies
+node_modules/
+
+# Cloudflare CDN Worker build assets / modules
+fermata-cdn-worker/node_modules/
+fermata-cdn-worker/.wrangler/
+fermata-cdn-worker/dist/
+
