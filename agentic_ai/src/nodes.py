@@ -383,18 +383,39 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
     artist = selected_song.get("artist", "Unknown")
     
     new_logs = [f"[Pipeline] Branch A: Starting in-memory audio extraction for '{title}' by {artist}..."]
+    cookie_path = None
+    if os.path.exists("cookies.txt"):
+        cookie_path = "cookies.txt"
+    elif os.path.exists("/etc/secrets/cookies.txt"):
+        cookie_path = "/etc/secrets/cookies.txt"
+        
+    temp_cookie_file = None
+    if cookie_path:
+        try:
+            temp_cookie_file = _get_normalized_cookie_file(cookie_path)
+            new_logs.append(f"[Pipeline] Branch A: Found cookies file at '{cookie_path}'. Normalized to temp file: '{temp_cookie_file}'.")
+            print(f"[Pipeline] Branch A: Found cookies file at '{cookie_path}'. Normalized to temp file: '{temp_cookie_file}'.", flush=True)
+        except Exception as e:
+            new_logs.append(f"[Pipeline] Branch A Warning: Failed to normalize cookies file: {str(e)}")
+            print(f"[Pipeline] Branch A Warning: Failed to normalize cookies file: {str(e)}", flush=True)
+            
     base_ydl_opts = {
         'format': 'bestaudio/best/ba/b',
         'quiet': False,
         'no_warnings': False,
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'remote_components': ['ejs:npm', 'ejs:github'],
-        'extractor_args': {
+    }
+    if temp_cookie_file:
+        base_ydl_opts['cookiefile'] = temp_cookie_file
+    elif cookie_path:
+        base_ydl_opts['cookiefile'] = cookie_path
+    else:
+        base_ydl_opts['extractor_args'] = {
             'youtube': {
                 'player_client': ['android']
             }
         }
-    }
     
     try:
         # Use direct watch URL if available in selection metadata
@@ -479,7 +500,11 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             new_logs.append("[Pipeline] Branch A: Refusing to apply fallback url in production environment.")
             raise e
     finally:
-        pass
+        if temp_cookie_file and os.path.exists(temp_cookie_file):
+            try:
+                os.remove(temp_cookie_file)
+            except Exception:
+                pass
 
 
         
