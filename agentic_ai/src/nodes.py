@@ -339,7 +339,11 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
     artist = selected_song.get("artist", "Unknown")
     
     new_logs = [f"[Pipeline] Branch A: Starting in-memory audio extraction for '{title}' by {artist}..."]
-    
+    cookie_path = "cookies.txt" if os.path.exists("cookies.txt") else None
+    if cookie_path:
+        new_logs.append("[Pipeline] Branch A: Found 'cookies.txt' file in root. Injecting cookies into yt-dlp to bypass bot check.")
+        print("[Pipeline] Branch A: Found 'cookies.txt' file in root. Injecting cookies into yt-dlp to bypass bot check.", flush=True)
+        
     try:
         # Search and extract audio stream URL from YouTube using yt-dlp
         ydl_opts = {
@@ -355,6 +359,8 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
                 }
             }
         }
+        if cookie_path:
+            ydl_opts['cookiefile'] = cookie_path
             
         # Use direct watch URL if available in selection metadata
         source_url = selected_song.get("source_url")
@@ -383,6 +389,8 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
                 }
             }
         }
+        if cookie_path:
+            ydl_opts_download['cookiefile'] = cookie_path
             
         with yt_dlp.YoutubeDL(ydl_opts_download) as ydl:
             info = ydl.extract_info(target_link, download=True)
