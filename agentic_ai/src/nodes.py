@@ -352,7 +352,7 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
     try:
         # Search and extract audio stream URL from YouTube using yt-dlp
         ydl_opts = {
-            'format': 'bestaudio/best',
+            'format': 'bestaudio/best/best',
             'noplaylist': True,
             'quiet': True,
             'no_warnings': True,
@@ -383,7 +383,7 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
         temp_file_path = os.path.join(temp_dir, f"audio_{track_id}")
         
         ydl_opts_download = {
-            'format': 'bestaudio/best',
+            'format': 'bestaudio/best/best',
             'outtmpl': temp_file_path + '.%(ext)s',
             'quiet': True,
             'no_warnings': True,
