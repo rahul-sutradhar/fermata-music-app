@@ -405,6 +405,7 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
         'quiet': False,
         'no_warnings': False,
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'remote_components': ['ejs:npm', 'ejs:github'],
         'extractor_args': {
             'youtube': {
                 'player_client': ['mweb', 'ios', 'android', 'web']
