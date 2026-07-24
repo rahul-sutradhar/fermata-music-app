@@ -750,28 +750,87 @@ def _get_artist_genres(artist_name: str) -> List[str]:
     return ["Pop", "Rock", "Indie"]
 
 
+def _fetch_lyrics_from_genius(song_name: str, artist_name: str) -> str | None:
+    """
+    Search Genius for lyrics and extract the clean text.
+    """
+    try:
+        query = f"{song_name} {artist_name}".strip()
+        search_url = f"https://genius.com/api/search/multi?q={urllib.parse.quote_plus(query)}"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+        }
+        res = requests.get(search_url, headers=headers, timeout=5)
+        if res.status_code != 200:
+            return None
+            
+        sections = res.json().get("response", {}).get("sections", [])
+        genius_url = None
+        for sec in sections:
+            hits = sec.get("hits", [])
+            for hit in hits:
+                result = hit.get("result", {})
+                if result.get("url") and "/lyrics" in result.get("url"):
+                    genius_url = result.get("url")
+                    break
+            if genius_url:
+                break
+                
+        if not genius_url:
+            return None
+            
+        lyric_res = requests.get(genius_url, headers=headers, timeout=5)
+        if lyric_res.status_code != 200:
+            return None
+            
+        import re
+        import html
+        matches = re.findall(r'<div[^>]*data-lyrics-container="true"[^>]*>(.*?)</div>', lyric_res.text, re.DOTALL)
+        if matches:
+            lyrics_html = "\n".join(matches)
+            lyrics_html = re.sub(r'<br\s*/?>', '\n', lyrics_html)
+            lyrics = re.sub(r'<[^>]+>', '', lyrics_html)
+            return html.unescape(lyrics).strip()
+            
+        legacy_match = re.search(r'<div class="lyrics"[^>]*>(.*?)</div>', lyric_res.text, re.DOTALL)
+        if legacy_match:
+            lyrics_html = legacy_match.group(1)
+            lyrics_html = re.sub(r'<br\s*/?>', '\n', lyrics_html)
+            lyrics = re.sub(r'<[^>]+>', '', lyrics_html)
+            return html.unescape(lyrics).strip()
+            
+        return None
+    except Exception:
+        return None
+
+
 def _fetch_lyrics_via_llm(song_name: str, artist_name: str) -> str:
     """
-    Use LLM (Mistral or mock) to fetch lyrics for a given song and artist.
+    Use LLM (Mistral or mock) to fetch lyrics for a given song and artist with a refined prompt.
     """
     if MISTRAL_AVAILABLE:
         try:
             llm = ChatMistralAI(model=os.getenv("MISTRAL_MODEL", "mistral-large-latest"), temperature=0.1)
             prompt = (
-                f"What are the typical lyrics for the song '{song_name}' by '{artist_name}'? "
-                "Provide ONLY the lyrics of the song. Do not include chord charts, metadata, intro/outro descriptions, "
-                "or commentary of any kind. If you do not know the lyrics, return an empty string."
+                f"You are a music cataloging assistant. Retrieve the complete and accurate lyrics for the song '{song_name}' by '{artist_name}'.\n\n"
+                "Constraints:\n"
+                "- Output ONLY the lyrics. Do not add introductory sentences (like 'Here are the lyrics...'), structural metadata commentary, notes, or explanations.\n"
+                "- Do not include guitar chords or piano symbols within the lyrics lines.\n"
+                "- Keep the structural separators like [Verse 1], [Chorus], [Bridge], [Outro] clean and correctly placed.\n"
+                "- If you cannot find or reconstruct the lyrics with 100% certainty, reply with: 'Lyrics not found.'"
             )
             response = llm.invoke([HumanMessage(content=prompt)])
-            return response.content.strip()
+            result = response.content.strip()
+            if "lyrics not found" in result.lower():
+                return ""
+            return result
         except Exception:
             pass
-    # Fallback simulated lyrics
+            
     return (
-        f"[Verse 1]\nThis is a simulation of the lyrics for '{song_name}' by '{artist_name}'.\n"
+        f"[Verse 1]\nThis is a placeholder for '{song_name}' by '{artist_name}' because the Genius source and LLM were unconfigured.\n"
         "Singing along to the melody of life,\nFinding joy amidst the strife.\n\n"
-        "[Chorus]\nOh, let the music play,\nChasing all the clouds away.\n"
-        "Fermata holds the note today!"
+        "[Chorus]\nOh, let the music play,\nChasing all the clouds away."
     )
 
 
@@ -967,11 +1026,17 @@ def populate_track(state: AgenticState, config: RunnableConfig) -> Dict[str, Any
                 if artist_genres_list:
                     genres = ", ".join(artist_genres_list[:3])
             
-            # 1.5. Resolve Lyrics (fetch via LLM if not present in candidate)
+            # 1.5. Resolve Lyrics (fetch via Genius first, fallback to LLM)
             lyrics = selected_song.get("lyrics")
             if not lyrics:
-                new_logs.append(f"[Database] Fetching lyrics for '{title}' by '{selected_song.get('artist', 'Unknown')}' using LLM...")
-                lyrics = _fetch_lyrics_via_llm(title, selected_song.get("artist", "Unknown"))
+                artist_name = selected_song.get("artist", "Unknown")
+                new_logs.append(f"[Database] Fetching lyrics for '{title}' by '{artist_name}' from Genius...")
+                lyrics = _fetch_lyrics_from_genius(title, artist_name)
+                if lyrics:
+                    new_logs.append(f"[Database] Successfully retrieved lyrics from Genius for '{title}'.")
+                else:
+                    new_logs.append(f"[Database] Genius search failed/empty. Falling back to LLM...")
+                    lyrics = _fetch_lyrics_via_llm(title, artist_name)
             
             # 2. Retrieve the track allocated during approval, or fall back to searching by title and artist
             db_track = None
