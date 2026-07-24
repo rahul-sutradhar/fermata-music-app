@@ -754,6 +754,7 @@ def _fetch_lyrics_from_genius(song_name: str, artist_name: str) -> str | None:
     """
     Search Genius for lyrics and extract the clean text.
     """
+    print(f"[Genius] Querying lyrics for: '{song_name}' by '{artist_name}'...", flush=True)
     try:
         query = f"{song_name} {artist_name}".strip()
         search_url = f"https://genius.com/api/search/multi?q={urllib.parse.quote_plus(query)}"
@@ -762,6 +763,7 @@ def _fetch_lyrics_from_genius(song_name: str, artist_name: str) -> str | None:
         }
         res = requests.get(search_url, headers=headers, timeout=5)
         if res.status_code != 200:
+            print(f"[Genius] Search request failed (status {res.status_code}).", flush=True)
             return None
             
         sections = res.json().get("response", {}).get("sections", [])
@@ -777,10 +779,13 @@ def _fetch_lyrics_from_genius(song_name: str, artist_name: str) -> str | None:
                 break
                 
         if not genius_url:
+            print(f"[Genius] No lyrics URL found for '{song_name}' by '{artist_name}'.", flush=True)
             return None
             
+        print(f"[Genius] Found lyrics page URL: {genius_url}", flush=True)
         lyric_res = requests.get(genius_url, headers=headers, timeout=5)
         if lyric_res.status_code != 200:
+            print(f"[Genius] Failed to load lyrics page (status {lyric_res.status_code}).", flush=True)
             return None
             
         import re
@@ -790,17 +795,23 @@ def _fetch_lyrics_from_genius(song_name: str, artist_name: str) -> str | None:
             lyrics_html = "\n".join(matches)
             lyrics_html = re.sub(r'<br\s*/?>', '\n', lyrics_html)
             lyrics = re.sub(r'<[^>]+>', '', lyrics_html)
-            return html.unescape(lyrics).strip()
+            clean_lyrics = html.unescape(lyrics).strip()
+            print(f"[Genius] Lyrics retrieved and parsed successfully ({len(clean_lyrics)} characters).", flush=True)
+            return clean_lyrics
             
         legacy_match = re.search(r'<div class="lyrics"[^>]*>(.*?)</div>', lyric_res.text, re.DOTALL)
         if legacy_match:
             lyrics_html = legacy_match.group(1)
             lyrics_html = re.sub(r'<br\s*/?>', '\n', lyrics_html)
             lyrics = re.sub(r'<[^>]+>', '', lyrics_html)
-            return html.unescape(lyrics).strip()
+            clean_lyrics = html.unescape(lyrics).strip()
+            print(f"[Genius] Lyrics retrieved and parsed successfully via legacy selector ({len(clean_lyrics)} characters).", flush=True)
+            return clean_lyrics
             
+        print(f"[Genius] Failed to parse lyrics from the loaded page HTML.", flush=True)
         return None
-    except Exception:
+    except Exception as e:
+        print(f"[Genius] Exception while fetching lyrics from Genius: {str(e)}", flush=True)
         return None
 
 
@@ -808,6 +819,7 @@ def _fetch_lyrics_via_llm(song_name: str, artist_name: str) -> str:
     """
     Use LLM (Mistral or mock) to fetch lyrics for a given song and artist with a refined prompt.
     """
+    print(f"[LLM] Querying LLM for lyrics: '{song_name}' by '{artist_name}'...", flush=True)
     if MISTRAL_AVAILABLE:
         try:
             llm = ChatMistralAI(model=os.getenv("MISTRAL_MODEL", "mistral-large-latest"), temperature=0.1)
@@ -822,11 +834,15 @@ def _fetch_lyrics_via_llm(song_name: str, artist_name: str) -> str:
             response = llm.invoke([HumanMessage(content=prompt)])
             result = response.content.strip()
             if "lyrics not found" in result.lower():
+                print(f"[LLM] LLM reported lyrics not found.", flush=True)
                 return ""
+            print(f"[LLM] Lyrics retrieved successfully via LLM ({len(result)} characters).", flush=True)
             return result
-        except Exception:
+        except Exception as e:
+            print(f"[LLM] Exception during LLM invocation: {str(e)}", flush=True)
             pass
             
+    print(f"[LLM] Fallback: returning mock lyrics placeholder.", flush=True)
     return (
         f"[Verse 1]\nThis is a placeholder for '{song_name}' by '{artist_name}' because the Genius source and LLM were unconfigured.\n"
         "Singing along to the melody of life,\nFinding joy amidst the strife.\n\n"

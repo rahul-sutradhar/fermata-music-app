@@ -184,6 +184,7 @@ def search(*, db: Session, q: str, limit: int = 10) -> SearchResponse:
             album_title=t.album_title,
             artist_id=t.artist_id,
             artist_name=t.artist_name,
+            lyrics=t.lyrics,
         )
         for t in tracks
     ]

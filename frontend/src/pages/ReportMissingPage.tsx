@@ -8,6 +8,7 @@ import {
 } from '@/api/agenticIngest'
 import type { CandidateSong } from '@/api/agenticIngest'
 import { usePlayerStore } from '@/store/playerStore'
+import { useAuthStore } from '@/store/authStore'
 
 interface Message {
   id: string
@@ -22,6 +23,9 @@ interface Message {
 export default function ReportMissingPage() {
   const location = useLocation()
   const prefilledQuery = (location.state as any)?.prefilledQuery || ''
+  
+  const user = useAuthStore((s) => s.user)
+  const token = useAuthStore((s) => s.token)
   
   const [messages, setMessages] = useState<Message[]>([])
   const [inputValue, setInputValue] = useState('')
@@ -41,7 +45,10 @@ export default function ReportMissingPage() {
 
   // Initialize and load chat state from sessionStorage on mount
   useEffect(() => {
-    const cached = sessionStorage.getItem('fermata-chatbot-state')
+    if (!user) return
+
+    const cacheKey = `fermata-chatbot-state-${user.id}`
+    const cached = sessionStorage.getItem(cacheKey)
     if (cached) {
       try {
         const parsed = JSON.parse(cached)
@@ -68,19 +75,21 @@ export default function ReportMissingPage() {
     if (prefilledQuery) {
       handleSearch(prefilledQuery)
     }
-  }, [prefilledQuery])
+  }, [user, prefilledQuery])
 
   // Save chat state to sessionStorage on state changes
   useEffect(() => {
+    if (!user) return
     if (messages.length > 0) {
-      sessionStorage.setItem('fermata-chatbot-state', JSON.stringify({
+      const cacheKey = `fermata-chatbot-state-${user.id}`
+      sessionStorage.setItem(cacheKey, JSON.stringify({
         messages,
         threadId,
         ingestionLogs,
         isComplete
       }))
     }
-  }, [messages, threadId, ingestionLogs, isComplete])
+  }, [messages, threadId, ingestionLogs, isComplete, user])
 
   // Sync completion state using a ref for cleanups
   const isCompleteRef = useRef(isComplete)
@@ -91,11 +100,12 @@ export default function ReportMissingPage() {
   // Clear session cache if the chat was completed before navigating away
   useEffect(() => {
     return () => {
-      if (isCompleteRef.current) {
-        sessionStorage.removeItem('fermata-chatbot-state')
+      if (isCompleteRef.current && user) {
+        const cacheKey = `fermata-chatbot-state-${user.id}`
+        sessionStorage.removeItem(cacheKey)
       }
     }
-  }, [])
+  }, [user])
 
   // Core Search Ingestion Function
   const handleSearch = async (songQuery: string) => {
@@ -201,30 +211,17 @@ export default function ReportMissingPage() {
       const response = await submitCandidateSelection(threadId, candidateId)
       const botMsgId = Math.random().toString()
       
-      if (response.status === 'reported') {
-        setIsComplete(true) // Session finished
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: botMsgId,
-            sender: 'bot',
-            text: "Request submitted successfully - Song will be available in a day.",
-            type: 'status',
-            statusType: 'success'
-          }
-        ])
-      } else {
-        // pending_admin_approval
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: botMsgId,
-            sender: 'bot',
-            text: "Candidate selected! Ingestion request has been queued and is pending admin approval.",
-            type: 'admin_simulation'
-          }
-        ])
-      }
+      setIsComplete(true) // Session finished
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: botMsgId,
+          sender: 'bot',
+          text: "Requested submitted successfully - The music will be availble in a day",
+          type: 'status',
+          statusType: 'success'
+        }
+      ])
     } catch (err: any) {
       console.error(err)
       const errorMsgId = Math.random().toString()
@@ -356,6 +353,15 @@ export default function ReportMissingPage() {
     const text = inputValue
     setInputValue('')
     handleSearch(text)
+  }
+
+  if (!user || !token) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <div className="w-8 h-8 border-2 border-spotify-green border-t-transparent rounded-full animate-spin" />
+        <p className="text-xs text-subtext">Authenticating...</p>
+      </div>
+    )
   }
 
   return (

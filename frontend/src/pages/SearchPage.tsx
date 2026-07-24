@@ -7,28 +7,37 @@ import Card from '@/components/Card'
 import TrackList from '@/components/TrackList'
 import { search } from '@/api/search'
 import { usePlayerStore } from '@/store/playerStore'
+import { useAuthStore } from '@/store/authStore'
 import type { SearchResponse, Track } from '@/types'
 
 export default function SearchPage() {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResponse | null>(null)
   const [loading, setLoading] = useState(false)
+  const user = useAuthStore((s) => s.user)
   const [recentSearchPlayed, setRecentSearchPlayed] = useState<Track[]>([])
 
   const setTrack = usePlayerStore((s) => s.setTrack)
   const setQueue = usePlayerStore((s) => s.setQueue)
 
-  // Load history on mount
+  // Load history on mount or when user changes
   useEffect(() => {
-    const stored = localStorage.getItem('fermata-search-played')
+    if (!user) {
+      setRecentSearchPlayed([])
+      return
+    }
+    const historyKey = `fermata-search-played-${user.id}`
+    const stored = localStorage.getItem(historyKey)
     if (stored) {
       try {
         setRecentSearchPlayed(JSON.parse(stored))
       } catch {
         // silent
       }
+    } else {
+      setRecentSearchPlayed([])
     }
-  }, [])
+  }, [user])
 
   const handleSearch = useCallback(async (q: string) => {
     setQuery(q)
@@ -49,19 +58,23 @@ export default function SearchPage() {
   }, [])
 
   const handleTrackPlay = (track: Track) => {
+    if (!user) return
+    const historyKey = `fermata-search-played-${user.id}`
     setRecentSearchPlayed((prev) => {
       const filtered = prev.filter((t) => t.id !== track.id)
       const updated = [track, ...filtered].slice(0, 10)
-      localStorage.setItem('fermata-search-played', JSON.stringify(updated))
+      localStorage.setItem(historyKey, JSON.stringify(updated))
       return updated
     })
   }
 
   const handleRemoveTrack = (trackId: number, e: React.MouseEvent) => {
     e.stopPropagation()
+    if (!user) return
+    const historyKey = `fermata-search-played-${user.id}`
     setRecentSearchPlayed((prev) => {
       const updated = prev.filter((t) => t.id !== trackId)
-      localStorage.setItem('fermata-search-played', JSON.stringify(updated))
+      localStorage.setItem(historyKey, JSON.stringify(updated))
       return updated
     })
   }

@@ -42,7 +42,6 @@ export default function App() {
       <Route element={<Layout />}>
         <Route index element={<HomePage />} />
         <Route path="search" element={<SearchPage />} />
-        <Route path="report-missing" element={<ReportMissingPage />} />
         <Route path="album/:id" element={<AlbumPage />} />
         <Route path="artist/:id" element={<ArtistPage />} />
         <Route path="playlist/:id" element={<PlaylistPage />} />
@@ -53,6 +52,7 @@ export default function App() {
           <Route path="library" element={<LibraryPage />} />
           <Route path="recents" element={<RecentsPage />} />
           <Route path="profile" element={<ProfilePage />} />
+          <Route path="report-missing" element={<ReportMissingPage />} />
         </Route>
 
         <Route element={<ArtistRoute />}>

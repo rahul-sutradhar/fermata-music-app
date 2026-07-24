@@ -240,6 +240,21 @@ export default function NowPlayingBar() {
     }
   }, [currentTrack, setProgressMs, setDurationMs, setIsPlaying, playNext])
 
+  // Expose a global seek helper for components like ExpandedPlayer that don't have direct ref access
+  useEffect(() => {
+    (window as any).fermataSeek = (ms: number) => {
+      if (audioRef.current) {
+        try {
+          audioRef.current.currentTime = ms / 1000
+        } catch (err) {
+          console.warn('FermataSeek failed:', err)
+        }
+      }
+    }
+    return () => {
+      delete (window as any).fermataSeek
+    }
+  }, [])
 
   const toggleMute = useCallback(() => {
     setVolume(volume === 0 ? 50 : 0)

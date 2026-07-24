@@ -26,6 +26,7 @@ def _to_response(track: Track) -> TrackResponse:
         album_title=track.album_title,
         artist_id=track.effective_artist_id,
         artist_name=track.artist_name,
+        lyrics=track.lyrics,
     )
 
 
