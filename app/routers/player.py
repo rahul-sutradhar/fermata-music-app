@@ -99,6 +99,7 @@ def get_most_played_tracks(
     """Get user's most played tracks based on play count in recently_played."""
     from sqlalchemy import func, desc, select
     from app.models import RecentlyPlayed, Track
+    from app.services.tracks import _to_response as track_to_response
     
     # Subquery to aggregate play count per track
     top_track_ids = (
@@ -120,7 +121,7 @@ def get_most_played_tracks(
         # Re-sort to maintain the play count descending order
         tracks = sorted(tracks, key=lambda t: track_ids.index(t.id))
         
-    return [TrackResponse.model_validate(t) for t in tracks]
+    return [track_to_response(t) for t in tracks]
 
 
 @router.get(
@@ -136,6 +137,7 @@ def get_recently_played_albums(
     """Get user's recently played albums based on track history."""
     from sqlalchemy import desc, select, func
     from app.models import RecentlyPlayed, Track, Album
+    from app.services.albums import _to_album_response as album_to_response
     
     # Fetch recently played tracks for the user that are linked to an album
     recent_tracks = (
@@ -157,7 +159,7 @@ def get_recently_played_albums(
         albums = db.scalars(select(Album).where(Album.id.in_(album_ids))).all()
         albums = sorted(albums, key=lambda a: album_ids.index(a.id))
         
-    return [AlbumResponse.model_validate(a) for a in albums]
+    return [album_to_response(a) for a in albums]
 
 
 @router.get(
@@ -173,6 +175,7 @@ def get_most_played_albums(
     """Get user's most played albums based on play counts of its tracks."""
     from sqlalchemy import func, desc, select
     from app.models import RecentlyPlayed, Track, Album
+    from app.services.albums import _to_album_response as album_to_response
     
     top_albums = (
         db.query(Track.album_id, func.count(RecentlyPlayed.id).label("play_count"))
@@ -193,4 +196,4 @@ def get_most_played_albums(
         albums = db.scalars(select(Album).where(Album.id.in_(album_ids))).all()
         albums = sorted(albums, key=lambda a: album_ids.index(a.id))
         
-    return [AlbumResponse.model_validate(a) for a in albums]
+    return [album_to_response(a) for a in albums]
