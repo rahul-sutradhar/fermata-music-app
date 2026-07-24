@@ -1,14 +1,3 @@
----
-title: Fermata Music API
-emoji: 🎵
-colorFrom: green
-colorTo: black
-sdk: gradio
-sdk_version: 5.35.0
-app_file: app.py
-pinned: false
----
-
 # Fermata
 
 A music streaming backend, built with FastAPI, while learning each part of
