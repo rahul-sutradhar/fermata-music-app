@@ -1,4 +1,6 @@
 import uuid
+import gc
+import threading
 from typing import Dict, Any, List
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from pydantic import BaseModel
@@ -7,12 +9,25 @@ from sqlalchemy import select, func
 from app.core.deps import DbSession, CurrentUser, CurrentAdmin
 from app.models.ingestion_request import IngestionRequest
 from app.core.config import settings
-from agentic_ai.src.graph import create_workflow
 
 router = APIRouter(prefix="/agentic-ingest", tags=["agentic-ingest"])
 
-# Keep the compiled workflow graph as a thread-safe singleton
-workflow = create_workflow()
+# --- Lazy singleton ---
+# The LangGraph workflow is heavy (~150MB). We only build it on the first request,
+# NOT at module import time, so idle workers don't waste RAM.
+_workflow = None
+_workflow_lock = threading.Lock()
+
+def _get_workflow():
+    global _workflow
+    if _workflow is None:
+        with _workflow_lock:
+            if _workflow is None:  # double-checked locking
+                print("[Workflow] Building LangGraph workflow (first request)...", flush=True)
+                from agentic_ai.src.graph import create_workflow
+                _workflow = create_workflow()
+                print("[Workflow] LangGraph workflow compiled and ready.", flush=True)
+    return _workflow
 
 
 class SearchRequest(BaseModel):
@@ -31,6 +46,7 @@ def search_song(payload: SearchRequest, db: DbSession, current_user: CurrentUser
     Runs search_candidates and pauses at selection interrupt.
     """
     thread_id = str(uuid.uuid4())
+    workflow = _get_workflow()
     config = {
         "configurable": {
             "thread_id": thread_id,
@@ -83,6 +99,7 @@ def select_candidate(payload: SelectRequest, db: DbSession, current_user: Curren
         }
     }
     
+    workflow = _get_workflow()
     state = workflow.get_state(config)
     if not state.values:
         raise HTTPException(
@@ -472,6 +489,11 @@ def approve_ingestion_request(
             detail=f"Ingestion failed: {str(e)}"
         )
     
+    # Free heavy ingestion objects (yt-dlp buffers, boto3 sessions, PIL images)
+    # gc.collect() returns memory to the OS immediately after the ingestion run.
+    gc.collect()
+    print("[Ingestion] Post-ingestion GC complete. Memory released.", flush=True)
+
     return {"message": "Request approved and processed."}
 
 

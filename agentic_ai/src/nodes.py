@@ -1,4 +1,5 @@
 import os
+import gc
 import json
 import time
 import io
@@ -7,9 +8,6 @@ import base64
 import urllib.parse
 import concurrent.futures
 import requests
-import boto3
-import yt_dlp
-from PIL import Image
 from typing import Dict, Any, List
 from dotenv import load_dotenv
 
@@ -55,6 +53,7 @@ def _resolve_candidate_url(cand: Dict[str, Any]) -> str:
         pass
 
     # 2. Fall back to yt-dlp lookup
+    import yt_dlp  # lazy import — saves ~40MB at startup
     ydl_opts = {
         'format': 'bestaudio/best',
         'noplaylist': True,
@@ -171,6 +170,7 @@ def search_candidates(state: AgenticState) -> Dict[str, Any]:
         "youtu.be" in song_name_clean):
         new_logs.append(f"[Search] Direct source link detected: '{song_name_clean}'")
         try:
+            import yt_dlp  # lazy import
             ydl_opts = {
                 'format': 'bestaudio/best',
                 'noplaylist': True,
@@ -422,6 +422,7 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             print(f"[Pipeline] Branch A Warning: Failed to normalize cookies file: {str(e)}", flush=True)
 
     def _try_download(ydl_opts, target_link, label):
+        import yt_dlp  # lazy import — only loaded during actual ingestion
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(target_link, download=True)
@@ -514,6 +515,7 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
         new_logs.append("[Pipeline] Branch A: Uploading in-memory buffer to Backblaze B2/CDN...")
         s3_key = f"tracks/{track_id}/audio.{ext}"
 
+        import boto3  # lazy import — only loaded during actual ingestion
         s3_client = boto3.client(
             's3',
             endpoint_url=os.getenv("B2_S3_ENDPOINT_URL"),
@@ -553,6 +555,13 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
                 os.remove(temp_cookie_file)
             except Exception:
                 pass
+        # Release audio buffer and trigger GC to free download memory immediately
+        try:
+            audio_buffer.close()
+        except Exception:
+            pass
+        gc.collect()
+        print("[Pipeline] Branch A: Memory released after audio upload.", flush=True)
 
     return {
         "audio_url": audio_url,
@@ -578,6 +587,7 @@ def process_and_upload_cover(state: AgenticState) -> Dict[str, Any]:
         response.raise_for_status()
         
         # Open in memory and resize/optimize
+        from PIL import Image  # lazy import — only loaded during cover processing
         img = Image.open(io.BytesIO(response.content))
         new_logs.append(f"[Pipeline] Branch B: Loaded image format: {img.format}, original size: {img.size}")
         
@@ -592,6 +602,7 @@ def process_and_upload_cover(state: AgenticState) -> Dict[str, Any]:
         track_id = state.get("track_id", 9901)
         s3_key = f"tracks/{track_id}/cover.jpg"
         
+        import boto3  # lazy import
         s3_client = boto3.client(
             's3',
             endpoint_url=os.getenv("B2_S3_ENDPOINT_URL"),
@@ -619,7 +630,7 @@ def process_and_upload_cover(state: AgenticState) -> Dict[str, Any]:
         
         try:
             # Generate solid color placeholder with PIL
-            from PIL import ImageDraw
+            from PIL import Image, ImageDraw  # lazy import
             fallback_img = Image.new("RGB", (500, 500), color=(18, 18, 18))
             draw = ImageDraw.Draw(fallback_img)
             # Draw a border box
@@ -632,6 +643,7 @@ def process_and_upload_cover(state: AgenticState) -> Dict[str, Any]:
             fallback_buffer.seek(0)
             
             # Upload placeholder to B2
+            import boto3  # lazy import (may already be in sys.modules if audio ran first)
             s3_client = boto3.client(
                 's3',
                 endpoint_url=os.getenv("B2_S3_ENDPOINT_URL"),
@@ -652,6 +664,14 @@ def process_and_upload_cover(state: AgenticState) -> Dict[str, Any]:
             new_logs.append(f"[Pipeline] Branch B Fallback Error: {str(upload_err)}")
             cover_url = f"https://cdn.fermata.example.com/tracks/{track_id}/cover.jpg"
             
+    # Release image buffers and trigger GC to free cover processing memory
+    try:
+        cover_buffer.close()
+    except Exception:
+        pass
+    gc.collect()
+    print("[Pipeline] Branch B: Memory released after cover upload.", flush=True)
+
     return {
         "cover_url": cover_url,
         "cover_status": "completed",
