@@ -1,4 +1,4 @@
-import { Play, Pause, MoreHorizontal, Clock, Heart } from 'lucide-react'
+import { Play, Pause, MoreHorizontal, Clock, Heart, Music } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { usePlayerStore } from '@/store/playerStore'
 import type { Track } from '@/types'
@@ -105,12 +105,16 @@ export default function TrackRow({ track, index, tracks, onPlay }: Props) {
 
       {/* Title */}
       <div className="flex items-center gap-3 min-w-0">
-        {track.cover_url && (
+        {track.cover_url ? (
           <img
             src={track.cover_url}
             alt={track.title}
-            className="w-9 h-9 rounded object-cover shrink-0 shadow"
+            className="w-9 h-9 rounded object-cover shrink-0 shadow animate-in fade-in"
           />
+        ) : (
+          <div className="w-9 h-9 rounded bg-surface-highlight flex items-center justify-center shrink-0 shadow">
+            <Music size={14} className="text-subtext/50" />
+          </div>
         )}
         <div className="min-w-0">
           <p className={`text-sm font-medium truncate ${isActive ? 'text-spotify-green' : ''}`}>

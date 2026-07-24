@@ -81,7 +81,11 @@ def seed() -> None:
 
         albums: list[Album] = []
         for title, artist_name in SEED_ALBUMS:
-            album = Album(title=title, artist_id=artists[artist_name].id)
+            album = Album(
+                title=title,
+                artist_id=artists[artist_name].id,
+                cover_image_key="tracks/9901/cover.jpg"
+            )
             db.add(album)
             albums.append(album)
 
