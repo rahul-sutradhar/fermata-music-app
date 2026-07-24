@@ -18,6 +18,7 @@ interface Message {
   candidates?: CandidateSong[]
   logs?: string[]
   statusType?: 'success' | 'error' | 'warning'
+  selected?: boolean
 }
 
 export default function ReportMissingPage() {
@@ -109,59 +110,115 @@ export default function ReportMissingPage() {
 
   // Core Search Ingestion Function
   const handleSearch = async (songQuery: string) => {
-    if (!songQuery.trim()) return
+    if (!songQuery.trim() || !user) return
     setLoading(true)
     setIsComplete(false) // Reset completion state for new search
-    
-    // Add user message to chat
+
+    const cacheKey = `fermata-chatbot-state-${user.id}`
     const userMsgId = Math.random().toString()
-    setMessages((prev) => [
-      ...prev,
-      { id: userMsgId, sender: 'user', text: songQuery }
-    ])
+    const userMsg: Message = { id: userMsgId, sender: 'user', text: songQuery }
+
+    // Read cached state to append the user message immediately
+    let currentMsgs: Message[] = []
+    let currentThread: string | null = null
+    let currentLogs: string[] = []
+    const cached = sessionStorage.getItem(cacheKey)
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached)
+        currentMsgs = parsed.messages || []
+        currentThread = parsed.threadId || null
+        currentLogs = parsed.ingestionLogs || []
+      } catch (e) {}
+    }
+
+    const messagesWithUser = [...currentMsgs, userMsg]
+    sessionStorage.setItem(cacheKey, JSON.stringify({
+      messages: messagesWithUser,
+      threadId: currentThread,
+      ingestionLogs: currentLogs,
+      isComplete: false
+    }))
+    setMessages(messagesWithUser)
     
     try {
       const response = await searchSongCandidates(songQuery)
-      setThreadId(response.thread_id)
-      
       const botMsgId = Math.random().toString()
+      let finalBotMsg: Message
+      let newIsComplete = false
+      let newThreadId = response.thread_id
+
       if (response.status === 'not_found' || response.candidates.length === 0) {
-        setIsComplete(true)
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: botMsgId,
-            sender: 'bot',
-            text: `I searched YouTube and external registries for "${songQuery}" but found no matching candidate tracks. The query has been logged as missing and the workflow completed cleanly.`,
-            type: 'status',
-            statusType: 'warning'
-          }
-        ])
+        newIsComplete = true
+        finalBotMsg = {
+          id: botMsgId,
+          sender: 'bot',
+          text: `I searched YouTube and external registries for "${songQuery}" but found no matching candidate tracks. The query has been logged as missing and the workflow completed cleanly.`,
+          type: 'status',
+          statusType: 'warning'
+        }
       } else {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: botMsgId,
-            sender: 'bot',
-            text: `I found ${response.candidates.length} potential matches for "${songQuery}". Please select the correct version you'd like to ingest:`,
-            type: 'candidates',
-            candidates: response.candidates
-          }
-        ])
+        finalBotMsg = {
+          id: botMsgId,
+          sender: 'bot',
+          text: `I found ${response.candidates.length} potential matches for "${songQuery}". Please select the correct version you'd like to ingest:`,
+          type: 'candidates',
+          candidates: response.candidates
+        }
       }
+
+      // Read current sessionStorage again to capture any updates in case they switched tab back and forth
+      let latestCachedMsgs = messagesWithUser
+      const currentCached = sessionStorage.getItem(cacheKey)
+      if (currentCached) {
+        try {
+          const parsed = JSON.parse(currentCached)
+          latestCachedMsgs = parsed.messages || messagesWithUser
+        } catch (e) {}
+      }
+
+      const finalMessages = [...latestCachedMsgs, finalBotMsg]
+      sessionStorage.setItem(cacheKey, JSON.stringify({
+        messages: finalMessages,
+        threadId: newThreadId,
+        ingestionLogs: currentLogs,
+        isComplete: newIsComplete
+      }))
+
+      // Update state for currently mounted view
+      setIsComplete(newIsComplete)
+      setThreadId(newThreadId)
+      setMessages(finalMessages)
     } catch (err: any) {
       console.error(err)
       const errorMsgId = Math.random().toString()
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: errorMsgId,
-          sender: 'bot',
-          text: `An error occurred during search: ${err.message || 'Server connection failed.'}`,
-          type: 'status',
-          statusType: 'error'
-        }
-      ])
+      const errorMsg: Message = {
+        id: errorMsgId,
+        sender: 'bot',
+        text: `An error occurred during search: ${err.message || 'Server connection failed.'}`,
+        type: 'status',
+        statusType: 'error'
+      }
+
+      let latestCachedMsgs = messagesWithUser
+      const currentCached = sessionStorage.getItem(cacheKey)
+      if (currentCached) {
+        try {
+          const parsed = JSON.parse(currentCached)
+          latestCachedMsgs = parsed.messages || messagesWithUser
+        } catch (e) {}
+      }
+
+      const finalMessages = [...latestCachedMsgs, errorMsg]
+      sessionStorage.setItem(cacheKey, JSON.stringify({
+        messages: finalMessages,
+        threadId: currentThread,
+        ingestionLogs: currentLogs,
+        isComplete: true
+      }))
+
+      setIsComplete(true)
+      setMessages(finalMessages)
     } finally {
       setLoading(false)
     }
@@ -169,7 +226,7 @@ export default function ReportMissingPage() {
 
   // Handle Candidate Selection
   const handleSelectSong = async (candidateId: string, songName: string) => {
-    if (!threadId) return
+    if (!threadId || !user) return
     setLoading(true)
     
     // Add choice log
@@ -177,64 +234,134 @@ export default function ReportMissingPage() {
     const selectionName = candidateId === 'report_missing' 
       ? 'None of these - Report Missing Song'
       : songName
-      
-    setMessages((prev) => [
-      ...prev,
-      { id: userMsgId, sender: 'user', text: `Option: ${selectionName}` }
-    ])
+    
+    const choiceMsg: Message = { id: userMsgId, sender: 'user', text: `Option: ${selectionName}` }
 
-    // Disappear candidates list and display only the selected song (or hide all if reported missing)
-    setMessages((prev) => {
-      return prev.map((m) => {
+    const cacheKey = `fermata-chatbot-state-${user.id}`
+    let currentMsgs: Message[] = []
+    let currentLogs: string[] = []
+    const cached = sessionStorage.getItem(cacheKey)
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached)
+        currentMsgs = parsed.messages || []
+        currentLogs = parsed.ingestionLogs || []
+      } catch (e) {}
+    }
+
+    // Filter candidates list in existing messages immediately
+    const filteredMsgs = currentMsgs.map((m) => {
+      if (m.type === 'candidates' && m.candidates) {
+        if (candidateId === 'report_missing') {
+          if (m.candidates.some((c) => c.title !== "Ingested Track")) {
+            return {
+              ...m,
+              candidates: [],
+              selected: true
+            }
+          }
+        } else {
+          if (m.candidates.some((c) => c.id === candidateId)) {
+            return {
+              ...m,
+              candidates: m.candidates.filter((c) => c.id === candidateId),
+              selected: true
+            }
+          }
+        }
+      }
+      return m
+    })
+
+    const messagesWithChoice = [...filteredMsgs, choiceMsg]
+    sessionStorage.setItem(cacheKey, JSON.stringify({
+      messages: messagesWithChoice,
+      threadId: threadId,
+      ingestionLogs: currentLogs,
+      isComplete: false
+    }))
+    setMessages(messagesWithChoice)
+    
+    try {
+      const response = await submitCandidateSelection(threadId, candidateId)
+      const botMsgId = Math.random().toString()
+      const successMsg: Message = {
+        id: botMsgId,
+        sender: 'bot',
+        text: "Requested submitted successfully - The music will be availble in a day",
+        type: 'status',
+        statusType: 'success'
+      }
+
+      let latestCachedMsgs = messagesWithChoice
+      const currentCached = sessionStorage.getItem(cacheKey)
+      if (currentCached) {
+        try {
+          const parsed = JSON.parse(currentCached)
+          latestCachedMsgs = parsed.messages || messagesWithChoice
+        } catch (e) {}
+      }
+
+      // Re-apply filter on loaded messages in case cache was reloaded from unmounted state
+      const reFilteredMsgs = latestCachedMsgs.map((m) => {
         if (m.type === 'candidates' && m.candidates) {
           if (candidateId === 'report_missing') {
             if (m.candidates.some((c) => c.title !== "Ingested Track")) {
-              return {
-                ...m,
-                candidates: []
-              }
+              return { ...m, candidates: [], selected: true }
             }
           } else {
             if (m.candidates.some((c) => c.id === candidateId)) {
               return {
                 ...m,
-                candidates: m.candidates.filter((c) => c.id === candidateId)
+                candidates: m.candidates.filter((c) => c.id === candidateId),
+                selected: true
               }
             }
           }
         }
         return m
       })
-    })
-    
-    try {
-      const response = await submitCandidateSelection(threadId, candidateId)
-      const botMsgId = Math.random().toString()
-      
+
+      const finalMessages = [...reFilteredMsgs, successMsg]
+      sessionStorage.setItem(cacheKey, JSON.stringify({
+        messages: finalMessages,
+        threadId: threadId,
+        ingestionLogs: currentLogs,
+        isComplete: true
+      }))
+
       setIsComplete(true) // Session finished
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: botMsgId,
-          sender: 'bot',
-          text: "Requested submitted successfully - The music will be availble in a day",
-          type: 'status',
-          statusType: 'success'
-        }
-      ])
+      setMessages(finalMessages)
     } catch (err: any) {
       console.error(err)
       const errorMsgId = Math.random().toString()
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: errorMsgId,
-          sender: 'bot',
-          text: `Failed to submit selection: ${err.message || 'Server error.'}`,
-          type: 'status',
-          statusType: 'error'
-        }
-      ])
+      const errorMsg: Message = {
+        id: errorMsgId,
+        sender: 'bot',
+        text: `Failed to submit selection: ${err.message || 'Server error.'}`,
+        type: 'status',
+        statusType: 'error'
+      }
+
+      let latestCachedMsgs = messagesWithChoice
+      const currentCached = sessionStorage.getItem(cacheKey)
+      if (currentCached) {
+        try {
+          const parsed = JSON.parse(currentCached)
+          latestCachedMsgs = parsed.messages || messagesWithChoice
+        } catch (e) {}
+      }
+
+      const finalMessages = [...latestCachedMsgs, errorMsg]
+      sessionStorage.setItem(cacheKey, JSON.stringify({
+        messages: finalMessages,
+        threadId: threadId,
+        ingestionLogs: currentLogs,
+        isComplete: true
+      }))
+
+      setIsComplete(true)
+      setMessages(finalMessages)
     } finally {
       setLoading(false)
     }
@@ -459,6 +586,8 @@ export default function ReportMissingPage() {
                             >
                               <Play size={12} fill="black" /> Play
                             </button>
+                          ) : msg.selected ? (
+                            null
                           ) : (
                             <button
                               onClick={() => handleSelectSong(cand.id, cand.title)}
@@ -472,7 +601,7 @@ export default function ReportMissingPage() {
                     })}
                     
                     {/* Add report option at the very bottom */}
-                    {msg.candidates[0]?.title !== "Ingested Track" && (
+                    {!msg.selected && msg.candidates[0]?.title !== "Ingested Track" && (
                       <button
                         onClick={() => handleSelectSong('report_missing', 'Report Missing Song')}
                         className="w-full py-2.5 bg-[#281515] hover:bg-[#3d1a1a] text-red-400 border border-red-900/40 hover:border-red-500/50 text-xs font-bold rounded-xl transition-all hover:scale-[1.01]"
