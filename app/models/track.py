@@ -1,8 +1,14 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 from sqlalchemy import DateTime, ForeignKey, String, func, Text, Table, Column, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+
+if TYPE_CHECKING:
+    from app.models.album import Album
+    from app.models.artist import Artist
+    from app.models.playlist_track import PlaylistTrack
 
 # Association table for tracks and multiple artists
 track_artists = Table(
@@ -23,6 +29,8 @@ class Track(Base):
     duration_seconds: Mapped[int | None] = mapped_column(nullable=True)
     audio_file_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
     cover_image_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    hls_playlist_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    hls_key_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
     genres: Mapped[str | None] = mapped_column(String(512), nullable=True)
     lyrics: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)

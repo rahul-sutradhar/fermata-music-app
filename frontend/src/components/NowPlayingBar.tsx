@@ -5,9 +5,11 @@ import { getTrackAudioUrl, getTrack } from '@/api/tracks'
 import { addRecentlyPlayed, getPlayerState, updatePlayerState } from '@/api/player'
 import { useAuthStore } from '@/store/authStore'
 import PlayerControls from './PlayerControls'
+import Hls from 'hls.js'
 
 export default function NowPlayingBar() {
   const audioRef = useRef<HTMLAudioElement>(null)
+  const hlsRef = useRef<Hls | null>(null)
   const shouldRestoreProgress = useRef(false)
   const isInitialRestoring = useRef(true)
   const [showMobileVolume, setShowMobileVolume] = useState(false)
@@ -115,8 +117,12 @@ export default function NowPlayingBar() {
 
     let cancelled = false
 
-    // Immediately stop and unload the previous track to prevent it from continuing to play while fetching the new URL
+    // Immediately stop and unload the previous track to prevent overlapping streams
     audio.pause()
+    if (hlsRef.current) {
+      hlsRef.current.destroy()
+      hlsRef.current = null
+    }
     audio.removeAttribute('src')
     audio.load()
 
@@ -134,22 +140,66 @@ export default function NowPlayingBar() {
       if (!url || cancelled) return
 
       try {
-        audio!.src = url
-        audio!.load()
         // Explicitly apply volume to prevent browser volume resets on new track loads
         audio!.volume = Math.pow(usePlayerStore.getState().volume / 100, 2)
-        
-        const shouldPlay = usePlayerStore.getState().isPlaying
-        if (shouldPlay) {
-          audio!.play().catch((err) => {
-            console.warn('Auto-play blocked, click the page to enable playback:', err)
+
+        const isHls = url.includes('.m3u8')
+
+        if (isHls && !audio!.canPlayType('application/vnd.apple.mpegurl')) {
+          // Use hls.js for browsers without native HLS support (Chrome/Firefox/Edge)
+          const hls = new Hls({
+            xhrSetup: (xhr, xhrUrl) => {
+              if (xhrUrl.includes('/key')) {
+                // Fetch the authorization token from the store
+                const storedToken = useAuthStore.getState().token
+                if (storedToken) {
+                  xhr.setRequestHeader('Authorization', `Bearer ${storedToken}`)
+                }
+              }
+            }
           })
-          setIsPlaying(true)
+
+          hlsRef.current = hls
+          hls.loadSource(url)
+          hls.attachMedia(audio!)
+
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            if (!cancelled) {
+              const shouldPlay = usePlayerStore.getState().isPlaying
+              if (shouldPlay) {
+                audio!.play().catch((err) => {
+                  console.warn('Auto-play blocked, click the page to enable playback:', err)
+                })
+                setIsPlaying(true)
+              } else {
+                setIsPlaying(false)
+              }
+            }
+          })
+
+          hls.on(Hls.Events.ERROR, (_, data) => {
+            if (data.fatal) {
+              console.error('Fatal HLS.js error:', data)
+            }
+          })
         } else {
-          setIsPlaying(false)
+          // Native HLS support (Safari/iOS) or standard raw audio fallback
+          audio!.src = url
+          audio!.load()
+
+          const shouldPlay = usePlayerStore.getState().isPlaying
+          if (shouldPlay) {
+            audio!.play().catch((err) => {
+              console.warn('Auto-play blocked, click the page to enable playback:', err)
+            })
+            setIsPlaying(true)
+          } else {
+            setIsPlaying(false)
+          }
         }
 
         // Record recently played
+        const shouldPlay = usePlayerStore.getState().isPlaying
         if (token && shouldPlay) {
           addRecentlyPlayed(currentTrack!.id).catch(() => { })
         }
@@ -161,6 +211,10 @@ export default function NowPlayingBar() {
     loadAudio()
     return () => {
       cancelled = true
+      if (hlsRef.current) {
+        hlsRef.current.destroy()
+        hlsRef.current = null
+      }
     }
   }, [currentTrack, setIsPlaying, token])
 
@@ -221,7 +275,7 @@ export default function NowPlayingBar() {
       const state = usePlayerStore.getState()
       if (state.repeatMode === 'track') {
         audio.currentTime = 0
-        audio.play().catch(() => {})
+        audio.play().catch(() => { })
         setProgressMs(0)
         setIsPlaying(true)
       } else {

@@ -16,12 +16,14 @@ _RESTRICTED_ALBUM_IDS = {999}
 from app.models.artist import Artist
 
 def _to_response(track: Track) -> TrackResponse:
+    # Prioritize HLS playlist URL, fallback to raw audio
+    audio_key = track.hls_playlist_key if track.hls_playlist_key else track.audio_file_key
     return TrackResponse(
         id=track.id,
         title=track.title,
         album_id=track.album_id,
         duration_seconds=track.duration_seconds,
-        audio_url=get_audio_url(track.audio_file_key) if track.audio_file_key else None,
+        audio_url=get_audio_url(audio_key) if audio_key else None,
         cover_url=track.cover_url,
         album_title=track.album_title,
         artist_id=track.effective_artist_id,
@@ -161,19 +163,82 @@ def upload_track_audio(
             detail=f"Audio file must be smaller than {max_mb} MB",
         )
 
-    extension = Path(file.filename).suffix or ".bin"
-    object_key = f"tracks/{track.id}/audio{extension}"
+    # 1. Save uploaded file to a temporary file on disk
+    import tempfile
+    import os
+    import shutil
+    from app.core.hls import transcode_to_hls
+    from app.core.storage import upload_local_file
+
+    suffix = Path(file.filename or "audio.bin").suffix
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_raw:
+        shutil.copyfileobj(file.file, temp_raw)
+        temp_raw_path = temp_raw.name
+
+    # 2. Transcode to HLS
+    try:
+        hls_result = transcode_to_hls(temp_raw_path, track.id)
+        temp_hls_dir = hls_result["temp_dir"]
+    except Exception as exc:
+        try:
+            os.remove(temp_raw_path)
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to transcode audio file: {str(exc)}"
+        )
+
+    # 3. Upload generated HLS files to B2
+    hls_playlist_key = f"tracks/{track.id}/hls/playlist.m3u8"
+    hls_key_key = f"tracks/{track.id}/hls/encryption.key"
 
     try:
-        upload_audio_file(file=file, object_key=object_key)
+        for fname in os.listdir(temp_hls_dir):
+            fpath = os.path.join(temp_hls_dir, fname)
+            if os.path.isdir(fpath):
+                continue
+
+            if fname == "playlist.m3u8":
+                b2_key = hls_playlist_key
+                content_type = "application/x-mpegURL"
+            elif fname == "enc.key":
+                b2_key = hls_key_key
+                content_type = "application/octet-stream"
+            elif fname.endswith(".ts"):
+                b2_key = f"tracks/{track.id}/hls/{fname}"
+                content_type = "video/MP2T"
+            else:
+                continue
+
+            upload_local_file(local_path=fpath, object_key=b2_key, content_type=content_type)
     except RuntimeError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Audio storage is not configured or temporarily unavailable",
+            detail="Storage service is unavailable",
         ) from exc
+    finally:
+        # Clean up temp files
+        try:
+            shutil.rmtree(temp_hls_dir)
+            os.remove(temp_raw_path)
+        except Exception:
+            pass
+
+    # 4. Save raw audio for fallback compatibility
+    extension = Path(file.filename).suffix or ".bin"
+    object_key = f"tracks/{track.id}/audio{extension}"
+    try:
+        file.file.seek(0)
+        upload_audio_file(file=file, object_key=object_key)
+    except Exception:
+        # Fallback raw upload failure is tolerated as long as HLS succeeded
+        pass
 
     previous_key = track.audio_file_key
     track.audio_file_key = object_key
+    track.hls_playlist_key = hls_playlist_key
+    track.hls_key_key = hls_key_key
     db.commit()
     db.refresh(track)
 
@@ -188,6 +253,13 @@ def upload_track_audio(
 
 def get_track_audio_url(*, db: Session, track_id: int) -> str:
     track = _get_track_or_404(db, track_id)
+    # Prioritize HLS playlist URL
+    if track.hls_playlist_key:
+        url = get_audio_url(track.hls_playlist_key)
+        if url:
+            return url
+
+    # Fallback to raw audio
     if track.audio_file_key is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

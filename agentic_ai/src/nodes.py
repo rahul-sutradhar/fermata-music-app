@@ -497,24 +497,17 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
 
         downloaded_file = f"{temp_file_path}.{ext}"
 
-        # Read the file into memory
-        with open(downloaded_file, "rb") as f:
-            audio_bytes = f.read()
-        audio_buffer = io.BytesIO(audio_bytes)
+        hls_playlist_key = None
+        hls_key_key = None
 
-        # Clean up the temp file
-        try:
-            os.remove(downloaded_file)
-        except Exception:
-            pass
+        # Transcode downloaded audio to HLS locally
+        new_logs.append("[Pipeline] Branch A: Transcoding downloaded audio to HLS locally...")
+        from app.core.hls import transcode_to_hls
+        hls_result = transcode_to_hls(downloaded_file, track_id)
+        temp_hls_dir = hls_result["temp_dir"]
 
-        size_mb = len(audio_buffer.getvalue()) / (1024 * 1024)
-        new_logs.append(f"[Pipeline] Branch A: Stream download finished. Buffer size: {size_mb:.2f} MB")
-
-        # Upload buffer directly to Backblaze B2 S3 bucket
-        new_logs.append("[Pipeline] Branch A: Uploading in-memory buffer to Backblaze B2/CDN...")
-        s3_key = f"tracks/{track_id}/audio.{ext}"
-
+        # Upload generated HLS files to Backblaze B2
+        new_logs.append("[Pipeline] Branch A: Uploading HLS playlist, key and segments to B2...")
         import boto3  # lazy import — only loaded during actual ingestion
         s3_client = boto3.client(
             's3',
@@ -523,17 +516,47 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             aws_secret_access_key=os.getenv("B2_SECRET_ACCESS_KEY"),
             region_name=os.getenv("B2_REGION_NAME")
         )
+        bucket_name = os.getenv("B2_BUCKET_NAME")
 
-        bucket_name = os.getenv("B2_BUCKET_NAME", "fermata-music-app")
-        s3_client.upload_fileobj(
-            Fileobj=audio_buffer,
-            Bucket=bucket_name,
-            Key=s3_key,
-            ExtraArgs={'ContentType': f'audio/{ext}'}
-        )
+        hls_playlist_key = f"tracks/{track_id}/hls/playlist.m3u8"
+        hls_key_key = f"tracks/{track_id}/hls/encryption.key"
 
-        audio_url = f"{os.getenv('B2_S3_ENDPOINT_URL')}/{bucket_name}/{s3_key}"
-        new_logs.append(f"[Pipeline] Branch A: Upload successful. B2 URL: {audio_url}")
+        # Upload all files in the output directory
+        for fname in os.listdir(temp_hls_dir):
+            fpath = os.path.join(temp_hls_dir, fname)
+            if os.path.isdir(fpath):
+                continue
+
+            if fname == "playlist.m3u8":
+                b2_key = hls_playlist_key
+                content_type = "application/x-mpegURL"
+            elif fname == "enc.key":
+                b2_key = hls_key_key
+                content_type = "application/octet-stream"
+            elif fname.endswith(".ts"):
+                b2_key = f"tracks/{track_id}/hls/{fname}"
+                content_type = "video/MP2T"
+            else:
+                continue
+
+            with open(fpath, "rb") as fh:
+                s3_client.upload_fileobj(
+                    Fileobj=fh,
+                    Bucket=bucket_name,
+                    Key=b2_key,
+                    ExtraArgs={'ContentType': content_type}
+                )
+
+        # Clean up files
+        import shutil
+        try:
+            shutil.rmtree(temp_hls_dir)
+            os.remove(downloaded_file)
+        except Exception:
+            pass
+
+        audio_url = f"{os.getenv('B2_S3_ENDPOINT_URL')}/{bucket_name}/{hls_playlist_key}"
+        new_logs.append(f"[Pipeline] Branch A: HLS Transcoding & Upload successful. Playlist URL: {audio_url}")
 
     except Exception as e:
         import traceback
@@ -545,7 +568,9 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
         if env_name in ("development", "testing"):
             new_logs.append("[Pipeline] Branch A Fallback: Simulating successful upload due to execution error (e.g. invalid credentials).")
             track_id = state.get("track_id", 9901)
-            audio_url = f"https://cdn.fermata.example.com/tracks/{track_id}/audio.mp3"
+            audio_url = f"https://cdn.fermata.example.com/tracks/{track_id}/hls/playlist.m3u8"
+            hls_playlist_key = f"tracks/{track_id}/hls/playlist.m3u8"
+            hls_key_key = f"tracks/{track_id}/hls/encryption.key"
         else:
             new_logs.append("[Pipeline] Branch A: Refusing to apply fallback url in production environment.")
             raise e
@@ -555,16 +580,13 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
                 os.remove(temp_cookie_file)
             except Exception:
                 pass
-        # Release audio buffer and trigger GC to free download memory immediately
-        try:
-            audio_buffer.close()
-        except Exception:
-            pass
         gc.collect()
-        print("[Pipeline] Branch A: Memory released after audio upload.", flush=True)
+        print("[Pipeline] Branch A: Memory released after audio HLS transcode & upload.", flush=True)
 
     return {
         "audio_url": audio_url,
+        "hls_playlist_key": hls_playlist_key,
+        "hls_key_key": hls_key_key,
         "audio_status": "completed",
         "logs": new_logs
     }
@@ -1121,6 +1143,8 @@ def populate_track(state: AgenticState, config: RunnableConfig) -> Dict[str, Any
                 db_track.artist_id = artist_id
                 db_track.album_id = album_id
                 db_track.audio_file_key = audio_key
+                db_track.hls_playlist_key = state.get("hls_playlist_key")
+                db_track.hls_key_key = state.get("hls_key_key")
                 db_track.cover_image_key = cover_key
                 db_track.genres = genres
                 db_track.lyrics = lyrics
@@ -1149,6 +1173,8 @@ def populate_track(state: AgenticState, config: RunnableConfig) -> Dict[str, Any
                     album_id=album_id,
                     duration_seconds=selected_song.get("duration_seconds", 200),
                     audio_file_key=audio_key,
+                    hls_playlist_key=state.get("hls_playlist_key"),
+                    hls_key_key=state.get("hls_key_key"),
                     cover_image_key=cover_key,
                     genres=genres,
                     lyrics=lyrics

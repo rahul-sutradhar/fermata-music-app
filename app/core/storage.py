@@ -56,6 +56,21 @@ def upload_audio_file(file: UploadFile, object_key: str) -> str:
     return object_key
 
 
+def upload_local_file(local_path: str, object_key: str, content_type: str) -> str:
+    client = get_b2_client()
+    try:
+        with open(local_path, "rb") as f:
+            client.upload_fileobj(
+                f,
+                settings.b2_bucket_name,
+                object_key,
+                ExtraArgs={"ContentType": content_type},
+            )
+    except (BotoCoreError, ClientError) as exc:
+        raise RuntimeError("Failed to upload local file to Backblaze B2") from exc
+    return object_key
+
+
 def get_audio_url(object_key: str, expires_in: int = 3600) -> str | None:
     if not object_key:
         return None

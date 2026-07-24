@@ -29,12 +29,15 @@ class AgenticState(TypedDict):
     # 4. Ingestion statuses (Parallel branches)
     audio_url: Optional[str]
     audio_status: str  # "pending", "completed", "failed"
+    hls_playlist_key: Optional[str]  # B2 key for the HLS playlist file
+    hls_key_key: Optional[str]       # B2 key for the AES-128 encryption key file
     
     cover_url: Optional[str]
     cover_status: str  # "pending", "completed", "failed"
     
     artist_metadata: Optional[Dict[str, Any]]
     artist_id: Optional[int]
+    artist_ids: Optional[List[int]]  # All resolved artist IDs (multi-artist support)
     artist_status: str  # "pending", "completed", "failed"
     
     # 5. Final Ingestion status (Join node + DB population)

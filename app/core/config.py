@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     # CDN URL prefix (e.g., Cloudflare Worker URL or Supabase Storage URL)
     cdn_url: str | None = None
 
+    # Backend base URL (used to generate HLS decryption key URIs)
+    backend_url: str = "http://localhost:8000"
+
     # Rate limiting (requests per window)
     rate_limit_requests: int = 60
     rate_limit_window_seconds: int = 60

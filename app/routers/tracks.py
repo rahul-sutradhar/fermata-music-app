@@ -1,6 +1,6 @@
 import re
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status, Request, HTTPException
-from fastapi.responses import StreamingResponse, RedirectResponse
+from fastapi.responses import StreamingResponse, RedirectResponse, Response
 
 from app.core.deps import CurrentUser, DbSession, CurrentArtistOrAdmin
 from app.schemas.errors import ErrorResponse
@@ -87,6 +87,37 @@ def upload_track_audio(
 def get_track_audio_url(track_id: int, db: DbSession) -> dict:
     """Return a signed URL for track playback."""
     return {"audio_url": track_service.get_track_audio_url(db=db, track_id=track_id)}
+
+
+@router.get(
+    "/{track_id}/key",
+    responses={404: {"model": ErrorResponse}, 401: {"model": ErrorResponse}},
+)
+def get_track_hls_key(
+    track_id: int,
+    db: DbSession,
+    current_user: CurrentUser,
+):
+    """Retrieve the HLS decryption key for a track, protected by authentication."""
+    track = db.get(Track, track_id)
+    if not track or not track.hls_key_key:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="HLS decryption key not found for this track",
+        )
+
+    try:
+        client = get_b2_client()
+        bucket_name = settings.b2_bucket_name
+        response = client.get_object(Bucket=bucket_name, Key=track.hls_key_key)
+        key_bytes = response["Body"].read()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Key storage is temporarily unavailable: {str(exc)}",
+        )
+
+    return Response(content=key_bytes, media_type="application/octet-stream")
 
 
 @router.get(
