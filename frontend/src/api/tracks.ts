@@ -69,3 +69,21 @@ export function uploadTrackCover(trackId: number, file: File) {
   })
 }
 
+/**
+ * Fetch and persist lyrics for a track that currently has none.
+ * Tries lrclib → lyrics.ovh → Mistral LLM.
+ */
+export function fetchTrackLyrics(trackId: number) {
+  return apiRequest<Track>(`/tracks/${trackId}/lyrics/fetch`, { method: 'POST' })
+}
+
+/**
+ * Transliterate native-script lyrics to English phonetic alphabets.
+ * Does NOT change stored lyrics.
+ */
+export function transliterateTrackLyrics(trackId: number) {
+  return apiRequest<{ track_id: number; transliteration: string }>(
+    `/tracks/${trackId}/lyrics/transliterate`,
+    { method: 'POST' }
+  )
+}

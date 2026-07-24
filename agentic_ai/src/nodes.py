@@ -750,69 +750,69 @@ def _get_artist_genres(artist_name: str) -> List[str]:
     return ["Pop", "Rock", "Indie"]
 
 
-def _fetch_lyrics_from_genius(song_name: str, artist_name: str) -> str | None:
+def _fetch_lyrics_from_lrclib(song_name: str, artist_name: str) -> str | None:
     """
-    Search Genius for lyrics and extract the clean text.
+    Fetch plain lyrics from lrclib.net — a free, open, no-auth public lyrics API.
     """
-    print(f"[Genius] Querying lyrics for: '{song_name}' by '{artist_name}'...", flush=True)
+    print(f"[lrclib] Querying lyrics for: '{song_name}' by '{artist_name}'...", flush=True)
     try:
-        query = f"{song_name} {artist_name}".strip()
-        search_url = f"https://genius.com/api/search/multi?q={urllib.parse.quote_plus(query)}"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-        }
-        res = requests.get(search_url, headers=headers, timeout=5)
-        if res.status_code != 200:
-            print(f"[Genius] Search request failed (status {res.status_code}).", flush=True)
-            return None
-            
-        sections = res.json().get("response", {}).get("sections", [])
-        genius_url = None
-        for sec in sections:
-            hits = sec.get("hits", [])
-            for hit in hits:
-                result = hit.get("result", {})
-                if result.get("url") and "/lyrics" in result.get("url"):
-                    genius_url = result.get("url")
-                    break
-            if genius_url:
-                break
-                
-        if not genius_url:
-            print(f"[Genius] No lyrics URL found for '{song_name}' by '{artist_name}'.", flush=True)
-            return None
-            
-        print(f"[Genius] Found lyrics page URL: {genius_url}", flush=True)
-        lyric_res = requests.get(genius_url, headers=headers, timeout=5)
-        if lyric_res.status_code != 200:
-            print(f"[Genius] Failed to load lyrics page (status {lyric_res.status_code}).", flush=True)
-            return None
-            
-        import re
-        import html
-        matches = re.findall(r'<div[^>]*data-lyrics-container="true"[^>]*>(.*?)</div>', lyric_res.text, re.DOTALL)
-        if matches:
-            lyrics_html = "\n".join(matches)
-            lyrics_html = re.sub(r'<br\s*/?>', '\n', lyrics_html)
-            lyrics = re.sub(r'<[^>]+>', '', lyrics_html)
-            clean_lyrics = html.unescape(lyrics).strip()
-            print(f"[Genius] Lyrics retrieved and parsed successfully ({len(clean_lyrics)} characters).", flush=True)
-            return clean_lyrics
-            
-        legacy_match = re.search(r'<div class="lyrics"[^>]*>(.*?)</div>', lyric_res.text, re.DOTALL)
-        if legacy_match:
-            lyrics_html = legacy_match.group(1)
-            lyrics_html = re.sub(r'<br\s*/?>', '\n', lyrics_html)
-            lyrics = re.sub(r'<[^>]+>', '', lyrics_html)
-            clean_lyrics = html.unescape(lyrics).strip()
-            print(f"[Genius] Lyrics retrieved and parsed successfully via legacy selector ({len(clean_lyrics)} characters).", flush=True)
-            return clean_lyrics
-            
-        print(f"[Genius] Failed to parse lyrics from the loaded page HTML.", flush=True)
-        return None
+        params = {"track_name": song_name, "artist_name": artist_name}
+        headers = {"User-Agent": "FermataApp/1.0 (github.com/fermata-music)"}
+        res = requests.get("https://lrclib.net/api/get", params=params, headers=headers, timeout=8)
+        if res.status_code == 200:
+            data = res.json()
+            plain = data.get("plainLyrics") or ""
+            if plain.strip():
+                print(f"[lrclib] Lyrics found ({len(plain)} characters).", flush=True)
+                return plain.strip()
+            print(f"[lrclib] Response OK but no plainLyrics in payload.", flush=True)
+        elif res.status_code == 404:
+            print(f"[lrclib] Track not found in lrclib database.", flush=True)
+        else:
+            print(f"[lrclib] Request failed (status {res.status_code}).", flush=True)
     except Exception as e:
-        print(f"[Genius] Exception while fetching lyrics from Genius: {str(e)}", flush=True)
-        return None
+        print(f"[lrclib] Exception: {str(e)}", flush=True)
+    return None
+
+
+def _fetch_lyrics_from_ovh(song_name: str, artist_name: str) -> str | None:
+    """
+    Fetch plain lyrics from lyrics.ovh — a free public lyrics API, no auth required.
+    """
+    print(f"[lyrics.ovh] Querying lyrics for: '{song_name}' by '{artist_name}'...", flush=True)
+    try:
+        url = f"https://api.lyrics.ovh/v1/{urllib.parse.quote(artist_name)}/{urllib.parse.quote(song_name)}"
+        res = requests.get(url, timeout=8)
+        if res.status_code == 200:
+            lyrics = res.json().get("lyrics", "").strip()
+            if lyrics:
+                print(f"[lyrics.ovh] Lyrics found ({len(lyrics)} characters).", flush=True)
+                return lyrics
+            print(f"[lyrics.ovh] Response OK but lyrics field empty.", flush=True)
+        else:
+            print(f"[lyrics.ovh] Request failed (status {res.status_code}).", flush=True)
+    except Exception as e:
+        print(f"[lyrics.ovh] Exception: {str(e)}", flush=True)
+    return None
+
+
+def _fetch_lyrics_multi_source(song_name: str, artist_name: str) -> str | None:
+    """
+    Multi-source lyrics fetcher with 3-tier fallback:
+    1. lrclib.net (free, no auth, high coverage)
+    2. lyrics.ovh (free, no auth)
+    Returns None if all sources fail (LLM fallback is handled separately).
+    """
+    lyrics = _fetch_lyrics_from_lrclib(song_name, artist_name)
+    if lyrics:
+        return lyrics
+
+    lyrics = _fetch_lyrics_from_ovh(song_name, artist_name)
+    if lyrics:
+        return lyrics
+
+    print(f"[lyrics] All free API sources exhausted for '{song_name}' by '{artist_name}'.", flush=True)
+    return None
 
 
 def _fetch_lyrics_via_llm(song_name: str, artist_name: str) -> str:
@@ -1042,16 +1042,16 @@ def populate_track(state: AgenticState, config: RunnableConfig) -> Dict[str, Any
                 if artist_genres_list:
                     genres = ", ".join(artist_genres_list[:3])
             
-            # 1.5. Resolve Lyrics (fetch via Genius first, fallback to LLM)
+            # 1.5. Resolve Lyrics (lrclib → lyrics.ovh → LLM fallback)
             lyrics = selected_song.get("lyrics")
             if not lyrics:
                 artist_name = selected_song.get("artist", "Unknown")
-                new_logs.append(f"[Database] Fetching lyrics for '{title}' by '{artist_name}' from Genius...")
-                lyrics = _fetch_lyrics_from_genius(title, artist_name)
+                new_logs.append(f"[Database] Fetching lyrics for '{title}' by '{artist_name}'...")
+                lyrics = _fetch_lyrics_multi_source(title, artist_name)
                 if lyrics:
-                    new_logs.append(f"[Database] Successfully retrieved lyrics from Genius for '{title}'.")
+                    new_logs.append(f"[Database] Successfully retrieved lyrics for '{title}'.")
                 else:
-                    new_logs.append(f"[Database] Genius search failed/empty. Falling back to LLM...")
+                    new_logs.append(f"[LLM] Free lyrics sources returned empty. Falling back to LLM for '{title}'...")
                     lyrics = _fetch_lyrics_via_llm(title, artist_name)
             
             # 2. Retrieve the track allocated during approval, or fall back to searching by title and artist

@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useCallback, useState } from 'react'
 import { usePlayerStore } from '@/store/playerStore'
 import {
   X,
@@ -12,7 +12,11 @@ import {
   Repeat1,
   Volume2,
   VolumeX,
+  Download,
+  Languages,
+  Loader2,
 } from 'lucide-react'
+import { fetchTrackLyrics, transliterateTrackLyrics } from '@/api/tracks'
 
 function formatTime(ms: number) {
   const totalSeconds = Math.floor(ms / 1000)
@@ -38,9 +42,28 @@ export default function ExpandedPlayer() {
   const setRepeatMode = usePlayerStore((s) => s.setRepeatMode)
   const playNext = usePlayerStore((s) => s.playNext)
   const playPrevious = usePlayerStore((s) => s.playPrevious)
+  const setCurrentTrack = usePlayerStore((s) => s.setTrack)
 
   const progressBarRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
+
+  // Lyrics-fetch states
+  const [fetchingLyrics, setFetchingLyrics] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+
+  // Transliteration states
+  const [transliterating, setTransliterating] = useState(false)
+  const [transliteration, setTransliteration] = useState<string | null>(null)
+  const [showTransliteration, setShowTransliteration] = useState(false)
+  const [translitError, setTranslitError] = useState<string | null>(null)
+
+  // Reset per-track state on track change
+  useEffect(() => {
+    setTransliteration(null)
+    setShowTransliteration(false)
+    setTranslitError(null)
+    setFetchError(null)
+  }, [currentTrack?.id])
 
   const handleSeek = useCallback(
     (clientX: number) => {
@@ -87,9 +110,47 @@ export default function ExpandedPlayer() {
     setRepeatMode(modes[(idx + 1) % modes.length])
   }
 
+  const handleFetchLyrics = async () => {
+    if (!currentTrack) return
+    setFetchingLyrics(true)
+    setFetchError(null)
+    try {
+      const updated = await fetchTrackLyrics(currentTrack.id)
+      if (updated.lyrics) {
+        setCurrentTrack({ ...currentTrack, lyrics: updated.lyrics })
+      } else {
+        setFetchError('No lyrics could be found for this track.')
+      }
+    } catch {
+      setFetchError('Failed to fetch lyrics. Please try again later.')
+    } finally {
+      setFetchingLyrics(false)
+    }
+  }
+
+  const handleTransliterate = async () => {
+    if (!currentTrack) return
+    if (transliteration) {
+      setShowTransliteration((prev) => !prev)
+      return
+    }
+    setTransliterating(true)
+    setTranslitError(null)
+    try {
+      const result = await transliterateTrackLyrics(currentTrack.id)
+      setTransliteration(result.transliteration)
+      setShowTransliteration(true)
+    } catch {
+      setTranslitError('Transliteration failed. Please try again.')
+    } finally {
+      setTransliterating(false)
+    }
+  }
+
   if (!isExpanded || !currentTrack) return null
 
   const progress = durationMs > 0 ? (progressMs / durationMs) * 100 : 0
+  const hasLyrics = !!(currentTrack.lyrics && currentTrack.lyrics.trim())
 
   return (
     <div className="fixed inset-0 z-50 bg-[#121212] text-white flex flex-col animate-in slide-in-from-bottom duration-300 overflow-hidden">
@@ -226,18 +287,72 @@ export default function ExpandedPlayer() {
           </div>
         </div>
 
-        {/* Right Panel: Scrollable Lyrics */}
+        {/* Right Panel: Lyrics */}
         <div className="flex-1 flex flex-col min-w-0 bg-[#181818] rounded-2xl border border-zinc-800 p-6 md:p-8 shadow-inner max-h-[500px] md:max-h-none overflow-hidden">
-          <h2 className="text-lg font-bold text-spotify-green mb-4 flex items-center gap-2 shrink-0">
-            <Music size={18} />
-            Lyrics
-          </h2>
+          {/* Lyrics header with action buttons */}
+          <div className="flex items-center justify-between shrink-0 mb-4">
+            <h2 className="text-lg font-bold text-spotify-green flex items-center gap-2">
+              <Music size={18} />
+              Lyrics
+              {showTransliteration && (
+                <span className="text-xs font-normal text-zinc-500 ml-1">(transliterated)</span>
+              )}
+            </h2>
+
+            <div className="flex items-center gap-2">
+              {/* Transliterate: only when lyrics exist */}
+              {hasLyrics && (
+                <button
+                  onClick={handleTransliterate}
+                  disabled={transliterating}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border transition-all cursor-pointer select-none ${
+                    showTransliteration
+                      ? 'bg-spotify-green/20 border-spotify-green text-spotify-green'
+                      : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-white'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  title={showTransliteration ? 'Show original lyrics' : 'Transliterate to English phonetics'}
+                >
+                  {transliterating ? <Loader2 size={13} className="animate-spin" /> : <Languages size={13} />}
+                  {transliterating ? 'Transliterating…' : showTransliteration ? 'Original' : 'Transliterate'}
+                </button>
+              )}
+
+              {/* Fetch Lyrics: only when no lyrics */}
+              {!hasLyrics && (
+                <button
+                  onClick={handleFetchLyrics}
+                  disabled={fetchingLyrics}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full bg-spotify-green/20 border border-spotify-green text-spotify-green hover:bg-spotify-green/30 transition-all cursor-pointer select-none disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Fetch lyrics from online sources"
+                >
+                  {fetchingLyrics ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                  {fetchingLyrics ? 'Fetching…' : 'Fetch Lyrics'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Lyrics content */}
           <div className="flex-1 overflow-y-auto scrollbar-thin text-zinc-300 font-medium text-lg leading-loose pr-2 select-text whitespace-pre-line">
-            {currentTrack.lyrics ? (
-              currentTrack.lyrics
+            {hasLyrics ? (
+              <>
+                {showTransliteration && transliteration ? transliteration : currentTrack.lyrics}
+                {translitError && <p className="mt-4 text-xs text-red-400">{translitError}</p>}
+              </>
+            ) : fetchingLyrics ? (
+              <div className="h-full flex flex-col items-center justify-center gap-3 text-zinc-500">
+                <Loader2 size={32} className="animate-spin text-spotify-green" />
+                <p className="text-sm">Searching for lyrics across sources…</p>
+              </div>
+            ) : fetchError ? (
+              <div className="h-full flex flex-col items-center justify-center gap-2">
+                <p className="text-sm text-red-400">{fetchError}</p>
+                <p className="text-xs text-zinc-600">This track may not have indexed lyrics yet.</p>
+              </div>
             ) : (
-              <div className="h-full flex items-center justify-center text-zinc-500 text-sm italic">
-                Lyrics not available for this song.
+              <div className="h-full flex flex-col items-center justify-center gap-3 text-zinc-500">
+                <p className="text-sm italic">Lyrics not available for this song.</p>
+                <p className="text-xs text-zinc-600">Click “Fetch Lyrics” to search online.</p>
               </div>
             )}
           </div>
