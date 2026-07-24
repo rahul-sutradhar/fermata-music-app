@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback, useState } from 'react'
-import { Volume2, VolumeX, Music } from 'lucide-react'
+import { Volume2, VolumeX, Music, Maximize2 } from 'lucide-react'
 import { usePlayerStore } from '@/store/playerStore'
 import { getTrackAudioUrl, getTrack } from '@/api/tracks'
 import { addRecentlyPlayed, getPlayerState, updatePlayerState } from '@/api/player'
@@ -259,7 +259,7 @@ export default function NowPlayingBar() {
       <audio ref={audioRef} preload="metadata" />
 
       {/* Track Info — Left */}
-      <div className="flex items-center gap-3 min-w-0 md:w-[240px]">
+      <div className="flex items-center gap-3 min-w-0 md:w-[240px] shrink-0">
         {currentTrack.cover_url ? (
           <img
             src={currentTrack.cover_url}
@@ -271,12 +271,19 @@ export default function NowPlayingBar() {
             <Music size={18} className="text-subtext" />
           </div>
         )}
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-xs md:text-sm font-medium truncate">{currentTrack.title}</p>
           <p className="text-[10px] md:text-xs text-subtext truncate">
             {currentTrack.artist_name || 'Unknown Artist'}
           </p>
         </div>
+        <button
+          onClick={() => usePlayerStore.setState({ isExpanded: !usePlayerStore.getState().isExpanded })}
+          className="p-1.5 text-subtext hover:text-primary hover:bg-surface-highlight rounded-full transition-colors shrink-0 cursor-pointer"
+          title="Expand Screen (Lyrics & Art)"
+        >
+          <Maximize2 size={16} />
+        </button>
       </div>
 
       {/* Controls — Center */}

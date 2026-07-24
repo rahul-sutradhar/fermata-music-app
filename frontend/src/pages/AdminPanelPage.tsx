@@ -85,6 +85,7 @@ export default function AdminPanelPage() {
   const [albums, setAlbums] = useState<Album[]>([])
   const [userMap, setUserMap] = useState<Record<number, string>>({})
   const [ingestionRequests, setIngestionRequests] = useState<IngestionRequestItem[]>([])
+  const [ingestionSubTab, setIngestionSubTab] = useState<'pending' | 'retry' | 'completed' | 'exists'>('pending')
   const [approvingRequestId, setApprovingRequestId] = useState<number | null>(null)
 
   // Accordion state for albums expansion
@@ -178,43 +179,61 @@ export default function AdminPanelPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const sortIngestionRequests = (requests: IngestionRequestItem[]): IngestionRequestItem[] => {
-    const getStatusPriority = (status: string) => {
-      switch (status) {
-        case 'pending':
-        case 'processing':
-          return 1;
-        case 'completed':
-          return 2;
-        case 'rejected':
-          return 3;
-        case 'failed':
-          return 4;
-        default:
-          return 5;
-      }
+  const getSortedIngestionRequests = (): IngestionRequestItem[] => {
+    let list = [...ingestionRequests]
+    
+    // Filter by tab status
+    if (ingestionSubTab === 'pending') {
+      list = list.filter(r => r.status === 'pending' || r.status === 'processing')
+      // Ascending sort (oldest first)
+      list.sort((a, b) => {
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0
+        return timeA - timeB
+      })
+    } else if (ingestionSubTab === 'retry') {
+      list = list.filter(r => r.status === 'failed')
+      // Descending sort (newest first)
+      list.sort((a, b) => {
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0
+        return timeB - timeA
+      })
+    } else if (ingestionSubTab === 'completed') {
+      list = list.filter(r => r.status === 'completed')
+      // Descending sort (newest first)
+      list.sort((a, b) => {
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0
+        return timeB - timeA
+      })
+    } else if (ingestionSubTab === 'exists') {
+      list = list.filter(r => (r.status || '').toLowerCase() === 'exists')
+      // Descending sort (newest first)
+      list.sort((a, b) => {
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0
+        return timeB - timeA
+      })
     }
 
-    return [...requests].sort((a, b) => {
-      const priorityA = getStatusPriority(a.status)
-      const priorityB = getStatusPriority(b.status)
+    // Apply search filter
+    if (searchQ) {
+      list = list.filter(r =>
+        (r.song_name || '').toLowerCase().includes(searchQ.toLowerCase()) ||
+        (r.artist_name || '').toLowerCase().includes(searchQ.toLowerCase()) ||
+        (r.requested_by || '').toLowerCase().includes(searchQ.toLowerCase())
+      )
+    }
 
-      if (priorityA !== priorityB) {
-        return priorityA - priorityB
-      }
-
-      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0
-      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0
-
-      // Priority 1: pending/processing - ASCENDING order by date
-      if (priorityA === 1) {
-        return timeA - timeB
-      }
-
-      // Priority 2, 3, 4: completed, rejected, failed - DESCENDING order by date
-      return timeB - timeA
-    })
+    return list
   }
+
+  // Count states for sub-tabs
+  const pendingCount = ingestionRequests.filter(r => r.status === 'pending' || r.status === 'processing').length
+  const retryCount = ingestionRequests.filter(r => r.status === 'failed').length
+  const completedCount = ingestionRequests.filter(r => r.status === 'completed').length
+  const existsCount = ingestionRequests.filter(r => (r.status || '').toLowerCase() === 'exists').length
 
   const loadData = async () => {
     setLoading(true)
@@ -258,9 +277,7 @@ export default function AdminPanelPage() {
       setTracks(sortedTracks)
       setAlbums(sortedAlbums.filter(a => a.title.toLowerCase().includes(searchQ.toLowerCase())))
       setAllArtistsList(allArtistsData)
-
-      // Apply custom sorting rules to ingestion requests
-      const sortedRequests = sortIngestionRequests(allRequestsData)
+      setIngestionRequests(allRequestsData)
 
       if (activeTab === 'users') {
         setUsers(allUsers.filter(u =>
@@ -285,14 +302,6 @@ export default function AdminPanelPage() {
           )
         ))
         setArtistAccountsList(allUsers.filter(u => u.role === 'artist'))
-        setIngestionRequests(sortedRequests)
-      } else if (activeTab === 'ingestion') {
-        setIngestionRequests(sortedRequests.filter(r =>
-          r.song_name.toLowerCase().includes(searchQ.toLowerCase()) ||
-          r.artist_name.toLowerCase().includes(searchQ.toLowerCase())
-        ))
-      } else {
-        setIngestionRequests(sortedRequests)
       }
     } catch (err) {
       console.error('Failed to load admin data tab:', err)
@@ -755,7 +764,7 @@ export default function AdminPanelPage() {
             }`}
         >
           <RefreshCw size={16} />
-          Ingestion Queue ({ingestionRequests.length})
+          Ingestion Queue ({pendingCount})
         </button>
       </div>
 
@@ -770,6 +779,52 @@ export default function AdminPanelPage() {
           className="w-full pl-9 pr-4 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-primary/20 transition-colors placeholder:text-subtext/50"
         />
       </div>
+
+      {/* Sub-tabs for Ingestion Queue */}
+      {activeTab === 'ingestion' && (
+        <div className="flex gap-2 mb-6 overflow-x-auto scrollbar-none pb-1 shrink-0">
+          <button
+            onClick={() => setIngestionSubTab('pending')}
+            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+              ingestionSubTab === 'pending'
+                ? 'bg-spotify-green text-black'
+                : 'bg-surface-highlight/35 text-subtext hover:text-primary hover:bg-surface-highlight/60'
+            }`}
+          >
+            Pending ({pendingCount})
+          </button>
+          <button
+            onClick={() => setIngestionSubTab('retry')}
+            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+              ingestionSubTab === 'retry'
+                ? 'bg-spotify-green text-black'
+                : 'bg-surface-highlight/35 text-subtext hover:text-primary hover:bg-surface-highlight/60'
+            }`}
+          >
+            Retry ({retryCount})
+          </button>
+          <button
+            onClick={() => setIngestionSubTab('completed')}
+            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+              ingestionSubTab === 'completed'
+                ? 'bg-spotify-green text-black'
+                : 'bg-surface-highlight/35 text-subtext hover:text-primary hover:bg-surface-highlight/60'
+            }`}
+          >
+            Completed ({completedCount})
+          </button>
+          <button
+            onClick={() => setIngestionSubTab('exists')}
+            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+              ingestionSubTab === 'exists'
+                ? 'bg-spotify-green text-black'
+                : 'bg-surface-highlight/35 text-subtext hover:text-primary hover:bg-surface-highlight/60'
+            }`}
+          >
+            Exists ({existsCount})
+          </button>
+        </div>
+      )}
 
       {/* Loading state */}
       {loading ? (
@@ -1456,12 +1511,12 @@ export default function AdminPanelPage() {
                 <span className="text-right">Actions</span>
               </div>
               <div className="divide-y divide-surface-highlight/30">
-                {ingestionRequests.length === 0 ? (
+                {getSortedIngestionRequests().length === 0 ? (
                   <div className="py-16 text-center text-subtext text-sm">
-                    {searchQ ? 'No matching requests found' : 'No ingestion requests in the queue'}
+                    {searchQ ? 'No matching requests found' : 'No ingestion requests in this section'}
                   </div>
                 ) : (
-                  ingestionRequests.map((req, index) => (
+                  getSortedIngestionRequests().map((req, index) => (
                     <div
                       key={req.id}
                       className="grid grid-cols-[40px_1.5fr_1.2fr_1.2fr_120px_150px_100px_140px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors"

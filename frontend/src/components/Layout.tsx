@@ -3,6 +3,7 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { Home, Search, Library, X, Sun, Moon, User, Plus } from 'lucide-react'
 import Sidebar from './Sidebar'
 import NowPlayingBar from './NowPlayingBar'
+import ExpandedPlayer from './ExpandedPlayer'
 import { useAuthStore } from '@/store/authStore'
 import { useThemeStore } from '@/store/themeStore'
 
@@ -162,6 +163,7 @@ export default function Layout() {
           </button>
         </nav>
       </div>
+      <ExpandedPlayer />
     </div>
   )
 }

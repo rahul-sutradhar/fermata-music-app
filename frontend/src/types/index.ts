@@ -35,6 +35,7 @@ export interface Track {
   album_title?: string | null
   artist_id?: number | null
   artist_name?: string | null
+  lyrics?: string | null
   created_at?: string | null
   updated_at?: string | null
 }

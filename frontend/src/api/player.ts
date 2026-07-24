@@ -23,3 +23,17 @@ export function getRecentlyPlayed(skip = 0, limit = 20) {
     `/me/player/recently-played?skip=${skip}&limit=${limit}`,
   )
 }
+
+import type { Track, Album } from '@/types'
+
+export function getMostPlayedTracks(limit = 10) {
+  return apiRequest<Track[]>(`/me/player/most-played-tracks?limit=${limit}`)
+}
+
+export function getRecentlyPlayedAlbums(limit = 10) {
+  return apiRequest<Album[]>(`/me/player/recently-played-albums?limit=${limit}`)
+}
+
+export function getMostPlayedAlbums(limit = 10) {
+  return apiRequest<Album[]>(`/me/player/most-played-albums?limit=${limit}`)
+}

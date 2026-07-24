@@ -10,6 +10,7 @@ interface PlayerState {
   volume: number
   shuffle: boolean
   repeatMode: 'off' | 'context' | 'track'
+  isExpanded: boolean
 
   setTrack: (track: Track) => void
   setQueue: (tracks: Track[]) => void
@@ -32,6 +33,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   volume: 50,
   shuffle: false,
   repeatMode: 'off',
+  isExpanded: false,
 
   setTrack: (track) => set({ currentTrack: track, progressMs: 0, durationMs: track.duration_seconds ? track.duration_seconds * 1000 : 0 }),
   setQueue: (tracks) => set({ queue: tracks }),

@@ -28,6 +28,7 @@ export default function ReportMissingPage() {
   const [threadId, setThreadId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [ingestionLogs, setIngestionLogs] = useState<string[]>([])
+  const [isComplete, setIsComplete] = useState<boolean>(false)
   
   const chatEndRef = useRef<HTMLDivElement>(null)
   const setTrack = usePlayerStore((s) => s.setTrack)
@@ -38,8 +39,22 @@ export default function ReportMissingPage() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
 
-  // Initialize chatbot
+  // Initialize and load chat state from sessionStorage on mount
   useEffect(() => {
+    const cached = sessionStorage.getItem('fermata-chatbot-state')
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached)
+        setMessages(parsed.messages || [])
+        setThreadId(parsed.threadId || null)
+        setIngestionLogs(parsed.ingestionLogs || [])
+        setIsComplete(parsed.isComplete || false)
+        return
+      } catch (e) {
+        console.error('Failed to parse cached chatbot state', e)
+      }
+    }
+
     const welcomeId = Math.random().toString()
     setMessages([
       {
@@ -50,16 +65,43 @@ export default function ReportMissingPage() {
       }
     ])
 
-    // If pre-filled query from search page exists, trigger automatically
     if (prefilledQuery) {
       handleSearch(prefilledQuery)
     }
   }, [prefilledQuery])
 
+  // Save chat state to sessionStorage on state changes
+  useEffect(() => {
+    if (messages.length > 0) {
+      sessionStorage.setItem('fermata-chatbot-state', JSON.stringify({
+        messages,
+        threadId,
+        ingestionLogs,
+        isComplete
+      }))
+    }
+  }, [messages, threadId, ingestionLogs, isComplete])
+
+  // Sync completion state using a ref for cleanups
+  const isCompleteRef = useRef(isComplete)
+  useEffect(() => {
+    isCompleteRef.current = isComplete
+  }, [isComplete])
+
+  // Clear session cache if the chat was completed before navigating away
+  useEffect(() => {
+    return () => {
+      if (isCompleteRef.current) {
+        sessionStorage.removeItem('fermata-chatbot-state')
+      }
+    }
+  }, [])
+
   // Core Search Ingestion Function
   const handleSearch = async (songQuery: string) => {
     if (!songQuery.trim()) return
     setLoading(true)
+    setIsComplete(false) // Reset completion state for new search
     
     // Add user message to chat
     const userMsgId = Math.random().toString()
@@ -74,6 +116,7 @@ export default function ReportMissingPage() {
       
       const botMsgId = Math.random().toString()
       if (response.status === 'not_found' || response.candidates.length === 0) {
+        setIsComplete(true)
         setMessages((prev) => [
           ...prev,
           {
@@ -129,12 +172,37 @@ export default function ReportMissingPage() {
       ...prev,
       { id: userMsgId, sender: 'user', text: `Option: ${selectionName}` }
     ])
+
+    // Disappear candidates list and display only the selected song (or hide all if reported missing)
+    setMessages((prev) => {
+      return prev.map((m) => {
+        if (m.type === 'candidates' && m.candidates) {
+          if (candidateId === 'report_missing') {
+            if (m.candidates.some((c) => c.title !== "Ingested Track")) {
+              return {
+                ...m,
+                candidates: []
+              }
+            }
+          } else {
+            if (m.candidates.some((c) => c.id === candidateId)) {
+              return {
+                ...m,
+                candidates: m.candidates.filter((c) => c.id === candidateId)
+              }
+            }
+          }
+        }
+        return m
+      })
+    })
     
     try {
       const response = await submitCandidateSelection(threadId, candidateId)
       const botMsgId = Math.random().toString()
       
       if (response.status === 'reported') {
+        setIsComplete(true) // Session finished
         setMessages((prev) => [
           ...prev,
           {
@@ -146,14 +214,14 @@ export default function ReportMissingPage() {
           }
         ])
       } else {
+        // pending_admin_approval
         setMessages((prev) => [
           ...prev,
           {
             id: botMsgId,
             sender: 'bot',
-            text: "Request submitted successfully - Song will be available in a day.",
-            type: 'status',
-            statusType: 'success'
+            text: "Candidate selected! Ingestion request has been queued and is pending admin approval.",
+            type: 'admin_simulation'
           }
         ])
       }
@@ -196,6 +264,7 @@ export default function ReportMissingPage() {
       const finalMsgId = Math.random().toString()
       
       if (response.status === 'completed') {
+        setIsComplete(true) // Session finished
         setMessages((prev) => [
           ...prev,
           {
@@ -233,6 +302,7 @@ export default function ReportMissingPage() {
           ])
         }
       } else {
+        setIsComplete(true) // Session finished
         setMessages((prev) => [
           ...prev,
           {
@@ -361,32 +431,32 @@ export default function ReportMissingPage() {
                       return (
                         <div
                           key={cand.id}
-                          className="flex items-center gap-3 p-3 bg-black/40 rounded-xl border border-surface-highlight/20 hover:border-spotify-green/60 transition-all text-left"
+                          className="flex items-center gap-3 p-3.5 bg-[#181818] hover:bg-[#222222] rounded-xl border border-zinc-800/80 hover:border-spotify-green/50 transition-all text-left group shadow-lg"
                         >
-                          <div className="w-10 h-10 bg-zinc-800 rounded-lg shrink-0 overflow-hidden flex items-center justify-center">
+                          <div className="w-10 h-10 bg-zinc-800 rounded-lg shrink-0 overflow-hidden flex items-center justify-center border border-zinc-700/50">
                             {cand.cover_url ? (
                               <img src={cand.cover_url} alt="Cover" className="w-full h-full object-cover" />
                             ) : (
-                              <Music size={16} className="text-subtext" />
+                              <Music size={16} className="text-zinc-500" />
                             )}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-primary truncate text-xs">{cand.title}</p>
-                            <p className="text-[10px] text-subtext truncate">
+                            <p className="font-semibold text-zinc-100 group-hover:text-white truncate text-xs">{cand.title}</p>
+                            <p className="text-[10px] text-zinc-400 truncate mt-0.5">
                               {cand.artist} • {cand.album} ({cand.duration_seconds}s)
                             </p>
                           </div>
                           {isPlayCard ? (
                             <button
                               onClick={() => handlePlayIngested(cand)}
-                              className="px-3 py-1.5 bg-spotify-green hover:bg-spotify-green/80 text-black text-xs font-bold rounded-full flex items-center gap-1 shrink-0"
+                              className="px-4 py-2 bg-spotify-green hover:bg-[#1ed760] text-black text-xs font-extrabold rounded-full flex items-center gap-1.5 shrink-0 shadow transition-all hover:scale-[1.04]"
                             >
                               <Play size={12} fill="black" /> Play
                             </button>
                           ) : (
                             <button
                               onClick={() => handleSelectSong(cand.id, cand.title)}
-                              className="px-3 py-1.5 bg-spotify-green hover:bg-spotify-green/80 text-black text-xs font-bold rounded-full shrink-0"
+                              className="px-4 py-2 bg-spotify-green hover:bg-[#1ed760] text-black text-xs font-extrabold rounded-full shrink-0 shadow transition-all hover:scale-[1.04]"
                             >
                               Ingest
                             </button>
@@ -399,7 +469,7 @@ export default function ReportMissingPage() {
                     {msg.candidates[0]?.title !== "Ingested Track" && (
                       <button
                         onClick={() => handleSelectSong('report_missing', 'Report Missing Song')}
-                        className="w-full py-2.5 bg-red-950/20 hover:bg-red-950/40 text-red-400 border border-red-900/30 hover:border-red-500/50 text-xs font-semibold rounded-xl transition-all"
+                        className="w-full py-2.5 bg-[#281515] hover:bg-[#3d1a1a] text-red-400 border border-red-900/40 hover:border-red-500/50 text-xs font-bold rounded-xl transition-all hover:scale-[1.01]"
                       >
                         Option 11: None of these match - File a Missing Song Report
                       </button>

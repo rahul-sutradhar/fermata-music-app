@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { usePlayerStore } from '@/store/playerStore'
-import { getRecentlyPlayed } from '@/api/player'
+import { getRecentlyPlayed, getMostPlayedTracks, getRecentlyPlayedAlbums, getMostPlayedAlbums } from '@/api/player'
 import { getTrack, listTracks } from '@/api/tracks'
 import { getMyPlaylists } from '@/api/playlists'
 import { listAlbums } from '@/api/albums'
@@ -21,6 +21,8 @@ export default function HomePage() {
   const [mostPlayedTracks, setMostPlayedTracks] = useState<Track[]>([])
   const [allTracks, setAllTracks] = useState<Track[]>([])
   const [albums, setAlbums] = useState<Album[]>([])
+  const [recentAlbums, setRecentAlbums] = useState<Album[]>([])
+  const [mostPlayedAlbums, setMostPlayedAlbums] = useState<Album[]>([])
   const [playlists, setPlaylists] = useState<Playlist[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -35,18 +37,33 @@ export default function HomePage() {
         setAllTracks(tracksData)
         setAlbums(albumsData)
 
-        // Mock most played tracks (first 5 tracks)
+        // Set default fallbacks if not logged in
         setMostPlayedTracks(tracksData.slice(0, 5))
+        setRecentAlbums(albumsData.slice(0, 6))
+        setMostPlayedAlbums(albumsData.slice(0, 6))
 
         if (token) {
-          // Load recent + playlists for logged-in users
-          const [recent, pls] = await Promise.all([
+          // Load recent + playlists + top metrics for logged-in users
+          const [recent, pls, topTracks, topAlbums, recAlbums] = await Promise.all([
             getRecentlyPlayed(0, 12),
             getMyPlaylists(),
+            getMostPlayedTracks(5).catch(() => []),
+            getMostPlayedAlbums(6).catch(() => []),
+            getRecentlyPlayedAlbums(6).catch(() => []),
           ])
           setPlaylists(pls)
+          
+          if (topTracks.length > 0) {
+            setMostPlayedTracks(topTracks)
+          }
+          if (topAlbums.length > 0) {
+            setMostPlayedAlbums(topAlbums)
+          }
+          if (recAlbums.length > 0) {
+            setRecentAlbums(recAlbums)
+          }
 
-          // Resolve track details for recently played (in-memory lookup first to avoid extra HTTP calls)
+          // Resolve track details for recently played
           const trackMap = new Map(tracksData.map((t) => [t.id, t]))
           const trackDetails = await Promise.all(
             recent.slice(0, 8).map((r) => {
@@ -106,11 +123,19 @@ export default function HomePage() {
                 }}
                 className="flex items-center gap-3 bg-surface-highlight/40 hover:bg-surface-highlight/95 rounded-md overflow-hidden transition-all duration-200 group text-left p-0 border border-transparent hover:border-surface-highlight cursor-pointer"
               >
-                <div className="w-16 h-16 bg-surface-highlight flex items-center justify-center shrink-0">
-                  <span className="text-subtext text-lg font-bold">
-                    {track.title.charAt(0).toUpperCase()}
-                  </span>
-                </div>
+                {track.cover_url ? (
+                  <img
+                    src={track.cover_url}
+                    alt={track.title}
+                    className="w-16 h-16 object-cover shrink-0"
+                  />
+                ) : (
+                  <div className="w-16 h-16 bg-surface-highlight flex items-center justify-center shrink-0">
+                    <span className="text-subtext text-lg font-bold">
+                      {track.title.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                )}
                 <div className="min-w-0 pr-3">
                   <p className="text-sm font-semibold truncate text-primary group-hover:text-spotify-green transition-colors">{track.title}</p>
                   <p className="text-xs text-subtext truncate mt-0.5">{track.artist_name || 'Unknown Artist'}</p>
@@ -134,32 +159,33 @@ export default function HomePage() {
       {/* Albums Grids */}
       {albums.length > 0 && (
         <>
-          <CardGrid title="Recently Played Albums">
-            {albums.slice(0, 6).map((album) => (
-              <Card
-                key={album.id}
-                title={album.title}
-                subtitle={album.artist_name || 'Various Artists'}
-                imageUrl={album.cover_url}
-                href={`/album/${album.id}`}
-                onPlay={() => {
-                  // Play album tracks directly (handled inside Card click/play on Home)
-                }}
-              />
-            ))}
-          </CardGrid>
+          {recentAlbums.length > 0 && (
+            <CardGrid title="Recently Played Albums">
+              {recentAlbums.map((album) => (
+                <Card
+                  key={album.id}
+                  title={album.title}
+                  subtitle={album.artist_name || 'Various Artists'}
+                  imageUrl={album.cover_url}
+                  href={`/album/${album.id}`}
+                />
+              ))}
+            </CardGrid>
+          )}
 
-          <CardGrid title="Most Played Albums">
-            {albums.slice(2, 8).map((album) => (
-              <Card
-                key={album.id}
-                title={album.title}
-                subtitle={album.artist_name || 'Various Artists'}
-                imageUrl={album.cover_url}
-                href={`/album/${album.id}`}
-              />
-            ))}
-          </CardGrid>
+          {mostPlayedAlbums.length > 0 && (
+            <CardGrid title="Most Played Albums">
+              {mostPlayedAlbums.map((album) => (
+                <Card
+                  key={album.id}
+                  title={album.title}
+                  subtitle={album.artist_name || 'Various Artists'}
+                  imageUrl={album.cover_url}
+                  href={`/album/${album.id}`}
+                />
+              ))}
+            </CardGrid>
+          )}
         </>
       )}
 
