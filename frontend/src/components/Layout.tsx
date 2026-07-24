@@ -36,7 +36,7 @@ export default function Layout() {
           title="Open Menu"
         >
           {token && user ? (
-            user.username.charAt(0).toUpperCase()
+            (user.full_name || user.username).charAt(0).toUpperCase()
           ) : (
             <User size={18} className="text-subtext" />
           )}

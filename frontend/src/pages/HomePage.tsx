@@ -104,7 +104,7 @@ export default function HomePage() {
       {/* Greeting */}
       <div>
         <h1 className="text-3xl font-extrabold tracking-tight mb-1">
-          {token && user ? `${greeting()}, ${user.username}` : greeting()}
+          {token && user ? `${greeting()}, ${user.full_name || user.username}` : greeting()}
         </h1>
         <p className="text-sm text-subtext">Welcome back to your personalized soundstage</p>
       </div>

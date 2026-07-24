@@ -2,6 +2,7 @@ export interface User {
   id: number
   username: string
   email: string
+  full_name?: string | null
   role?: 'user' | 'artist' | 'admin'
   created_at?: string | null
   updated_at?: string | null

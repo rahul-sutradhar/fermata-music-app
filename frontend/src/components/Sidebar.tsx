@@ -254,7 +254,7 @@ export default function Sidebar() {
           <>
             <NavLink to="/profile" className={linkClass}>
               <User size={18} />
-              {user.username}
+              {user.full_name || user.username}
             </NavLink>
             {(user.role === 'artist' || user.role === 'admin') && (
               <NavLink to="/artist-studio" className={linkClass}>
