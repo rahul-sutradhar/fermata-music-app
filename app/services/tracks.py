@@ -191,7 +191,7 @@ def upload_track_audio(
 
     # 3. Upload generated HLS files to B2
     hls_playlist_key = f"tracks/{track.id}/hls/playlist.m3u8"
-    hls_key_key = f"tracks/{track.id}/hls/encryption.key"
+    hls_key_key = f"tracks/{track.id}/hls/enc.key"
 
     try:
         for fname in os.listdir(temp_hls_dir):
@@ -202,7 +202,7 @@ def upload_track_audio(
             if fname == "playlist.m3u8":
                 b2_key = hls_playlist_key
                 content_type = "application/x-mpegURL"
-            elif fname == "enc.key":
+            elif fname == hls_result["key_name"]:  # enc.key — exactly what ffmpeg produced
                 b2_key = hls_key_key
                 content_type = "application/octet-stream"
             elif fname.endswith(".ts"):
