@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     # Health Check Token
     health_check_token: str | None = None
 
+    # Mistral AI (used for lyrics LLM fallback and transliteration)
+    mistral_api_key: str | None = None
+    mistral_model: str = "mistral-large-latest"
+
 
 @lru_cache
 def get_settings() -> Settings:

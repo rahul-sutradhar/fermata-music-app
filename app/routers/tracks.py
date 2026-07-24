@@ -209,6 +209,9 @@ def fetch_track_lyrics(track_id: int, db: DbSession) -> TrackResponse:
     """
     import urllib.parse
     import requests as req_lib
+    import logging
+
+    logger = logging.getLogger(__name__)
 
     track = db.get(Track, track_id)
     if track is None:
@@ -216,6 +219,7 @@ def fetch_track_lyrics(track_id: int, db: DbSession) -> TrackResponse:
 
     song_name = track.title
     artist_name = track.artist_name or ""
+    logger.info(f"[lyrics] Fetching lyrics for track_id={track_id} title={song_name!r} artist={artist_name!r}")
 
     # --- Tier 1: lrclib.net ---
     try:
@@ -226,6 +230,7 @@ def fetch_track_lyrics(track_id: int, db: DbSession) -> TrackResponse:
             headers={"User-Agent": "FermataApp/1.0"},
             timeout=8,
         )
+        logger.info(f"[lyrics][lrclib] status={r.status_code}")
         if r.status_code == 200:
             plain = (r.json().get("plainLyrics") or "").strip()
             if plain:
@@ -233,13 +238,17 @@ def fetch_track_lyrics(track_id: int, db: DbSession) -> TrackResponse:
                 db.commit()
                 db.refresh(track)
                 return _track_to_response(track)
-    except Exception:
-        pass
+            logger.info("[lyrics][lrclib] No plainLyrics in response payload.")
+        else:
+            logger.warning(f"[lyrics][lrclib] Non-200 response: {r.status_code} — {r.text[:200]}")
+    except Exception as e:
+        logger.warning(f"[lyrics][lrclib] Exception: {e}")
 
     # --- Tier 2: lyrics.ovh ---
     try:
         url = f"https://api.lyrics.ovh/v1/{urllib.parse.quote(artist_name)}/{urllib.parse.quote(song_name)}"
         r = req_lib.get(url, timeout=8)
+        logger.info(f"[lyrics][ovh] status={r.status_code}")
         if r.status_code == 200:
             lyrics = (r.json().get("lyrics") or "").strip()
             if lyrics:
@@ -247,17 +256,18 @@ def fetch_track_lyrics(track_id: int, db: DbSession) -> TrackResponse:
                 db.commit()
                 db.refresh(track)
                 return _track_to_response(track)
-    except Exception:
-        pass
+            logger.info("[lyrics][ovh] lyrics field empty in response.")
+        else:
+            logger.warning(f"[lyrics][ovh] Non-200 response: {r.status_code}")
+    except Exception as e:
+        logger.warning(f"[lyrics][ovh] Exception: {e}")
 
     # --- Tier 3: Mistral LLM ---
-    mistral_key = settings.MISTRAL_API_KEY if hasattr(settings, "MISTRAL_API_KEY") else None
-    if mistral_key:
+    if settings.mistral_api_key:
         try:
             from langchain_mistralai import ChatMistralAI
             from langchain_core.messages import HumanMessage
-            import os
-            llm = ChatMistralAI(model=os.getenv("MISTRAL_MODEL", "mistral-large-latest"), temperature=0.1)
+            llm = ChatMistralAI(model=settings.mistral_model, api_key=settings.mistral_api_key, temperature=0.1)
             prompt = (
                 f"Retrieve the complete and accurate lyrics for the song '{song_name}' by '{artist_name}'.\n"
                 "Output ONLY the lyrics — no introductory text, no explanations, no chords.\n"
@@ -266,13 +276,16 @@ def fetch_track_lyrics(track_id: int, db: DbSession) -> TrackResponse:
             )
             response = llm.invoke([HumanMessage(content=prompt)])
             result = response.content.strip()
+            logger.info(f"[lyrics][llm] LLM responded ({len(result)} chars)")
             if result and "lyrics not found" not in result.lower():
                 track.lyrics = result
                 db.commit()
                 db.refresh(track)
                 return _track_to_response(track)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"[lyrics][llm] Exception: {e}")
+    else:
+        logger.info("[lyrics][llm] Skipping LLM tier — MISTRAL_API_KEY not set in settings.")
 
     raise HTTPException(status_code=503, detail="Could not fetch lyrics from any available source.")
 
@@ -295,15 +308,13 @@ def transliterate_track_lyrics(track_id: int, db: DbSession) -> dict:
     if not track.lyrics or not track.lyrics.strip():
         raise HTTPException(status_code=422, detail="Track has no lyrics to transliterate.")
 
-    mistral_key = settings.MISTRAL_API_KEY if hasattr(settings, "MISTRAL_API_KEY") else None
-    if not mistral_key:
+    if not settings.mistral_api_key:
         raise HTTPException(status_code=503, detail="Mistral API not configured for transliteration.")
 
     try:
         from langchain_mistralai import ChatMistralAI
         from langchain_core.messages import HumanMessage
-        import os
-        llm = ChatMistralAI(model=os.getenv("MISTRAL_MODEL", "mistral-large-latest"), temperature=0.1)
+        llm = ChatMistralAI(model=settings.mistral_model, api_key=settings.mistral_api_key, temperature=0.1)
         prompt = (
             "You are a phonetic transliteration assistant.\n"
             "Transliterate the following song lyrics from their native script (e.g., Bengali, Hindi, Tamil, Telugu, Kannada, Malayalam) "
