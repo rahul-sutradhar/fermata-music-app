@@ -32,7 +32,7 @@ def transcode_to_hls(input_file_path: str, track_id: int) -> Dict[str, Any]:
     # Format of key info file:
     # Line 1: Key URI (the URL the player calls to fetch the key)
     # Line 2: Path to the key file on disk
-    key_uri = f"{settings.backend_url.rstrip('/')}/api/v1/tracks/{track_id}/key"
+    key_uri = f"{settings.backend_url.rstrip('/')}/tracks/{track_id}/key"
     with open(key_info_path, "w", encoding="utf-8") as f:
         f.write(f"{key_uri}\n")
         f.write(f"{key_file_path}\n")
