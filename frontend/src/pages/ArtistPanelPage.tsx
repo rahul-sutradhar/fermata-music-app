@@ -43,10 +43,14 @@ function formatDate(dateStr?: string | null): string {
   try {
     const d = new Date(dateStr)
     if (isNaN(d.getTime())) return '—'
-    return d.toLocaleDateString(undefined, {
+    return d.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
       year: 'numeric',
       month: 'short',
       day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
     })
   } catch {
     return '—'
