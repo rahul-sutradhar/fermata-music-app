@@ -288,45 +288,79 @@ def run_ingestion_background(request_id: int, thread_id: str, db_url: str):
         db.close()
 
 
-@router.post("/requests/{request_id}/approve")
-def approve_ingestion_request(
-    request_id: int, 
-    db: DbSession, 
-    current_admin: CurrentAdmin
-):
-    """
-    Approve ingestion request with Postgres row-level locking (Admin only).
-    Runs ingestion synchronously using the active DB session to prevent Render Free Tier from freezing.
-    """
-    # 1. Lock the row for update immediately (binary lock)
-    db_req = db.scalar(
-        select(IngestionRequest)
-        .where(IngestionRequest.id == request_id)
-        .with_for_update()
-    )
-    if not db_req:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found.")
+
+# --- Ingestion Worker Logic ---
+_worker_thread = None
+_stop_worker_event = threading.Event()
+
+def start_ingestion_worker():
+    global _worker_thread
+    if _worker_thread is not None and _worker_thread.is_alive():
+        return
         
-    if db_req.status not in ["pending", "failed"]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail="This request is already being processed or completed."
-        )
-        
-    # 2. Acquire lock and set status to processing
-    db_req.status = "processing"
-    db.commit()
+    _stop_worker_event.clear()
+    _worker_thread = threading.Thread(target=_worker_loop, daemon=True, name="IngestionQueueWorker")
+    _worker_thread.start()
+    print("[Ingestion Worker] Sequential background ingestion queue worker started.", flush=True)
+
+def stop_ingestion_worker():
+    _stop_worker_event.set()
+    if _worker_thread:
+        _worker_thread.join(timeout=2)
+        print("[Ingestion Worker] Sequential background ingestion queue worker stopped.", flush=True)
+
+def _worker_loop():
+    from app.db.session import SessionLocal
+    import time
     
-    # 3. Execute synchronously using the active DB session (to bypass transient checkpointer issues)
+    while not _stop_worker_event.is_set():
+        session = SessionLocal()
+        try:
+            # Query next request in status "queued"
+            db_req = session.scalar(
+                select(IngestionRequest)
+                .where(IngestionRequest.status == "queued")
+                .order_by(IngestionRequest.created_at.asc())
+            )
+            if db_req:
+                # Update status to processing and commit immediately to lock the job
+                db_req.status = "processing"
+                session.commit()
+                
+                request_id = db_req.id
+                print(f"[Ingestion Worker] Picked up Request ID {request_id} for processing.", flush=True)
+                
+                try:
+                    _execute_ingestion(session, request_id)
+                except Exception as ex:
+                    print(f"[Ingestion Worker ERROR] Failed to process Request ID {request_id}: {ex}", flush=True)
+            else:
+                session.close()
+                time.sleep(3)
+                continue
+        except Exception as e:
+            print(f"[Ingestion Worker] Loop exception: {e}", flush=True)
+            time.sleep(4)
+        finally:
+            try:
+                session.close()
+            except Exception:
+                pass
+
+def _execute_ingestion(db: DbSession, request_id: int):
+    from app.models.track import Track
+    from app.models.artist import Artist
+    from app.models.album import Album
+    from sqlalchemy import or_
+    from agentic_ai.src.nodes import _split_artist_names
+
+    db_req = db.scalar(select(IngestionRequest).where(IngestionRequest.id == request_id))
+    if not db_req:
+        print(f"[Ingestion Task ERROR] Request ID {request_id} not found in DB.", flush=True)
+        return
+
     print(f"[Ingestion Task] Starting ingestion flow for Request ID: {db_req.id}", flush=True)
     try:
-        from app.models.track import Track
-        from app.models.artist import Artist
-        from app.models.album import Album
-        from sqlalchemy import or_
-        
-        from agentic_ai.src.nodes import _split_artist_names
-        
         # Parse requested artist names into a clean list
         requested_artist_names = _split_artist_names(db_req.artist_name)
         if not requested_artist_names:
@@ -350,7 +384,7 @@ def approve_ingestion_request(
             db_req.status = "Exists"
             db.commit()
             print(f"[Ingestion Task Short-Circuit] Song '{db_req.song_name}' by '{db_req.artist_name}' already exists in DB (ID: {existing_track.id}). Skipping ingestion.", flush=True)
-            return {"message": "Track already exists in the database.", "status": "Exists"}
+            return
         
         # Allocate Track
         db_track = Track(
@@ -391,7 +425,7 @@ def approve_ingestion_request(
         print(f"[Ingestion Task] Executing download_and_upload_audio...", flush=True)
         audio_res = download_and_upload_audio(state)
         
-        # Check if the audio download encountered any error (to fail fast and clean up catalog/S3)
+        # Check if the audio download encountered any error
         has_audio_error = any("Branch A Error" in log for log in audio_res.get("logs", []))
         if has_audio_error:
             err_log = next((log for log in audio_res.get("logs", []) if "Branch A Error" in log), "Audio download failed")
@@ -496,23 +530,19 @@ def approve_ingestion_request(
         except Exception:
             pass
             
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Ingestion failed: {str(e)}"
-        )
-    
-    # Free heavy ingestion objects (yt-dlp buffers, boto3 sessions, PIL images)
-    # gc.collect() returns memory to the OS immediately after the ingestion run.
-    gc.collect()
-    print("[Ingestion] Post-ingestion GC complete. Memory released.", flush=True)
-
-    return {"message": "Request approved and processed."}
+    finally:
+        gc.collect()
+        print("[Ingestion] Post-ingestion GC complete. Memory released.", flush=True)
 
 
-@router.post("/requests/{request_id}/reject")
-def reject_ingestion_request(request_id: int, db: DbSession, current_admin: CurrentAdmin):
+@router.post("/requests/{request_id}/approve")
+def approve_ingestion_request(
+    request_id: int, 
+    db: DbSession, 
+    current_admin: CurrentAdmin
+):
     """
-    Reject ingestion request (Admin only).
+    Approve ingestion request and put it in the background queue.
     """
     db_req = db.scalar(
         select(IngestionRequest)
@@ -522,10 +552,41 @@ def reject_ingestion_request(request_id: int, db: DbSession, current_admin: Curr
     if not db_req:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found.")
         
-    if db_req.status != "pending":
+    if db_req.status not in ["pending", "failed"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
-            detail="This request is already being processed or completed."
+            detail="This request is already in queue, processing, or completed."
+        )
+        
+    db_req.status = "queued"
+    db.commit()
+    
+    return {"message": "Request successfully queued for ingestion.", "status": "queued"}
+
+
+@router.post("/requests/{request_id}/reject")
+def reject_ingestion_request(request_id: int, db: DbSession, current_admin: CurrentAdmin):
+    """
+    Reject / Cancel ingestion request (Admin only).
+    """
+    db_req = db.scalar(
+        select(IngestionRequest)
+        .where(IngestionRequest.id == request_id)
+        .with_for_update()
+    )
+    if not db_req:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found.")
+        
+    if db_req.status == "processing":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="Cannot reject a request that is actively being processed."
+        )
+        
+    if db_req.status not in ["pending", "failed", "queued"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="This request is already processed, completed, or rejected."
         )
         
     db_req.status = "rejected"
@@ -537,16 +598,25 @@ def reject_ingestion_request(request_id: int, db: DbSession, current_admin: Curr
 @router.delete("/requests/{request_id}")
 def delete_ingestion_request(request_id: int, db: DbSession, current_admin: CurrentAdmin):
     """
-    Delete / remove an ingestion request from the queue (Admin only).
+    Cancel / Reject / Remove an ingestion request from the queue (Admin only).
+    Instead of deleting from DB, sets status to 'rejected' so it appears in the 'Rejected' tab.
     """
     db_req = db.scalar(
         select(IngestionRequest)
         .where(IngestionRequest.id == request_id)
+        .with_for_update()
     )
     if not db_req:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found.")
         
-    db.delete(db_req)
+    if db_req.status == "processing":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="Cannot cancel/delete a request that is actively being processed."
+        )
+        
+    db_req.status = "rejected"
     db.commit()
     
-    return {"message": "Request deleted successfully from queue."}
+    return {"message": "Request cancelled and moved to Rejected tab."}
+

@@ -52,7 +52,22 @@ async def lifespan(app: FastAPI):
             print(f"[Startup Repair Warning] Admin self-healing warning: {repair_exc}", flush=True)
     except Exception as exc:
         print(f"Alembic auto-migration startup warning: {exc}")
+
+    # Start the sequential background ingestion queue worker thread
+    try:
+        from app.routers.agentic_ingest import start_ingestion_worker
+        start_ingestion_worker()
+    except Exception as worker_exc:
+        print(f"[Lifespan Startup Error] Failed to start Ingestion Queue Worker: {worker_exc}", flush=True)
+
     yield
+
+    # Stop the worker thread on shutdown
+    try:
+        from app.routers.agentic_ingest import stop_ingestion_worker
+        stop_ingestion_worker()
+    except Exception as worker_stop_exc:
+        print(f"[Lifespan Shutdown Error] Failed to stop Ingestion Queue Worker: {worker_stop_exc}", flush=True)
 
 
 

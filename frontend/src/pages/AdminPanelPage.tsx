@@ -89,7 +89,7 @@ export default function AdminPanelPage() {
   const [albums, setAlbums] = useState<Album[]>([])
   const [userMap, setUserMap] = useState<Record<number, string>>({})
   const [ingestionRequests, setIngestionRequests] = useState<IngestionRequestItem[]>([])
-  const [ingestionSubTab, setIngestionSubTab] = useState<'pending' | 'retry' | 'completed' | 'exists'>('pending')
+  const [ingestionSubTab, setIngestionSubTab] = useState<'pending' | 'retry' | 'completed' | 'exists' | 'rejected'>('pending')
   const [approvingRequestId, setApprovingRequestId] = useState<number | null>(null)
 
   // Accordion state for albums expansion
@@ -205,7 +205,7 @@ export default function AdminPanelPage() {
     
     // Filter by tab status (only when search query is empty)
     if (ingestionSubTab === 'pending') {
-      list = list.filter(r => r.status === 'pending' || r.status === 'processing')
+      list = list.filter(r => r.status === 'pending' || r.status === 'processing' || r.status === 'queued')
       // Ascending sort (oldest first)
       list.sort((a, b) => {
         const timeA = a.created_at ? new Date(a.created_at).getTime() : 0
@@ -236,16 +236,25 @@ export default function AdminPanelPage() {
         const timeB = b.created_at ? new Date(b.created_at).getTime() : 0
         return timeB - timeA
       })
+    } else if (ingestionSubTab === 'rejected') {
+      list = list.filter(r => r.status === 'rejected')
+      // Descending sort (newest first)
+      list.sort((a, b) => {
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0
+        return timeB - timeA
+      })
     }
 
     return list
   }
 
   // Count states for sub-tabs
-  const pendingCount = ingestionRequests.filter(r => r.status === 'pending' || r.status === 'processing').length
+  const pendingCount = ingestionRequests.filter(r => r.status === 'pending' || r.status === 'processing' || r.status === 'queued').length
   const retryCount = ingestionRequests.filter(r => r.status === 'failed').length
   const completedCount = ingestionRequests.filter(r => r.status === 'completed').length
   const existsCount = ingestionRequests.filter(r => (r.status || '').toLowerCase() === 'exists').length
+  const rejectedCount = ingestionRequests.filter(r => r.status === 'rejected').length
 
   const loadData = async () => {
     setLoading(true)
@@ -325,6 +334,27 @@ export default function AdminPanelPage() {
   useEffect(() => {
     loadData()
   }, [activeTab, searchQ])
+
+  // Poll ingestion requests every 4 seconds if tab is active and there are queued or processing requests
+  useEffect(() => {
+    if (activeTab !== 'ingestion') return
+
+    const hasActiveTasks = ingestionRequests.some(
+      (r) => r.status === 'queued' || r.status === 'processing'
+    )
+    if (!hasActiveTasks) return
+
+    const interval = setInterval(async () => {
+      try {
+        const allRequestsData = await listIngestionRequests()
+        setIngestionRequests(allRequestsData)
+      } catch (err) {
+        console.error('Failed to poll ingestion requests:', err)
+      }
+    }, 4000)
+
+    return () => clearInterval(interval)
+  }, [activeTab, ingestionRequests])
 
   // Play track helper
   const handlePlayTrack = (track: Track, trackList: Track[], e?: React.MouseEvent) => {
@@ -834,6 +864,16 @@ export default function AdminPanelPage() {
             }`}
           >
             Exists ({existsCount})
+          </button>
+          <button
+            onClick={() => setIngestionSubTab('rejected')}
+            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+              ingestionSubTab === 'rejected'
+                ? 'bg-spotify-green text-black'
+                : 'bg-surface-highlight/35 text-subtext hover:text-primary hover:bg-surface-highlight/60'
+            }`}
+          >
+            Rejected ({rejectedCount})
           </button>
         </div>
       )}
@@ -1588,13 +1628,15 @@ export default function AdminPanelPage() {
                                   ? 'bg-spotify-green/20 text-spotify-green'
                                   : dsLower === 'processing'
                                     ? 'bg-blue-500/20 text-blue-400 animate-pulse'
-                                    : dsLower === 'pending'
-                                      ? 'bg-amber-500/20 text-amber-400 animate-pulse'
-                                      : dsLower === 'rejected'
-                                        ? 'bg-red-500/20 text-red-400'
-                                        : dsLower === 'exists'
-                                          ? 'bg-purple-500/25 text-purple-400 border border-purple-500/20'
-                                          : 'bg-zinc-700 text-zinc-300'
+                                    : dsLower === 'queued'
+                                      ? 'bg-cyan-500/20 text-cyan-400 animate-pulse'
+                                      : dsLower === 'pending'
+                                        ? 'bg-amber-500/20 text-amber-400 animate-pulse'
+                                        : dsLower === 'rejected'
+                                          ? 'bg-red-500/20 text-red-400'
+                                          : dsLower === 'exists'
+                                            ? 'bg-purple-500/25 text-purple-400 border border-purple-500/20'
+                                            : 'bg-zinc-700 text-zinc-300'
                               }`}
                             >
                               {displayStatus}
@@ -1634,6 +1676,12 @@ export default function AdminPanelPage() {
                                 </button>
                               </>
                             )}
+                            {req.status === 'queued' && (
+                              <div className="flex items-center gap-1.5 text-xs text-subtext mr-1">
+                                <RefreshCw size={12} className="animate-spin text-cyan-400" />
+                                Queued...
+                              </div>
+                            )}
                             {req.status === 'processing' && (
                               <div className="flex items-center gap-1.5 text-xs text-subtext mr-1">
                                 <RefreshCw size={12} className="animate-spin text-spotify-green" />
@@ -1651,21 +1699,23 @@ export default function AdminPanelPage() {
                                 Retry
                               </button>
                             )}
-                            {req.status !== 'pending' && req.status !== 'processing' && req.status !== 'failed' && (
+                            {req.status !== 'pending' && req.status !== 'queued' && req.status !== 'processing' && req.status !== 'failed' && (
                               <span className="text-xs text-subtext uppercase font-semibold mr-1">Processed</span>
                             )}
                             
-                            {/* Always show a delete/trash button for queue cleanup */}
-                            <button
-                              onClick={(e) => handleDeleteRequest(req.id, e)}
-                              disabled={approvingRequestId !== null}
-                              className={`p-1.5 rounded-md text-subtext hover:text-red-400 hover:bg-surface-highlight transition-colors ${
-                                approvingRequestId !== null ? 'opacity-50 cursor-not-allowed' : ''
-                              }`}
-                              title="Delete Request"
-                            >
-                              <Trash2 size={13} />
-                            </button>
+                            {/* Always show a delete/trash button for queue cleanup (except when actively processing) */}
+                            {req.status !== 'processing' && (
+                              <button
+                                onClick={(e) => handleDeleteRequest(req.id, e)}
+                                disabled={approvingRequestId !== null}
+                                className={`p-1.5 rounded-md text-subtext hover:text-red-400 hover:bg-surface-highlight transition-colors ${
+                                  approvingRequestId !== null ? 'opacity-50 cursor-not-allowed' : ''
+                                }`}
+                                title="Delete Request"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
                           </>
                         )}
                       </div>
