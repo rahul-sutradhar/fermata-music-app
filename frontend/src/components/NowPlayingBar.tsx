@@ -145,8 +145,8 @@ export default function NowPlayingBar() {
 
         const isHls = url.includes('.m3u8')
 
-        if (isHls && !audio!.canPlayType('application/vnd.apple.mpegurl')) {
-          // Use hls.js for browsers without native HLS support (Chrome/Firefox/Edge)
+        if (isHls && Hls.isSupported()) {
+          // Use hls.js for all browsers that support Media Source Extensions (Chrome/Firefox/Edge)
           const hls = new Hls({
             xhrSetup: (xhr, xhrUrl) => {
               console.log('[HLS xhrSetup] Requesting URL:', xhrUrl)
