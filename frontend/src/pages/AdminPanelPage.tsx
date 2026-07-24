@@ -181,8 +181,25 @@ export default function AdminPanelPage() {
 
   const getSortedIngestionRequests = (): IngestionRequestItem[] => {
     let list = [...ingestionRequests]
+
+    // If a search query is active, search across ALL ingestion requests (bypassing subtabs)
+    if (searchQ.trim()) {
+      const q = searchQ.toLowerCase()
+      list = list.filter(r =>
+        (r.song_name || '').toLowerCase().includes(q) ||
+        (r.artist_name || '').toLowerCase().includes(q) ||
+        (r.requested_by || '').toLowerCase().includes(q)
+      )
+      // Sort newest first for general search results
+      list.sort((a, b) => {
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0
+        return timeB - timeA
+      })
+      return list
+    }
     
-    // Filter by tab status
+    // Filter by tab status (only when search query is empty)
     if (ingestionSubTab === 'pending') {
       list = list.filter(r => r.status === 'pending' || r.status === 'processing')
       // Ascending sort (oldest first)
@@ -215,15 +232,6 @@ export default function AdminPanelPage() {
         const timeB = b.created_at ? new Date(b.created_at).getTime() : 0
         return timeB - timeA
       })
-    }
-
-    // Apply search filter
-    if (searchQ) {
-      list = list.filter(r =>
-        (r.song_name || '').toLowerCase().includes(searchQ.toLowerCase()) ||
-        (r.artist_name || '').toLowerCase().includes(searchQ.toLowerCase()) ||
-        (r.requested_by || '').toLowerCase().includes(searchQ.toLowerCase())
-      )
     }
 
     return list
@@ -781,7 +789,7 @@ export default function AdminPanelPage() {
       </div>
 
       {/* Sub-tabs for Ingestion Queue */}
-      {activeTab === 'ingestion' && (
+      {activeTab === 'ingestion' && !searchQ.trim() && (
         <div className="flex gap-2 mb-6 overflow-x-auto scrollbar-none pb-1 shrink-0">
           <button
             onClick={() => setIngestionSubTab('pending')}
@@ -1568,18 +1576,21 @@ export default function AdminPanelPage() {
                       <div>
                         {(() => {
                           const displayStatus = approvingRequestId === req.id ? 'processing' : req.status
+                          const dsLower = (displayStatus || '').toLowerCase()
                           return (
                             <span
                               className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase transition-all duration-300 ${
-                                displayStatus === 'completed'
+                                dsLower === 'completed'
                                   ? 'bg-spotify-green/20 text-spotify-green'
-                                  : displayStatus === 'processing'
+                                  : dsLower === 'processing'
                                     ? 'bg-blue-500/20 text-blue-400 animate-pulse'
-                                    : displayStatus === 'pending'
+                                    : dsLower === 'pending'
                                       ? 'bg-amber-500/20 text-amber-400 animate-pulse'
-                                      : displayStatus === 'rejected'
+                                      : dsLower === 'rejected'
                                         ? 'bg-red-500/20 text-red-400'
-                                        : 'bg-zinc-700 text-zinc-300'
+                                        : dsLower === 'exists'
+                                          ? 'bg-purple-500/25 text-purple-400 border border-purple-500/20'
+                                          : 'bg-zinc-700 text-zinc-300'
                               }`}
                             >
                               {displayStatus}
