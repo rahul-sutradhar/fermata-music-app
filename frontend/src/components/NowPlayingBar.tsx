@@ -149,9 +149,10 @@ export default function NowPlayingBar() {
           // Use hls.js for browsers without native HLS support (Chrome/Firefox/Edge)
           const hls = new Hls({
             xhrSetup: (xhr, xhrUrl) => {
+              console.log('[HLS xhrSetup] Requesting URL:', xhrUrl)
               if (xhrUrl.includes('/key')) {
-                // Fetch the authorization token from the store
                 const storedToken = useAuthStore.getState().token
+                console.log('[HLS xhrSetup] Matched /key endpoint. Token exists:', !!storedToken)
                 if (storedToken) {
                   xhr.setRequestHeader('Authorization', `Bearer ${storedToken}`)
                 }
