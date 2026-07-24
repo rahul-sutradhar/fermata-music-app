@@ -66,7 +66,7 @@ export interface IngestionRequestItem {
   requested_by: string
   created_at: string | null
   source_url: string
-  status: 'pending' | 'processing' | 'completed' | 'rejected' | 'failed'
+  status: 'pending' | 'queued' | 'processing' | 'completed' | 'rejected' | 'failed' | 'Exists'
 }
 
 export async function listIngestionRequests(): Promise<IngestionRequestItem[]> {
