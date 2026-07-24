@@ -50,6 +50,35 @@ export default function ReportMissingPage() {
 
     const cacheKey = `fermata-chatbot-state-${user.id}`
     const cached = sessionStorage.getItem(cacheKey)
+
+    // If navigated here with a prefilled query, always start a fresh session
+    // (clear any prior completed or non-pending session so the query goes through)
+    if (prefilledQuery) {
+      // Clear stale/completed sessions so the query runs fresh
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached)
+          // Only clear if the prior session was completed — ongoing sessions are preserved
+          if (parsed.isComplete) {
+            sessionStorage.removeItem(cacheKey)
+          }
+        } catch (e) {}
+      }
+
+      const welcomeId = Math.random().toString()
+      const welcomeMsg: Message = {
+        id: welcomeId,
+        sender: 'bot',
+        text: "Hello! I am the Fermata Ingestion Assistant powered by Agentic AI. Which missing song can I help you find and ingest today? Please type the song name and artist.",
+        type: 'text'
+      }
+      setMessages([welcomeMsg])
+      // Kick off the search immediately with the prefilled query
+      handleSearch(prefilledQuery)
+      return
+    }
+
+    // No prefilled query — restore from cache if available
     if (cached) {
       try {
         const parsed = JSON.parse(cached)
@@ -57,12 +86,18 @@ export default function ReportMissingPage() {
         setThreadId(parsed.threadId || null)
         setIngestionLogs(parsed.ingestionLogs || [])
         setIsComplete(parsed.isComplete || false)
+        // Restore in-progress spinner — if the session had an active request running
+        // when the tab was left, show the spinner until the async resolves
+        if (parsed.loading) {
+          setLoading(true)
+        }
         return
       } catch (e) {
         console.error('Failed to parse cached chatbot state', e)
       }
     }
 
+    // Fresh session — show welcome message
     const welcomeId = Math.random().toString()
     setMessages([
       {
@@ -72,13 +107,9 @@ export default function ReportMissingPage() {
         type: 'text'
       }
     ])
-
-    if (prefilledQuery) {
-      handleSearch(prefilledQuery)
-    }
   }, [user, prefilledQuery])
 
-  // Save chat state to sessionStorage on state changes
+  // Save chat state to sessionStorage on state changes (including loading)
   useEffect(() => {
     if (!user) return
     if (messages.length > 0) {
@@ -87,10 +118,11 @@ export default function ReportMissingPage() {
         messages,
         threadId,
         ingestionLogs,
-        isComplete
+        isComplete,
+        loading
       }))
     }
-  }, [messages, threadId, ingestionLogs, isComplete, user])
+  }, [messages, threadId, ingestionLogs, isComplete, loading, user])
 
   // Sync completion state using a ref for cleanups
   const isCompleteRef = useRef(isComplete)
@@ -137,7 +169,8 @@ export default function ReportMissingPage() {
       messages: messagesWithUser,
       threadId: currentThread,
       ingestionLogs: currentLogs,
-      isComplete: false
+      isComplete: false,
+      loading: true
     }))
     setMessages(messagesWithUser)
     
@@ -182,7 +215,8 @@ export default function ReportMissingPage() {
         messages: finalMessages,
         threadId: newThreadId,
         ingestionLogs: currentLogs,
-        isComplete: newIsComplete
+        isComplete: newIsComplete,
+        loading: false
       }))
 
       // Update state for currently mounted view
@@ -214,7 +248,8 @@ export default function ReportMissingPage() {
         messages: finalMessages,
         threadId: currentThread,
         ingestionLogs: currentLogs,
-        isComplete: true
+        isComplete: true,
+        loading: false
       }))
 
       setIsComplete(true)
@@ -278,7 +313,8 @@ export default function ReportMissingPage() {
       messages: messagesWithChoice,
       threadId: threadId,
       ingestionLogs: currentLogs,
-      isComplete: false
+      isComplete: false,
+      loading: true
     }))
     setMessages(messagesWithChoice)
     
@@ -327,7 +363,8 @@ export default function ReportMissingPage() {
         messages: finalMessages,
         threadId: threadId,
         ingestionLogs: currentLogs,
-        isComplete: true
+        isComplete: true,
+        loading: false
       }))
 
       setIsComplete(true) // Session finished
@@ -357,7 +394,8 @@ export default function ReportMissingPage() {
         messages: finalMessages,
         threadId: threadId,
         ingestionLogs: currentLogs,
-        isComplete: true
+        isComplete: true,
+        loading: false
       }))
 
       setIsComplete(true)
