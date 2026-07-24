@@ -325,15 +325,27 @@ def approve_ingestion_request(
         from app.models.album import Album
         from sqlalchemy import or_
         
-        # Check if the exact song (title + artist name) already exists in database (matching either track artist or album artist)
-        existing_track = db.scalars(
-            select(Track)
-            .outerjoin(Album, Track.album_id == Album.id)
-            .outerjoin(Artist, or_(Track.artist_id == Artist.id, Album.artist_id == Artist.id))
-            .where(func.lower(Track.title) == func.lower(db_req.song_name))
-            .where(func.lower(Artist.name) == func.lower(db_req.artist_name))
-        ).first()
+        from agentic_ai.src.nodes import _split_artist_names
         
+        # Parse requested artist names into a clean list
+        requested_artist_names = _split_artist_names(db_req.artist_name)
+        if not requested_artist_names:
+            requested_artist_names = ["Unknown Artist"]
+            
+        # Retrieve all tracks matching the requested title
+        tracks_by_title = db.scalars(
+            select(Track)
+            .where(func.lower(Track.title) == func.lower(db_req.song_name))
+        ).all()
+        
+        existing_track = None
+        for t in tracks_by_title:
+            t_artists = _split_artist_names(t.artist_name) if t.artist_name else []
+            # Check if the set of lowercase artist names matches exactly
+            if set(name.lower() for name in t_artists) == set(name.lower() for name in requested_artist_names):
+                existing_track = t
+                break
+                
         if existing_track:
             db_req.status = "Exists"
             db.commit()

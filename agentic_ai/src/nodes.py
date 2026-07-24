@@ -910,79 +910,109 @@ def fetch_artist_metadata(state: AgenticState) -> Dict[str, Any]:
     }
 
 
+def _split_artist_names(artist_str: str) -> List[str]:
+    """
+    Split a raw artist string (e.g., 'Dhruv Sharma, Swarna Shri' or 'Queen & David Bowie')
+    into individual clean artist names.
+    """
+    if not artist_str:
+        return []
+    import re
+    # Normalize separators: replace ' & ', ' and ', ' feat. ', ' ft. ' with comma
+    normalized = re.sub(r'\s+(?:feat\.?|ft\.?|and|&)\s+', ', ', artist_str, flags=re.IGNORECASE)
+    # Split by comma or semicolon
+    parts = re.split(r'[;,]', normalized)
+    names = []
+    for p in parts:
+        clean = p.strip()
+        if clean and clean.lower() not in ("unknown", "unknown artist", "various artists"):
+            names.append(clean)
+    return names
+
+
 def populate_artist(state: AgenticState, config: RunnableConfig) -> Dict[str, Any]:
     artist_metadata = state.get("artist_metadata", {}) or {}
-    name = artist_metadata.get("name", "Unknown")
+    raw_name = artist_metadata.get("name", "Unknown")
     
-    # Incase artist is missing, attach as "Unknown Artist"
-    if not name or name.strip() == "" or name.lower() in ("unknown", "unknown artist"):
-        name = "Unknown Artist"
+    # Split the raw string into individual artist names
+    artist_names = _split_artist_names(raw_name)
+    if not artist_names:
+        artist_names = ["Unknown Artist"]
         
-    new_logs = [f"[Pipeline] Branch C: Populating Artist table in DB with '{name}'..."]
+    new_logs = [f"[Pipeline] Branch C: Populating Artist table in DB with: {artist_names}..."]
     
     # Retrieve DB session from config
     db = config.get("configurable", {}).get("db")
+    
+    artist_ids = []
+    primary_artist_id = 404
     
     if db is not None:
         try:
             from sqlalchemy import select, func
             from app.models.artist import Artist
             from app.models.user import User
+            import uuid
+            import random
+            from app.core.oauth import hash_password
+
+            for name in artist_names:
+                # Query if artist already exists in DB by name
+                db_artist = db.scalars(select(Artist).where(func.lower(Artist.name) == name.lower())).first()
+                if db_artist:
+                    artist_ids.append(db_artist.id)
+                    new_logs.append(f"[Pipeline] Branch C: Artist '{name}' already exists in DB (ID: {db_artist.id}).")
+                else:
+                    new_logs.append(f"[Pipeline] Branch C: Artist '{name}' has no profile in DB. Creating new Artist profile...")
+                    
+                    # Check for username collision in User table and handle gracefully
+                    test_username = name[:50]
+                    exists_user = db.scalars(select(User).where(func.lower(User.username) == test_username.lower())).first()
+                    if exists_user:
+                        suffix = f"_{random.randint(1000, 9999)}"
+                        test_username = f"{name[:44]}{suffix}"
+                    
+                    clean_email = "".join(c for c in name.lower() if c.isalnum() or c == "_")
+                    test_email = f"{clean_email}@fermata.com"
+                    if len(test_email) > 255:
+                        test_email = test_email[:255]
+                    exists_email = db.scalars(select(User).where(func.lower(User.email) == test_email.lower())).first()
+                    if exists_email:
+                        suffix = f"_{random.randint(1000, 9999)}"
+                        test_email = f"{clean_email[:200]}{suffix}@fermata.com"
+                    
+                    hashed_pass = hash_password(uuid.uuid4().hex + "StrongPassword123!")
+                    
+                    new_artist = Artist(
+                        username=test_username,
+                        email=test_email,
+                        full_name=name,
+                        hashed_password=hashed_pass,
+                        role="artist",
+                        name=name
+                    )
+                    db.add(new_artist)
+                    db.commit()
+                    db.refresh(new_artist)
+                    artist_ids.append(new_artist.id)
+                    new_logs.append(f"[Pipeline] Branch C: Successfully created Artist profile for '{name}' (ID: {new_artist.id}, Username: '{test_username}').")
             
-            # Query if artist already exists in DB by name
-            db_artist = db.scalars(select(Artist).where(func.lower(Artist.name) == name.lower())).first()
-            if db_artist:
-                artist_id = db_artist.id
-                new_logs.append(f"[Pipeline] Branch C: Artist '{name}' already exists in DB (ID: {artist_id}).")
-            else:
-                new_logs.append(f"[Pipeline] Branch C: Artist '{name}' has no profile in DB. Creating new Artist profile...")
-                import uuid
-                import random
-                from app.core.oauth import hash_password
-                
-                # Check for username collision in User table and handle gracefully
-                test_username = name[:50]
-                exists_user = db.scalars(select(User).where(func.lower(User.username) == test_username.lower())).first()
-                if exists_user:
-                    suffix = f"_{random.randint(1000, 9999)}"
-                    test_username = f"{name[:44]}{suffix}"
-                
-                clean_email = "".join(c for c in name.lower() if c.isalnum() or c == "_")
-                test_email = f"{clean_email}@fermata.com"
-                if len(test_email) > 255:
-                    test_email = test_email[:255]
-                exists_email = db.scalars(select(User).where(func.lower(User.email) == test_email.lower())).first()
-                if exists_email:
-                    suffix = f"_{random.randint(1000, 9999)}"
-                    test_email = f"{clean_email[:200]}{suffix}@fermata.com"
-                
-                hashed_pass = hash_password(uuid.uuid4().hex + "StrongPassword123!")
-                
-                new_artist = Artist(
-                    username=test_username,
-                    email=test_email,
-                    full_name=name,
-                    hashed_password=hashed_pass,
-                    role="artist",
-                    name=name
-                )
-                db.add(new_artist)
-                db.commit()
-                db.refresh(new_artist)
-                artist_id = new_artist.id
-                new_logs.append(f"[Pipeline] Branch C: Successfully created Artist profile (ID: {artist_id}, Username: '{test_username}').")
+            if artist_ids:
+                primary_artist_id = artist_ids[0]
         except Exception as e:
             db.rollback()
             new_logs.append(f"[Pipeline] Branch C Error during DB population: {str(e)}")
-            artist_id = 404
-            new_logs.append(f"[Pipeline] Branch C Fallback: Using simulated Artist ID: {artist_id}")
+            primary_artist_id = 404
+            new_logs.append(f"[Pipeline] Branch C Fallback: Using simulated Artist ID: {primary_artist_id}")
     else:
-        artist_id = 404
+        primary_artist_id = 404
         time.sleep(0.5)
-        new_logs.append(f"[Pipeline] Branch C: DB Populated. Artist ID: {artist_id} created/referenced.")
+        new_logs.append(f"[Pipeline] Branch C: DB Populated. Artist ID: {primary_artist_id} created/referenced.")
+        artist_ids = [primary_artist_id]
         
     return {
-        "artist_id": artist_id,
+        "artist_id": primary_artist_id,
+        "artist_ids": artist_ids,
         "artist_status": "completed",
         "logs": new_logs
     }
@@ -1095,10 +1125,23 @@ def populate_track(state: AgenticState, config: RunnableConfig) -> Dict[str, Any
                 db_track.genres = genres
                 db_track.lyrics = lyrics
                 db_track.duration_seconds = selected_song.get("duration_seconds", 200)
+                
+                # Fetch and connect all artists
+                artist_ids = state.get("artist_ids", [])
+                if artist_ids:
+                    from app.models.artist import Artist
+                    db_artists = db.scalars(select(Artist).where(Artist.id.in_(artist_ids))).all()
+                    db_track.artists = db_artists
+                elif artist_id:
+                    from app.models.artist import Artist
+                    primary_artist = db.get(Artist, artist_id)
+                    if primary_artist:
+                        db_track.artists = [primary_artist]
+
                 db.commit()
                 db.refresh(db_track)
                 track_id = db_track.id
-                new_logs.append(f"[Database] Updated track '{title}' in DB (Track ID: {track_id}, Album ID: {album_id}).")
+                new_logs.append(f"[Database] Updated track '{title}' in DB (Track ID: {track_id}, Album ID: {album_id}). Connected to artists: {[a.name for a in db_track.artists]}.")
             else:
                 db_track = Track(
                     title=title,
@@ -1110,11 +1153,24 @@ def populate_track(state: AgenticState, config: RunnableConfig) -> Dict[str, Any
                     genres=genres,
                     lyrics=lyrics
                 )
+                
+                # Fetch and connect all artists
+                artist_ids = state.get("artist_ids", [])
+                if artist_ids:
+                    from app.models.artist import Artist
+                    db_artists = db.scalars(select(Artist).where(Artist.id.in_(artist_ids))).all()
+                    db_track.artists = db_artists
+                elif artist_id:
+                    from app.models.artist import Artist
+                    primary_artist = db.get(Artist, artist_id)
+                    if primary_artist:
+                        db_track.artists = [primary_artist]
+
                 db.add(db_track)
                 db.commit()
                 db.refresh(db_track)
                 track_id = db_track.id
-                new_logs.append(f"[Database] Created new Track '{title}' in DB (Track ID: {track_id}, Album ID: {album_id}).")
+                new_logs.append(f"[Database] Created new Track '{title}' in DB (Track ID: {track_id}, Album ID: {album_id}). Connected to artists: {[a.name for a in db_track.artists]}.")
         except Exception as e:
             db.rollback()
             new_logs.append(f"[Database] Error during DB track insertion: {str(e)}")

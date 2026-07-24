@@ -1,8 +1,16 @@
 from datetime import datetime
-from sqlalchemy import DateTime, ForeignKey, String, func, Text
+from sqlalchemy import DateTime, ForeignKey, String, func, Text, Table, Column, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+
+# Association table for tracks and multiple artists
+track_artists = Table(
+    "track_artists",
+    Base.metadata,
+    Column("track_id", Integer, ForeignKey("tracks.id", ondelete="CASCADE"), primary_key=True),
+    Column("artist_id", Integer, ForeignKey("artists.id", ondelete="CASCADE"), primary_key=True),
+)
 
 
 class Track(Base):
@@ -22,6 +30,13 @@ class Track(Base):
 
     album: Mapped["Album | None"] = relationship(back_populates="tracks")
     artist_rel: Mapped["Artist | None"] = relationship(back_populates="standalone_tracks", foreign_keys=[artist_id])
+    
+    # Many-to-many relationship supporting multiple artists on a single track
+    artists: Mapped[list["Artist"]] = relationship(
+        secondary="track_artists",
+        back_populates="tracks"
+    )
+    
     playlist_tracks: Mapped[list["PlaylistTrack"]] = relationship(
         back_populates="track"
     )
@@ -43,6 +58,8 @@ class Track(Base):
 
     @property
     def artist_name(self) -> str | None:
+        if self.artists:
+            return ", ".join(a.name for a in self.artists)
         if self.artist_rel:
             return self.artist_rel.name
         if self.album and self.album.artist:

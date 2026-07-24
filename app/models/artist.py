@@ -16,6 +16,12 @@ class Artist(User):
         foreign_keys="Track.artist_id"
     )
 
+    # Many-to-many relationship to Tracks
+    tracks: Mapped[list["Track"]] = relationship(
+        secondary="track_artists",
+        back_populates="artists"
+    )
+
     __mapper_args__ = {
         "polymorphic_identity": "artist",
     }
