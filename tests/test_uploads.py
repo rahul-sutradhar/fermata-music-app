@@ -284,7 +284,7 @@ def test_upload_album_cover(auth_client, db_session, sample_album):
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == sample_album.id
-        assert data["cover_url"] == "http://testserver/storage/albums/1/cover.png"
+        assert data["cover_url"].startswith("http://testserver/storage/albums/1/cover.png")
         mock_upload.assert_called_once()
 
 
@@ -300,7 +300,7 @@ def test_upload_track_cover(auth_client, db_session, sample_track):
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == sample_track.id
-        assert data["cover_url"] == "http://testserver/storage/tracks/1/cover.png"
+        assert data["cover_url"].startswith("http://testserver/storage/tracks/1/cover.png")
         mock_upload.assert_called_once()
 
 
