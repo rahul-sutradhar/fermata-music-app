@@ -179,7 +179,7 @@ def search(*, db: Session, q: str, limit: int = 10) -> SearchResponse:
             title=t.title,
             album_id=t.album_id,
             duration_seconds=t.duration_seconds,
-            audio_url=get_audio_url(t.audio_file_key) if getattr(t, "audio_file_key", None) else None,
+            audio_url=get_audio_url(t.audio_file_key, version=int(t.updated_at.timestamp()) if getattr(t, "updated_at", None) else None) if getattr(t, "audio_file_key", None) else None,
             cover_url=t.cover_url,
             album_title=t.album_title,
             artist_id=t.artist_id,

@@ -71,13 +71,17 @@ def upload_local_file(local_path: str, object_key: str, content_type: str) -> st
     return object_key
 
 
-def get_audio_url(object_key: str, expires_in: int = 3600) -> str | None:
+def get_audio_url(object_key: str, expires_in: int = 3600, version: int | None = None) -> str | None:
     if not object_key:
         return None
     if settings.cdn_url:
         cdn_base = settings.cdn_url.rstrip("/")
         obj_key_clean = object_key.lstrip("/")
-        return f"{cdn_base}/{obj_key_clean}"
+        url = f"{cdn_base}/{obj_key_clean}"
+        if version:
+            sep = "&" if "?" in url else "?"
+            return f"{url}{sep}v={version}"
+        return url
     try:
         client = get_b2_client()
     except RuntimeError:

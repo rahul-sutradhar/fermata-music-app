@@ -23,7 +23,7 @@ def _to_response(track: Track) -> TrackResponse:
         title=track.title,
         album_id=track.album_id,
         duration_seconds=track.duration_seconds,
-        audio_url=get_audio_url(audio_key) if audio_key else None,
+        audio_url=get_audio_url(audio_key, version=int(track.updated_at.timestamp()) if track.updated_at else None) if audio_key else None,
         cover_url=track.cover_url,
         album_title=track.album_title,
         artist_id=track.effective_artist_id,
@@ -253,9 +253,10 @@ def upload_track_audio(
 
 def get_track_audio_url(*, db: Session, track_id: int) -> str:
     track = _get_track_or_404(db, track_id)
+    ts = int(track.updated_at.timestamp()) if track.updated_at else None
     # Prioritize HLS playlist URL
     if track.hls_playlist_key:
-        url = get_audio_url(track.hls_playlist_key)
+        url = get_audio_url(track.hls_playlist_key, version=ts)
         if url:
             return url
 
@@ -265,7 +266,7 @@ def get_track_audio_url(*, db: Session, track_id: int) -> str:
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Audio not uploaded for this track",
         )
-    url = get_audio_url(track.audio_file_key)
+    url = get_audio_url(track.audio_file_key, version=ts)
     if not url:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

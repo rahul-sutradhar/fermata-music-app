@@ -44,7 +44,7 @@ def _to_track_response(track: Track) -> TrackResponse:
         title=track.title,
         album_id=track.album_id,
         duration_seconds=track.duration_seconds,
-        audio_url=get_audio_url(track.audio_file_key) if track.audio_file_key else None,
+        audio_url=get_audio_url(track.audio_file_key, version=int(track.updated_at.timestamp()) if track.updated_at else None) if track.audio_file_key else None,
         album_title=track.album_title,
         artist_id=track.artist_id,
         artist_name=track.artist_name,
