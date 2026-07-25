@@ -59,8 +59,9 @@ function doTokenRefresh(): Promise<string | null> {
       if (refreshResponse.ok) {
         const refreshData = await refreshResponse.json()
         const newAccessToken = refreshData.access_token
-        if (newAccessToken) {
-          useAuthStore.getState().setAuth(newAccessToken, rToken)
+        const newRefreshToken = refreshData.refresh_token
+        if (newAccessToken && newRefreshToken) {
+          useAuthStore.getState().setAuth(newAccessToken, newRefreshToken)
           return newAccessToken
         }
       }

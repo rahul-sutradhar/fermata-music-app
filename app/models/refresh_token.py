@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, UniqueConstraint
+from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -16,7 +16,9 @@ class RefreshToken(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
-    token_hash: Mapped[str] = mapped_column(nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    family_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(default=None, nullable=True)
     is_revoked: Mapped[bool] = mapped_column(default=False)
     expires_at: Mapped[datetime]
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
@@ -25,4 +27,4 @@ class RefreshToken(Base):
     user = relationship("User", back_populates="refresh_tokens")
 
     def __repr__(self) -> str:
-        return f"<RefreshToken user_id={self.user_id} revoked={self.is_revoked}>"
+        return f"<RefreshToken user_id={self.user_id} family_id={self.family_id} revoked={self.is_revoked}>"

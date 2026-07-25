@@ -312,23 +312,31 @@ def stop_ingestion_worker():
 def _worker_loop():
     from app.db.session import SessionLocal
     import time
+    import uuid
+    
+    worker_id = f"worker_{uuid.uuid4()}"
     
     while not _stop_worker_event.is_set():
         session = SessionLocal()
         try:
             # Query next request in status "queued"
-            db_req = session.scalar(
-                select(IngestionRequest)
-                .where(IngestionRequest.status == "queued")
-                .order_by(IngestionRequest.created_at.asc())
-            )
+            # If dialect is postgresql, use skip_locked=True to safely run concurrent workers
+            is_postgres = session.bind.dialect.name == "postgresql"
+            stmt = select(IngestionRequest).where(IngestionRequest.status == "queued").order_by(IngestionRequest.created_at.asc())
+            if is_postgres:
+                stmt = stmt.with_for_update(skip_locked=True)
+            else:
+                stmt = stmt.with_for_update()
+                
+            db_req = session.scalar(stmt)
             if db_req:
-                # Update status to processing and commit immediately to lock the job
+                # Update status to processing and lock with our worker token immediately
+                db_req.lock_token = worker_id
                 db_req.status = "processing"
                 session.commit()
                 
                 request_id = db_req.id
-                print(f"[Ingestion Worker] Picked up Request ID {request_id} for processing.", flush=True)
+                print(f"[Ingestion Worker] Picked up and locked Request ID {request_id} (Worker ID: {worker_id}).", flush=True)
                 
                 try:
                     _execute_ingestion(session, request_id)
@@ -382,6 +390,7 @@ def _execute_ingestion(db: DbSession, request_id: int):
                 
         if existing_track:
             db_req.status = "Exists"
+            db_req.lock_token = None
             db.commit()
             print(f"[Ingestion Task Short-Circuit] Song '{db_req.song_name}' by '{db_req.artist_name}' already exists in DB (ID: {existing_track.id}). Skipping ingestion.", flush=True)
             return
@@ -460,11 +469,13 @@ def _execute_ingestion(db: DbSession, request_id: int):
         db.refresh(db_req)
         if db_track.audio_file_key:
             db_req.status = "completed"
+            db_req.lock_token = None
             db_req.genres = db_track.genres
             db_req.lyrics = db_track.lyrics
             print(f"[Ingestion Task SUCCESS] Ingestion completed successfully for Request ID: {request_id}. Track ID: {db_track.id}", flush=True)
         else:
             db_req.status = "failed"
+            db_req.lock_token = None
             print(f"[Ingestion Task FAILED] Ingestion failed (no audio key generated) for Request ID: {request_id}.", flush=True)
             # Delete empty track to keep catalog clean
             try:
@@ -526,6 +537,7 @@ def _execute_ingestion(db: DbSession, request_id: int):
             db_req = db.scalar(select(IngestionRequest).where(IngestionRequest.id == request_id))
             if db_req:
                 db_req.status = "failed"
+                db_req.lock_token = None
                 db.commit()
         except Exception:
             pass

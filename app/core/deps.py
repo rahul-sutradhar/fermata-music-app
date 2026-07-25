@@ -1,14 +1,15 @@
 from typing import Annotated
 
+from datetime import datetime
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-import jwt
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.user import User
-from app.core.oauth import decode_access_token
+from app.models.access_token import AccessToken
+from app.core.oauth import hash_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -22,14 +23,27 @@ def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    try:
-        payload = decode_access_token(token)
-        user_id = int(payload["sub"])
-    except (ValueError, KeyError, jwt.PyJWTError):
+    
+    token_hash = hash_token(token)
+    token_obj = db.scalar(
+        select(AccessToken).where(
+            AccessToken.token_hash == token_hash,
+            AccessToken.expires_at > datetime.utcnow()
+        )
+    )
+    if token_obj is None:
         raise credentials_exception
-    user = db.scalar(select(User).where(User.id == user_id))
+
+    user = db.scalar(select(User).where(User.id == token_obj.user_id))
     if user is None:
         raise credentials_exception
+    
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email verification required"
+        )
+        
     return user
 
 

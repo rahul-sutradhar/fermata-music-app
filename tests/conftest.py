@@ -73,7 +73,7 @@ def client(db_session):
 @pytest.fixture()
 def current_user(db_session):
     from app.models.admin import Admin
-    user = Admin(username="tester", email="tester@example.com", hashed_password="hash", role="admin", name="Tester")
+    user = Admin(username="tester", email="tester@example.com", hashed_password="hash", role="admin", name="Tester", is_verified=True)
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)

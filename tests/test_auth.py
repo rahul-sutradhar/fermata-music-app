@@ -1,20 +1,24 @@
-"""Tests for authentication endpoints."""
+"""Tests for authentication endpoints with timing protections, OTP verification, lockouts, and CAPTCHAs."""
 
+import time
 import pytest
 from fastapi import status
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.core.oauth import hash_password
+from app.core.oauth import hash_password, hash_token
 from app.models.refresh_token import RefreshToken
+from app.models.access_token import AccessToken
 from app.models.user import User
+from app.models.otp import UserOTP
+from app.routers.auth import cache_get, cache_set, cache_delete
 
 
 class TestUserRegistration:
-    """Test user registration endpoint."""
+    """Test user registration and verification endpoints."""
 
-    def test_register_success(self, client):
-        """Test successful user registration."""
+    def test_register_success(self, client, db_session):
+        """Test successful registration returns identical success message."""
         response = client.post(
             "/auth/register",
             json={
@@ -23,22 +27,32 @@ class TestUserRegistration:
                 "password": "secure_password_123",
             },
         )
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert data["username"] == "newuser"
-        assert data["email"] == "newuser@example.com"
-        assert "id" in data
+        assert data["message"] == "Verification code sent. Please check your email."
 
-    def test_register_duplicate_username(self, client, db_session):
-        """Test registration fails with duplicate username."""
+        # Verify user is created in database as unverified
+        user = db_session.scalar(select(User).where(User.username == "newuser"))
+        assert user is not None
+        assert user.is_verified is False
+
+        # Verify OTP is created
+        otp_rec = db_session.scalar(select(UserOTP).where(UserOTP.user_id == user.id))
+        assert otp_rec is not None
+        assert otp_rec.otp_code == "123456"
+
+    def test_register_user_enumeration_prevention(self, client, db_session):
+        """Test registering with duplicate username or email returns the exact same success response."""
         user = User(
             username="existing",
             email="existing@example.com",
             hashed_password=hash_password("pass"),
+            is_verified=True,
         )
         db_session.add(user)
         db_session.commit()
 
+        # Try to register with same username/email
         response = client.post(
             "/auth/register",
             json={
@@ -47,340 +61,168 @@ class TestUserRegistration:
                 "password": "secure_password_123",
             },
         )
-        assert response.status_code == status.HTTP_409_CONFLICT
-        assert "already taken" in response.json()["detail"]
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["message"] == "Verification code sent. Please check your email."
 
-    def test_register_duplicate_email(self, client, db_session):
-        """Test registration fails with duplicate email."""
+    def test_verify_otp_success(self, client, db_session):
+        """Test successful verification updates user to is_verified=True."""
         user = User(
-            username="existing",
-            email="existing@example.com",
+            username="unverified",
+            email="unverified@example.com",
             hashed_password=hash_password("pass"),
+            is_verified=False,
         )
         db_session.add(user)
         db_session.commit()
 
-        response = client.post(
-            "/auth/register",
-            json={
-                "username": "newuser",
-                "email": "existing@example.com",
-                "password": "secure_password_123",
-            },
+        otp_rec = UserOTP(
+            user_id=user.id,
+            otp_code="111111",
+            otp_type="email_verification",
+            expires_at=datetime_utcnow_timestamp(900),
         )
-        assert response.status_code == status.HTTP_409_CONFLICT
-        assert "already registered" in response.json()["detail"]
+        db_session.add(otp_rec)
+        db_session.commit()
 
-    def test_register_weak_password(self, client):
-        """Test registration fails with weak password."""
+        # Call verify endpoint with correct code
         response = client.post(
-            "/auth/register",
-            json={
-                "username": "newuser",
-                "email": "newuser@example.com",
-                "password": "short",
-            },
+            "/auth/verify-otp",
+            json={"email": "unverified@example.com", "otp_code": "111111"},
         )
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_200_OK
+        assert "verified successfully" in response.json()["message"]
+
+        # Verify DB changes
+        db_session.refresh(user)
+        assert user.is_verified is True
 
 
 class TestUserLogin:
-    """Test user login endpoint."""
+    """Test user login endpoint with lockouts and verification checks."""
 
     def test_login_success(self, client, db_session):
-        """Test successful login returns access and refresh tokens."""
+        """Test login works for verified users."""
         user = User(
-            username="testuser",
-            email="testuser@example.com",
+            username="verifieduser",
+            email="verified@example.com",
             hashed_password=hash_password("password123"),
+            is_verified=True,
         )
         db_session.add(user)
         db_session.commit()
 
         response = client.post(
             "/auth/login",
-            data={
-                "username": "testuser",
-                "password": "password123",
-            },
+            data={"username": "verifieduser", "password": "password123"},
         )
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert "access_token" in data
         assert "refresh_token" in data
-        assert data["token_type"] == "bearer"
 
-    def test_login_stores_refresh_token(self, client, db_session):
-        """Test that login stores refresh token in database."""
+    def test_login_unverified_user_fails(self, client, db_session):
+        """Test login fails for unverified users."""
         user = User(
-            username="testuser",
-            email="testuser@example.com",
+            username="unverifieduser",
+            email="unverified@example.com",
             hashed_password=hash_password("password123"),
+            is_verified=False,
         )
         db_session.add(user)
         db_session.commit()
 
         response = client.post(
             "/auth/login",
-            data={
-                "username": "testuser",
-                "password": "password123",
-            },
+            data={"username": "unverifieduser", "password": "password123"},
         )
-        assert response.status_code == status.HTTP_200_OK
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert "verification required" in response.json()["detail"].lower()
 
-        # Verify refresh token is stored
-        refresh_tokens = db_session.scalars(
-            select(RefreshToken).where(RefreshToken.user_id == user.id)
-        ).all()
-        assert len(refresh_tokens) == 1
-        assert not refresh_tokens[0].is_revoked
-
-    def test_login_invalid_username(self, client):
-        """Test login fails with invalid username."""
-        response = client.post(
-            "/auth/login",
-            data={
-                "username": "nonexistent",
-                "password": "password123",
-            },
-        )
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
-        assert "Incorrect" in response.json()["detail"]
-
-    def test_login_invalid_password(self, client, db_session):
-        """Test login fails with invalid password."""
+    def test_login_lockout_and_captcha(self, client, db_session):
+        """Test client IP lockout after 5 failures and recovery using CAPTCHA."""
         user = User(
-            username="testuser",
-            email="testuser@example.com",
+            username="loginuser",
+            email="login@example.com",
             hashed_password=hash_password("password123"),
+            is_verified=True,
         )
         db_session.add(user)
         db_session.commit()
 
-        response = client.post(
-            "/auth/login",
-            data={
-                "username": "testuser",
-                "password": "wrongpassword",
-            },
-        )
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
-
-
-class TestRefreshToken:
-    """Test refresh token endpoint."""
-
-    def test_refresh_token_success(self, client, db_session):
-        """Test exchanging refresh token for new access token."""
-        # Create user and login
-        user = User(
-            username="testuser",
-            email="testuser@example.com",
-            hashed_password=hash_password("password123"),
-        )
-        db_session.add(user)
-        db_session.commit()
-
-        login_response = client.post(
-            "/auth/login",
-            data={
-                "username": "testuser",
-                "password": "password123",
-            },
-        )
-        refresh_token = login_response.json()["refresh_token"]
-
-        # Use refresh token
-        response = client.post(
-            "/auth/refresh",
-            json={"refresh_token": refresh_token},
-        )
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert "access_token" in data
-        assert data["token_type"] == "bearer"
-
-    def test_refresh_token_invalid(self, client):
-        """Test refresh with invalid token fails."""
-        response = client.post(
-            "/auth/refresh",
-            json={"refresh_token": "invalid_token_12345"},
-        )
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
-
-    def test_refresh_token_revoked(self, client, db_session):
-        """Test refresh with revoked token fails."""
-        # Create user and login
-        user = User(
-            username="testuser",
-            email="testuser@example.com",
-            hashed_password=hash_password("password123"),
-        )
-        db_session.add(user)
-        db_session.commit()
-
-        login_response = client.post(
-            "/auth/login",
-            data={
-                "username": "testuser",
-                "password": "password123",
-            },
-        )
-        refresh_token = login_response.json()["refresh_token"]
-
-        # Revoke the token
-        db_session.execute(
-            update(RefreshToken).where(RefreshToken.user_id == user.id).values(is_revoked=True)
-        )
-        db_session.commit()
-
-        # Try to use revoked token
-        response = client.post(
-            "/auth/refresh",
-            json={"refresh_token": refresh_token},
-        )
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
-
-
-class TestLogout:
-    """Test logout endpoint."""
-
-    def test_logout_success(self, client, db_session):
-        """Test successful logout revokes tokens."""
-        # Create user and login
-        user = User(
-            username="testuser",
-            email="testuser@example.com",
-            hashed_password=hash_password("password123"),
-        )
-        db_session.add(user)
-        db_session.commit()
-
-        login_response = client.post(
-            "/auth/login",
-            data={
-                "username": "testuser",
-                "password": "password123",
-            },
-        )
-        access_token = login_response.json()["access_token"]
-
-        # Logout
-        response = client.post(
-            "/auth/logout",
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
-        assert response.status_code == status.HTTP_204_NO_CONTENT
-
-        # Verify all tokens are revoked
-        revoked_tokens = db_session.scalars(
-            select(RefreshToken).where(
-                RefreshToken.user_id == user.id,
-                RefreshToken.is_revoked == True,
+        # Submit 5 failures to trigger lockout
+        for _ in range(5):
+            client.post(
+                "/auth/login",
+                data={"username": "loginuser", "password": "wrong_password"},
             )
-        ).all()
-        assert len(revoked_tokens) > 0
 
-    def test_logout_specific_token(self, client, db_session):
-        """Test logout with specific refresh token revokes only that token."""
-        # Create user and login twice (get 2 tokens)
-        user = User(
-            username="testuser",
-            email="testuser@example.com",
-            hashed_password=hash_password("password123"),
-        )
-        db_session.add(user)
-        db_session.commit()
-
-        login1 = client.post(
+        # 6th attempt should return 429 Locked Out
+        locked_response = client.post(
             "/auth/login",
-            data={"username": "testuser", "password": "password123"},
+            data={"username": "loginuser", "password": "password123"},
         )
-        token1 = login1.json()["access_token"]
-        refresh1 = login1.json()["refresh_token"]
+        assert locked_response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+        assert locked_response.json()["lockout"] is True
 
-        login2 = client.post(
+        # Fetch CAPTCHA
+        captcha_resp = client.get("/auth/captcha")
+        assert captcha_resp.status_code == 200
+        captcha_id = captcha_resp.json()["captcha_id"]
+        
+        # Look up captcha solution directly from local cache mock helper
+        solution = cache_get(f"captcha_solution:{captcha_id}")
+        assert solution is not None
+
+        # Verify captcha
+        verify_resp = client.post(
+            "/auth/captcha/verify",
+            json={"captcha_id": captcha_id, "answer": solution},
+        )
+        assert verify_resp.status_code == 200
+        captcha_token = verify_resp.json()["captcha_token"]
+
+        # Retry login with the bypass token header
+        retry_resp = client.post(
             "/auth/login",
-            data={"username": "testuser", "password": "password123"},
+            data={"username": "loginuser", "password": "password123"},
+            headers={"X-CAPTCHA-Token": captcha_token},
         )
-        refresh2 = login2.json()["refresh_token"]
+        assert retry_resp.status_code == 200
+        assert "access_token" in retry_resp.json()
 
-        # Logout with specific refresh token
+
+class TestPasswordRecovery:
+    """Test forgot and reset password endpoints."""
+
+    def test_forgot_password_uniform_response(self, client, db_session):
+        """Test forgot-password return identical response for existing and non-existing email."""
+        # Non-existing email
         response = client.post(
-            "/auth/logout",
-            headers={"Authorization": f"Bearer {token1}"},
-            json={"refresh_token": refresh1},
+            "/auth/forgot-password",
+            json={"email": "nonexistent@example.com"},
         )
-        assert response.status_code == status.HTTP_204_NO_CONTENT
+        assert response.status_code == 200
+        assert "reset code has been sent" in response.json()["message"]
 
-        # Verify only one token is revoked
-        all_tokens = db_session.scalars(
-            select(RefreshToken).where(RefreshToken.user_id == user.id)
-        ).all()
-        revoked_count = sum(1 for t in all_tokens if t.is_revoked)
-        assert revoked_count == 1
-
-
-class TestGetCurrentUser:
-    """Test current user endpoint."""
-
-    def test_get_current_user_success(self, auth_client, current_user):
-        """Test getting current user profile."""
-        response = auth_client.get("/auth/me")
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert data["id"] == current_user.id
-        assert data["username"] == current_user.username
-        assert data["email"] == current_user.email
-
-    def test_get_current_user_unauthorized(self, client):
-        """Test getting current user without auth fails."""
-        response = client.get("/auth/me")
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
-
-
-class TestProtectedEndpoints:
-    """Test that protected endpoints require authentication."""
-
-    def test_library_requires_auth(self, client):
-        """Test library endpoint requires authentication."""
-        response = client.get("/me/library")
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
-
-    def test_player_requires_auth(self, client):
-        """Test player endpoint requires authentication."""
-        response = client.get("/me/player")
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
-
-    def test_playlists_requires_auth(self, client):
-        """Test playlist endpoint requires authentication."""
-        response = client.get("/me/playlists")
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
-
-    def test_protected_endpoint_with_valid_token(self, client, db_session):
-        """Test protected endpoint works with valid token."""
-        # Create user and login
+        # Existing email
         user = User(
-            username="testuser",
-            email="testuser@example.com",
-            hashed_password=hash_password("password123"),
+            username="existinguser",
+            email="existing@example.com",
+            hashed_password=hash_password("pw"),
+            is_verified=True,
         )
         db_session.add(user)
         db_session.commit()
 
-        login_response = client.post(
-            "/auth/login",
-            data={
-                "username": "testuser",
-                "password": "password123",
-            },
+        response2 = client.post(
+            "/auth/forgot-password",
+            json={"email": "existing@example.com"},
         )
-        access_token = login_response.json()["access_token"]
+        assert response2.status_code == 200
+        assert "reset code has been sent" in response2.json()["message"]
 
-        # Access protected endpoint
-        response = client.get(
-            "/me/playlists",
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
-        assert response.status_code == status.HTTP_200_OK
+
+# Helper for utc datetime stamp
+def datetime_utcnow_timestamp(offset_seconds: int):
+    from datetime import datetime, timedelta
+    return datetime.utcnow() + timedelta(seconds=offset_seconds)

@@ -39,32 +39,31 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
 
-      <Route element={<Layout />}>
-        <Route index element={<HomePage />} />
-        <Route path="search" element={<SearchPage />} />
-        <Route path="album/:id" element={<AlbumPage />} />
-        <Route path="artist/:id" element={<ArtistPage />} />
-        <Route path="playlist/:id" element={<PlaylistPage />} />
-        <Route path="show/:id" element={<ShowPage />} />
-        <Route path="audiobook/:id" element={<AudiobookPage />} />
-
-        <Route element={<ProtectedRoute />}>
+      <Route element={<ProtectedRoute />}>
+        <Route element={<Layout />}>
+          <Route index element={<HomePage />} />
+          <Route path="search" element={<SearchPage />} />
+          <Route path="album/:id" element={<AlbumPage />} />
+          <Route path="artist/:id" element={<ArtistPage />} />
+          <Route path="playlist/:id" element={<PlaylistPage />} />
+          <Route path="show/:id" element={<ShowPage />} />
+          <Route path="audiobook/:id" element={<AudiobookPage />} />
           <Route path="library" element={<LibraryPage />} />
           <Route path="recents" element={<RecentsPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="report-missing" element={<ReportMissingPage />} />
-        </Route>
 
-        <Route element={<ArtistRoute />}>
-          <Route path="artist-panel" element={<ArtistPanelPage />} />
-          <Route path="artist-studio" element={<ArtistPanelPage />} />
-        </Route>
+          <Route element={<ArtistRoute />}>
+            <Route path="artist-panel" element={<ArtistPanelPage />} />
+            <Route path="artist-studio" element={<ArtistPanelPage />} />
+          </Route>
 
-        <Route element={<AdminRoute />}>
-          <Route path="admin" element={<AdminPanelPage />} />
-        </Route>
+          <Route element={<AdminRoute />}>
+            <Route path="admin" element={<AdminPanelPage />} />
+          </Route>
 
-        <Route path="*" element={<NotFound />} />
+          <Route path="*" element={<NotFound />} />
+        </Route>
       </Route>
     </Routes>
     </HashRouter>

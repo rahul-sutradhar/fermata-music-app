@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from typing import Optional
+from typing import Optional, Any
 
 from app.core.config import settings
 
@@ -12,7 +12,7 @@ except Exception:  # pragma: no cover - optional dependency
 
 
 class SimpleMemoryRateLimiter:
-    """In-memory rate limiter used when Redis is not configured.
+    """In-memory rate limiter and cache used when Redis is not configured.
 
     Not suitable for multi-process/multi-host deployments but useful for
     development and CI where Redis is not available.
@@ -21,6 +21,8 @@ class SimpleMemoryRateLimiter:
     def __init__(self) -> None:
         # key -> (count, expires_at)
         self._store: dict[str, tuple[int, float]] = {}
+        # key -> (value, expires_at)
+        self._cache: dict[str, tuple[Any, float]] = {}
 
     def incr(self, key: str, window: int) -> int:
         now = time.time()
@@ -39,6 +41,22 @@ class SimpleMemoryRateLimiter:
         _, expires_at = self._store[key]
         remaining = int(max(0, expires_at - now))
         return remaining
+
+    def set(self, key: str, value: Any, expire: int) -> None:
+        self._cache[key] = (value, time.time() + expire)
+
+    def get(self, key: str) -> Any:
+        now = time.time()
+        if key not in self._cache:
+            return None
+        val, expires_at = self._cache[key]
+        if now > expires_at:
+            self._cache.pop(key, None)
+            return None
+        return val
+
+    def delete(self, key: str) -> None:
+        self._cache.pop(key, None)
 
 
 # Singleton instances
