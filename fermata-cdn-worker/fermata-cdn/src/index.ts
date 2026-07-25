@@ -26,7 +26,7 @@ export default {
 		
 		// Use S3 virtual-host style URL: https://<bucket>.s3.<region>.backblazeb2.com/<key>
 		const B2_ENDPOINT = `s3.${env.B2_REGION}.backblazeb2.com`;
-		const s3Url = new URL(url.pathname, `https://${env.B2_BUCKET_NAME}.${B2_ENDPOINT}`);
+		const s3Url = new URL(url.pathname + url.search, `https://${env.B2_BUCKET_NAME}.${B2_ENDPOINT}`);
 		
 		// Initialize S3 signer
 		const aws = new AwsClient({
