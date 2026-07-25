@@ -387,6 +387,8 @@ def upload_track_cover(
 
     previous_key = track.cover_image_key
     track.cover_image_key = object_key
+    from datetime import datetime
+    track.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(track)
 

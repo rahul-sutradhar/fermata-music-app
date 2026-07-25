@@ -134,6 +134,8 @@ def upload_album_cover(
 
     previous_key = album.cover_image_key
     album.cover_image_key = object_key
+    from datetime import datetime
+    album.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(album)
 
