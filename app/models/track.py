@@ -78,5 +78,10 @@ class Track(Base):
     def cover_url(self) -> str | None:
         from app.core.storage import get_audio_url
         if self.cover_image_key:
-            return get_audio_url(self.cover_image_key)
+            url = get_audio_url(self.cover_image_key)
+            if url and self.updated_at:
+                ts = int(self.updated_at.timestamp())
+                sep = "&" if "?" in url else "?"
+                return f"{url}{sep}v={ts}"
+            return url
         return self.album.cover_url if self.album else None

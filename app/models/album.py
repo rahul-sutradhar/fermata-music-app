@@ -30,4 +30,11 @@ class Album(Base):
     @property
     def cover_url(self) -> str | None:
         from app.core.storage import get_audio_url
-        return get_audio_url(self.cover_image_key) if self.cover_image_key else None
+        if not self.cover_image_key:
+            return None
+        url = get_audio_url(self.cover_image_key)
+        if url and self.updated_at:
+            ts = int(self.updated_at.timestamp())
+            sep = "&" if "?" in url else "?"
+            return f"{url}{sep}v={ts}"
+        return url
