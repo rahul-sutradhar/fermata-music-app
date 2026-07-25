@@ -24,17 +24,19 @@ interface Message {
 export default function ReportMissingPage() {
   const location = useLocation()
   const prefilledQuery = (location.state as any)?.prefilledQuery || ''
-  
+
   const user = useAuthStore((s) => s.user)
   const token = useAuthStore((s) => s.token)
-  
+
   const [messages, setMessages] = useState<Message[]>([])
-  const [inputValue, setInputValue] = useState('')
+  const [songName, setSongName] = useState('')
+  const [artist, setArtist] = useState('')
+  const [movieName, setMovieName] = useState('')
   const [threadId, setThreadId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [ingestionLogs, setIngestionLogs] = useState<string[]>([])
   const [isComplete, setIsComplete] = useState<boolean>(false)
-  
+
   const chatEndRef = useRef<HTMLDivElement>(null)
   const setTrack = usePlayerStore((s) => s.setTrack)
   const setQueue = usePlayerStore((s) => s.setQueue)
@@ -62,7 +64,7 @@ export default function ReportMissingPage() {
           if (parsed.isComplete) {
             sessionStorage.removeItem(cacheKey)
           }
-        } catch (e) {}
+        } catch (e) { }
       }
 
       const welcomeId = Math.random().toString()
@@ -141,14 +143,14 @@ export default function ReportMissingPage() {
   }, [user])
 
   // Core Search Ingestion Function
-  const handleSearch = async (songQuery: string) => {
+  const handleSearch = async (songQuery: string, displayMessage?: string) => {
     if (!songQuery.trim() || !user) return
     setLoading(true)
     setIsComplete(false) // Reset completion state for new search
 
     const cacheKey = `fermata-chatbot-state-${user.id}`
     const userMsgId = Math.random().toString()
-    const userMsg: Message = { id: userMsgId, sender: 'user', text: songQuery }
+    const userMsg: Message = { id: userMsgId, sender: 'user', text: displayMessage || songQuery }
 
     // Read cached state to append the user message immediately
     let currentMsgs: Message[] = []
@@ -161,7 +163,7 @@ export default function ReportMissingPage() {
         currentMsgs = parsed.messages || []
         currentThread = parsed.threadId || null
         currentLogs = parsed.ingestionLogs || []
-      } catch (e) {}
+      } catch (e) { }
     }
 
     const messagesWithUser = [...currentMsgs, userMsg]
@@ -173,7 +175,7 @@ export default function ReportMissingPage() {
       loading: true
     }))
     setMessages(messagesWithUser)
-    
+
     try {
       const response = await searchSongCandidates(songQuery)
       const botMsgId = Math.random().toString()
@@ -207,7 +209,7 @@ export default function ReportMissingPage() {
         try {
           const parsed = JSON.parse(currentCached)
           latestCachedMsgs = parsed.messages || messagesWithUser
-        } catch (e) {}
+        } catch (e) { }
       }
 
       const finalMessages = [...latestCachedMsgs, finalBotMsg]
@@ -240,7 +242,7 @@ export default function ReportMissingPage() {
         try {
           const parsed = JSON.parse(currentCached)
           latestCachedMsgs = parsed.messages || messagesWithUser
-        } catch (e) {}
+        } catch (e) { }
       }
 
       const finalMessages = [...latestCachedMsgs, errorMsg]
@@ -263,13 +265,13 @@ export default function ReportMissingPage() {
   const handleSelectSong = async (candidateId: string, songName: string) => {
     if (!threadId || !user) return
     setLoading(true)
-    
+
     // Add choice log
     const userMsgId = Math.random().toString()
-    const selectionName = candidateId === 'report_missing' 
+    const selectionName = candidateId === 'report_missing'
       ? 'None of these - Report Missing Song'
       : songName
-    
+
     const choiceMsg: Message = { id: userMsgId, sender: 'user', text: `Option: ${selectionName}` }
 
     const cacheKey = `fermata-chatbot-state-${user.id}`
@@ -281,7 +283,7 @@ export default function ReportMissingPage() {
         const parsed = JSON.parse(cached)
         currentMsgs = parsed.messages || []
         currentLogs = parsed.ingestionLogs || []
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // Filter candidates list in existing messages immediately
@@ -317,7 +319,7 @@ export default function ReportMissingPage() {
       loading: true
     }))
     setMessages(messagesWithChoice)
-    
+
     try {
       const response = await submitCandidateSelection(threadId, candidateId)
       const botMsgId = Math.random().toString()
@@ -335,7 +337,7 @@ export default function ReportMissingPage() {
         try {
           const parsed = JSON.parse(currentCached)
           latestCachedMsgs = parsed.messages || messagesWithChoice
-        } catch (e) {}
+        } catch (e) { }
       }
 
       // Re-apply filter on loaded messages in case cache was reloaded from unmounted state
@@ -386,7 +388,7 @@ export default function ReportMissingPage() {
         try {
           const parsed = JSON.parse(currentCached)
           latestCachedMsgs = parsed.messages || messagesWithChoice
-        } catch (e) {}
+        } catch (e) { }
       }
 
       const finalMessages = [...latestCachedMsgs, errorMsg]
@@ -409,7 +411,7 @@ export default function ReportMissingPage() {
   const handleAdminReview = async (approved: boolean) => {
     if (!threadId) return
     setLoading(true)
-    
+
     const botMsgId = Math.random().toString()
     setMessages((prev) => [
       ...prev,
@@ -420,11 +422,11 @@ export default function ReportMissingPage() {
         type: 'text'
       }
     ])
-    
+
     try {
       const response = await simulateAdminApproval(threadId, approved, "Simulated from Ingestion Chatbot Interface")
       const finalMsgId = Math.random().toString()
-      
+
       if (response.status === 'completed') {
         setIsComplete(true) // Session finished
         setMessages((prev) => [
@@ -438,7 +440,7 @@ export default function ReportMissingPage() {
             logs: response.logs
           }
         ])
-        
+
         // Add a play card if audio URL exists
         if (response.track_id && response.audio_url) {
           const playMsgId = Math.random().toString()
@@ -514,10 +516,22 @@ export default function ReportMissingPage() {
   }
 
   const handleSend = () => {
-    if (!inputValue.trim()) return
-    const text = inputValue
-    setInputValue('')
-    handleSearch(text)
+    if (!songName.trim()) return
+
+    let searchTerms = [songName.trim()]
+    if (artist.trim()) searchTerms.push(artist.trim())
+    if (movieName.trim()) searchTerms.push(movieName.trim())
+    const searchString = searchTerms.join(' ')
+
+    setSongName('')
+    setArtist('')
+    setMovieName('')
+
+    const displayMsg = `🎵 Song: ${songName.trim()}` +
+      (artist.trim() ? `\n👤 Artist/Singer: ${artist.trim()}` : '') +
+      (movieName.trim() ? `\n🎬 Movie/Album: ${movieName.trim()}` : '')
+
+    handleSearch(searchString, displayMsg)
   }
 
   if (!user || !token) {
@@ -533,8 +547,8 @@ export default function ReportMissingPage() {
     <div className="flex flex-col h-[calc(100vh-140px)] max-w-4xl mx-auto space-y-4">
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-surface-highlight/30 pb-3">
-        <Link 
-          to="/search" 
+        <Link
+          to="/search"
           className="p-2 hover:bg-surface-highlight rounded-full text-subtext hover:text-primary transition-colors"
         >
           <ArrowLeft size={20} />
@@ -558,14 +572,13 @@ export default function ReportMissingPage() {
             className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in duration-200`}
           >
             <div
-              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                msg.sender === 'user'
+              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${msg.sender === 'user'
                   ? 'bg-spotify-green text-black font-semibold rounded-tr-none'
                   : 'bg-surface-highlight/40 text-primary rounded-tl-none border border-surface-highlight/40'
-              }`}
+                }`}
             >
               {/* Normal Text message */}
-              {(!msg.type || msg.type === 'text') && <p>{msg.text}</p>}
+              {(!msg.type || msg.type === 'text') && <p className="whitespace-pre-wrap">{msg.text}</p>}
 
               {/* Status alerts */}
               {msg.type === 'status' && (
@@ -637,7 +650,7 @@ export default function ReportMissingPage() {
                         </div>
                       )
                     })}
-                    
+
                     {/* Add report option at the very bottom */}
                     {!msg.selected && msg.candidates[0]?.title !== "Ingested Track" && (
                       <button
@@ -658,7 +671,7 @@ export default function ReportMissingPage() {
                     <AlertCircle size={18} className="text-spotify-green shrink-0" />
                     {msg.text}
                   </p>
-                  
+
                   <div className="bg-black/50 p-4 rounded-xl border border-surface-highlight/30 space-y-3">
                     <p className="text-xs text-subtext">
                       Ingestion requests submitted to the queue require administrator approval. For testing, choose a simulated review action below:
@@ -698,24 +711,69 @@ export default function ReportMissingPage() {
         <div ref={chatEndRef} />
       </div>
 
-      {/* Input box */}
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-          placeholder="Type a song title and artist... (e.g. Yesterday The Originals)"
-          className="flex-1 px-4 py-3 bg-surface-highlight/10 text-primary border border-surface-highlight/30 rounded-full focus:outline-none focus:border-spotify-green/60 text-sm"
-          disabled={loading}
-        />
-        <button
-          onClick={handleSend}
-          disabled={loading || !inputValue.trim()}
-          className="p-3 bg-spotify-green hover:bg-spotify-green/80 disabled:bg-zinc-800 text-black disabled:text-subtext rounded-full transition-all flex items-center justify-center shrink-0"
-        >
-          <Send size={18} />
-        </button>
+      {/* Ingestion Search Inputs */}
+      <div className="bg-surface-elevated/40 border border-surface-highlight/20 rounded-2xl p-4 space-y-3 shrink-0">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {/* Song Name (Mandatory) */}
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] text-subtext font-bold uppercase tracking-wider pl-1 flex items-center gap-1">
+              <span>Song Name</span>
+              <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={songName}
+              onChange={(e) => setSongName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+              placeholder="Song title (e.g. Tum Prem Ho)"
+              className="px-4 py-2.5 bg-surface-highlight/10 text-primary border border-surface-highlight/30 rounded-xl focus:outline-none focus:border-spotify-green/60 text-xs transition-all"
+              disabled={loading}
+            />
+          </div>
+
+          {/* Artist/Singer (Optional) */}
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] text-subtext font-bold uppercase tracking-wider pl-1">
+              Artist / Singer (Optional)
+            </label>
+            <input
+              type="text"
+              value={artist}
+              onChange={(e) => setArtist(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+              placeholder="Singer (e.g. Arijit Singh)"
+              className="px-4 py-2.5 bg-surface-highlight/10 text-primary border border-surface-highlight/30 rounded-xl focus:outline-none focus:border-spotify-green/60 text-xs transition-all"
+              disabled={loading}
+            />
+          </div>
+
+          {/* Movie/Album Name (Optional) */}
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] text-subtext font-bold uppercase tracking-wider pl-1">
+              Movie / Album (Optional)
+            </label>
+            <input
+              type="text"
+              value={movieName}
+              onChange={(e) => setMovieName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+              placeholder="Movie name (e.g. RadhaKrishn)"
+              className="px-4 py-2.5 bg-surface-highlight/10 text-primary border border-surface-highlight/30 rounded-xl focus:outline-none focus:border-spotify-green/60 text-xs transition-all"
+              disabled={loading}
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-1 border-t border-surface-highlight/10">
+          <button
+            onClick={handleSend}
+            disabled={loading || !songName.trim()}
+            className="px-5 py-2.5 bg-spotify-green hover:bg-spotify-green/80 disabled:bg-zinc-800 text-black disabled:text-subtext rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow hover:scale-[1.02] disabled:scale-100 cursor-pointer"
+          >
+            <Send size={12} />
+            <span>Search & Ingest</span>
+          </button>
+        </div>
       </div>
     </div>
   )
