@@ -14,6 +14,8 @@ def reduce_logs(left: List[str], right: List[str]) -> List[str]:
 class AgenticState(TypedDict):
     # Inputs
     song_name: str
+    artist: Optional[str]
+    movie_name: Optional[str]
     
     # 1. Search Candidates
     candidates: List[Dict[str, Any]]

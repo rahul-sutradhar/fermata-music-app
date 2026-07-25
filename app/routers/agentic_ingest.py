@@ -1,7 +1,7 @@
 import uuid
 import gc
 import threading
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from pydantic import BaseModel
 from sqlalchemy import select, func
@@ -32,6 +32,8 @@ def _get_workflow():
 
 class SearchRequest(BaseModel):
     song_name: str
+    artist: Optional[str] = None
+    movie_name: Optional[str] = None
 
 
 class SelectRequest(BaseModel):
@@ -56,7 +58,11 @@ def search_song(payload: SearchRequest, db: DbSession, current_user: CurrentUser
     
     try:
         # Run workflow up to selection interrupt
-        events = list(workflow.stream({"song_name": payload.song_name}, config, stream_mode="values"))
+        events = list(workflow.stream({
+            "song_name": payload.song_name,
+            "artist": payload.artist,
+            "movie_name": payload.movie_name
+        }, config, stream_mode="values"))
         
         state = workflow.get_state(config)
         

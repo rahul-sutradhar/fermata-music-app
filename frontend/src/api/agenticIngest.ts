@@ -30,10 +30,18 @@ export interface AgenticAdminReviewResponse {
   logs: string[]
 }
 
-export async function searchSongCandidates(songName: string): Promise<AgenticSearchResponse> {
+export async function searchSongCandidates(
+  songName: string,
+  artist?: string,
+  movieName?: string,
+): Promise<AgenticSearchResponse> {
   return apiRequest<AgenticSearchResponse>('/api/v1/agentic-ingest/search', {
     method: 'POST',
-    body: JSON.stringify({ song_name: songName }),
+    body: JSON.stringify({
+      song_name: songName,
+      artist: artist || null,
+      movie_name: movieName || null,
+    }),
   })
 }
 

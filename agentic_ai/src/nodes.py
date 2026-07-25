@@ -150,11 +150,12 @@ def _search_spotify_candidates(query: str, client_id: str, client_secret: str) -
         return candidates
     except Exception:
         return []
-
-
 def search_candidates(state: AgenticState) -> Dict[str, Any]:
     song_name = state.get("song_name", "")
-    new_logs = [f"[Search] Activating external source search for: '{song_name}'"]
+    artist = state.get("artist") or ""
+    movie_name = state.get("movie_name") or ""
+    
+    new_logs = [f"[Search] Activating external source search for: Song Name='{song_name}', Artist='{artist}', Movie='{movie_name}'"]
     
     if song_name.strip().lower() == "nonexistent song query":
         new_logs.append("[Search] No candidate tracks found matching the search query.")
@@ -181,7 +182,7 @@ def search_candidates(state: AgenticState) -> Dict[str, Any]:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(song_name_clean, download=False)
                 title = info.get('title', 'Unknown Title')
-                artist = info.get('uploader', 'Unknown Artist')
+                uploader = info.get('uploader', 'Unknown Artist')
                 duration = info.get('duration', 0)
                 video_id = info.get('id')
                 watch_url = f"https://www.youtube.com/watch?v={video_id}"
@@ -192,19 +193,26 @@ def search_candidates(state: AgenticState) -> Dict[str, Any]:
                 candidates = [{
                     "id": "cand_1",
                     "title": title,
-                    "artist": artist,
+                    "artist": uploader,
                     "album": "YouTube Source Link",
                     "duration_seconds": duration,
                     "source_url": watch_url,
                     "cover_url": cover_url
                 }]
-                new_logs.append(f"[Search] Successfully extracted video metadata: '{title}' by {artist}.")
+                new_logs.append(f"[Search] Successfully extracted video metadata: '{title}' by {uploader}.")
                 return {
                     "candidates": candidates,
                     "logs": new_logs
                 }
         except Exception as e:
             new_logs.append(f"[Search] Direct link metadata extraction failed: {str(e)}. Proceeding to search query.")
+ 
+    # Combine fields to construct a text search string for general fallbacks
+    combined_query = song_name_clean
+    if artist.strip():
+        combined_query += f" {artist.strip()}"
+    if movie_name.strip():
+        combined_query += f" {movie_name.strip()}"
 
     candidates = []
     spotify_success = False
@@ -215,7 +223,20 @@ def search_candidates(state: AgenticState) -> Dict[str, Any]:
     if spotify_id and spotify_secret:
         new_logs.append("[Search] Spotify API credentials detected. Attempting Spotify Web API search...")
         try:
-            candidates = _search_spotify_candidates(song_name, spotify_id, spotify_secret)
+            # Construct a strict field-specific query
+            spotify_q = f"track:{song_name_clean}"
+            if artist.strip():
+                spotify_q += f" artist:{artist.strip()}"
+            if movie_name.strip():
+                spotify_q += f" album:{movie_name.strip()}"
+                
+            new_logs.append(f"[Search] Executing Spotify strict search query: '{spotify_q}'")
+            candidates = _search_spotify_candidates(spotify_q, spotify_id, spotify_secret)
+            
+            if not candidates:
+                new_logs.append(f"[Search] Strict query yielded no results. Trying loose search: '{combined_query}'")
+                candidates = _search_spotify_candidates(combined_query, spotify_id, spotify_secret)
+
             if candidates:
                 new_logs.append(f"[Search] Successfully retrieved {len(candidates)} candidates using Spotify API.")
                 spotify_success = True
@@ -233,7 +254,7 @@ def search_candidates(state: AgenticState) -> Dict[str, Any]:
                 llm = ChatMistralAI(model=model_name, temperature=0.2)
                 
                 prompt = f"""
-                You are a music metadata fetcher. The user is searching for song candidates matching '{song_name}'.
+                You are a music metadata fetcher. The user is searching for song candidates matching Song Name: '{song_name_clean}', Artist: '{artist}', and Album/Movie: '{movie_name}'.
                 Retrieve 10 candidates that match or are highly relevant to this query.
                 Return ONLY a valid JSON list of objects. Do not include markdown code block formatting (like ```json), just the raw JSON.
                 Each object must contain these exact keys:
@@ -260,10 +281,10 @@ def search_candidates(state: AgenticState) -> Dict[str, Any]:
                 new_logs.append(f"[Search] Successfully retrieved {len(candidates)} candidates using Mistral AI.")
             except Exception as e:
                 new_logs.append(f"[Search] Mistral AI search failed or key is invalid: {str(e)}. Falling back to mock search.")
-                candidates = _generate_mock_candidates(song_name)
+                candidates = _generate_mock_candidates(song_name, artist, movie_name)
         else:
             new_logs.append("[Search] Mistral AI is not configured or MISTRAL_API_KEY is missing. Using high-fidelity mock search.")
-            candidates = _generate_mock_candidates(song_name)
+            candidates = _generate_mock_candidates(song_name, artist, movie_name)
             
     # 3. Resolve real YouTube URLs concurrently for all retrieved candidates
     if candidates:
@@ -279,17 +300,20 @@ def search_candidates(state: AgenticState) -> Dict[str, Any]:
     }
 
 
-def _generate_mock_candidates(song_name: str) -> List[Dict[str, Any]]:
+def _generate_mock_candidates(song_name: str, artist: str = "", movie_name: str = "") -> List[Dict[str, Any]]:
+    art_val = artist.strip() if artist.strip() else "The Originals"
+    alb_val = movie_name.strip() if movie_name.strip() else "Self-Titled"
+    
     variations = [
-        {"title": song_name, "artist": "The Originals", "album": "Self-Titled", "duration": 210},
-        {"title": f"{song_name} (Radio Edit)", "artist": "The Originals", "album": "Single Edit", "duration": 180},
-        {"title": f"{song_name} (Remix)", "artist": "DJ Remix Master", "album": "Club Hits", "duration": 280},
-        {"title": f"{song_name} (Acoustic)", "artist": "Acoustic Duo", "album": "Unplugged Sessions", "duration": 195},
-        {"title": f"{song_name} (Live)", "artist": "The Originals", "album": "Live World Tour", "duration": 245},
+        {"title": song_name, "artist": art_val, "album": alb_val, "duration": 210},
+        {"title": f"{song_name} (Radio Edit)", "artist": art_val, "album": "Single Edit", "duration": 180},
+        {"title": f"{song_name} (Remix)", "artist": "DJ Remix Master", "album": alb_val, "duration": 280},
+        {"title": f"{song_name} (Acoustic)", "artist": art_val, "album": "Unplugged Sessions", "duration": 195},
+        {"title": f"{song_name} (Live)", "artist": art_val, "album": "Live World Tour", "duration": 245},
         {"title": f"Cover of {song_name}", "artist": "Indie Band", "album": "Indie Covers", "duration": 220},
         {"title": song_name, "artist": "Pop Star", "album": "Modern Pop", "duration": 190},
-        {"title": f"{song_name} (Extended Mix)", "artist": "DJ Remix Master", "album": "Club Hits", "duration": 360},
-        {"title": f"{song_name} (Instrumental)", "artist": "The Originals", "album": "Karaoke Version", "duration": 210},
+        {"title": f"{song_name} (Extended Mix)", "artist": "DJ Remix Master", "album": alb_val, "duration": 360},
+        {"title": f"{song_name} (Instrumental)", "artist": art_val, "album": "Karaoke Version", "duration": 210},
         {"title": f"Tribute to {song_name}", "artist": "Classical Orchestra", "album": "Symphonic Tributes", "duration": 310},
     ]
     

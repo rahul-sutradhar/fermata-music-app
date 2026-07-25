@@ -143,7 +143,12 @@ export default function ReportMissingPage() {
   }, [user])
 
   // Core Search Ingestion Function
-  const handleSearch = async (songQuery: string, displayMessage?: string) => {
+  const handleSearch = async (
+    songQuery: string,
+    artistQuery?: string,
+    movieQuery?: string,
+    displayMessage?: string
+  ) => {
     if (!songQuery.trim() || !user) return
     setLoading(true)
     setIsComplete(false) // Reset completion state for new search
@@ -177,7 +182,7 @@ export default function ReportMissingPage() {
     setMessages(messagesWithUser)
 
     try {
-      const response = await searchSongCandidates(songQuery)
+      const response = await searchSongCandidates(songQuery, artistQuery, movieQuery)
       const botMsgId = Math.random().toString()
       let finalBotMsg: Message
       let newIsComplete = false
@@ -518,20 +523,19 @@ export default function ReportMissingPage() {
   const handleSend = () => {
     if (!songName.trim()) return
 
-    let searchTerms = [songName.trim()]
-    if (artist.trim()) searchTerms.push(artist.trim())
-    if (movieName.trim()) searchTerms.push(movieName.trim())
-    const searchString = searchTerms.join(' ')
+    const s = songName.trim()
+    const a = artist.trim()
+    const m = movieName.trim()
 
     setSongName('')
     setArtist('')
     setMovieName('')
 
-    const displayMsg = `🎵 Song: ${songName.trim()}` +
-      (artist.trim() ? `\n👤 Artist/Singer: ${artist.trim()}` : '') +
-      (movieName.trim() ? `\n🎬 Movie/Album: ${movieName.trim()}` : '')
+    const displayMsg = `🎵 Song: ${s}` +
+      (a ? `\n👤 Artist/Singer: ${a}` : '') +
+      (m ? `\n🎬 Movie/Album: ${m}` : '')
 
-    handleSearch(searchString, displayMsg)
+    handleSearch(s, a, m, displayMsg)
   }
 
   if (!user || !token) {
@@ -712,11 +716,11 @@ export default function ReportMissingPage() {
       </div>
 
       {/* Ingestion Search Inputs */}
-      <div className="bg-surface-elevated/40 border border-surface-highlight/20 rounded-2xl p-4 space-y-3 shrink-0">
+      <div className="bg-surface-elevated/40 border border-surface-highlight/20 rounded-xl p-3.5 space-y-3 shrink-0 shadow-xl">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {/* Song Name (Mandatory) */}
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-subtext font-bold uppercase tracking-wider pl-1 flex items-center gap-1">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] text-subtext/80 font-bold uppercase tracking-wider pl-1 flex items-center gap-1">
               <span>Song Name</span>
               <span className="text-red-500">*</span>
             </label>
@@ -725,52 +729,55 @@ export default function ReportMissingPage() {
               value={songName}
               onChange={(e) => setSongName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              placeholder="Song title (e.g. Tum Prem Ho)"
-              className="px-4 py-2.5 bg-surface-highlight/10 text-primary border border-surface-highlight/30 rounded-xl focus:outline-none focus:border-spotify-green/60 text-xs transition-all"
+              placeholder="Song title (mandatory)..."
+              className="w-full px-3 py-2 bg-surface-highlight/10 text-primary border border-surface-highlight/20 hover:border-surface-highlight/40 focus:border-spotify-green/60 rounded-lg focus:outline-none text-xs transition-all placeholder:text-subtext/50"
               disabled={loading}
             />
           </div>
 
           {/* Artist/Singer (Optional) */}
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-subtext font-bold uppercase tracking-wider pl-1">
-              Artist / Singer (Optional)
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] text-subtext/80 font-bold uppercase tracking-wider pl-1">
+              Artist / Singer
             </label>
             <input
               type="text"
               value={artist}
               onChange={(e) => setArtist(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              placeholder="Singer (e.g. Arijit Singh)"
-              className="px-4 py-2.5 bg-surface-highlight/10 text-primary border border-surface-highlight/30 rounded-xl focus:outline-none focus:border-spotify-green/60 text-xs transition-all"
+              placeholder="Singer name (optional)..."
+              className="w-full px-3 py-2 bg-surface-highlight/10 text-primary border border-surface-highlight/20 hover:border-surface-highlight/40 focus:border-spotify-green/60 rounded-lg focus:outline-none text-xs transition-all placeholder:text-subtext/50"
               disabled={loading}
             />
           </div>
 
           {/* Movie/Album Name (Optional) */}
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-subtext font-bold uppercase tracking-wider pl-1">
-              Movie / Album (Optional)
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] text-subtext/80 font-bold uppercase tracking-wider pl-1">
+              Movie / Album
             </label>
             <input
               type="text"
               value={movieName}
               onChange={(e) => setMovieName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              placeholder="Movie name (e.g. RadhaKrishn)"
-              className="px-4 py-2.5 bg-surface-highlight/10 text-primary border border-surface-highlight/30 rounded-xl focus:outline-none focus:border-spotify-green/60 text-xs transition-all"
+              placeholder="Movie or Album (optional)..."
+              className="w-full px-3 py-2 bg-surface-highlight/10 text-primary border border-surface-highlight/20 hover:border-surface-highlight/40 focus:border-spotify-green/60 rounded-lg focus:outline-none text-xs transition-all placeholder:text-subtext/50"
               disabled={loading}
             />
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 pt-1 border-t border-surface-highlight/10">
+        <div className="flex justify-between items-center pt-2 border-t border-surface-highlight/10">
+          <span className="text-[9px] text-subtext italic">
+            * Song Name is required to search registries.
+          </span>
           <button
             onClick={handleSend}
             disabled={loading || !songName.trim()}
-            className="px-5 py-2.5 bg-spotify-green hover:bg-spotify-green/80 disabled:bg-zinc-800 text-black disabled:text-subtext rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow hover:scale-[1.02] disabled:scale-100 cursor-pointer"
+            className="px-5 py-2 bg-spotify-green hover:bg-[#1ed760] disabled:bg-surface-highlight/20 text-black disabled:text-subtext rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow hover:scale-[1.02] active:scale-95 disabled:scale-100 cursor-pointer"
           >
-            <Send size={12} />
+            <Send size={11} />
             <span>Search & Ingest</span>
           </button>
         </div>
