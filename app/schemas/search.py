@@ -11,6 +11,7 @@ class SearchResultItem(BaseModel):
     id: int
     title: str
     subtitle: str | None = None
+    matched_snippet: str | None = None
 
 
 class SearchResponse(BaseModel):

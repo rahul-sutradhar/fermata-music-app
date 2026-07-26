@@ -41,11 +41,11 @@ class TrackResponse(BaseModel):
     artist_name: str | None = None
     genres: str | None = None
     lyrics: str | None = None
+    matched_snippet: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
     class Config:
         from_attributes = True
-
 
 

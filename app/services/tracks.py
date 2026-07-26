@@ -8,12 +8,55 @@ from app.core.config import settings
 from app.core.storage import delete_audio_file, get_audio_url, upload_audio_file
 from app.models.album import Album
 from app.models.track import Track
+from app.models.lyric_chunk import LyricChunk
 from app.schemas.track import TrackCreate, TrackResponse, TrackUpdate
+from app.services.embedding import get_embedding, chunk_lyrics
 
 _RESTRICTED_ALBUM_IDS = {999}
 
 
 from app.models.artist import Artist
+
+def index_and_embed_track(db: Session, track: Track) -> None:
+    """Computes text search vectors, generates embeddings, chunks lyrics, and saves chunks."""
+    import numpy as np
+    artist_name = track.artist_name or ""
+    album_title = track.album_title or ""
+    genres = track.genres or ""
+    
+    text_to_embed = f"Title: {track.title} | Artist: {artist_name} | Album: {album_title} | Genre: {genres}"
+    
+    try:
+        raw = get_embedding(text_to_embed)
+        if isinstance(raw, list) and len(raw) == 384:
+            track.embedding = np.array(raw, dtype=np.float32)
+    except Exception as e:
+        print(f"[Search Service] Failed to generate track embedding: {str(e)}", flush=True)
+        
+    track.search_tsv = func.to_tsvector(
+        "english",
+        f"{track.title} {artist_name} {album_title} {genres}"
+    )
+    
+    try:
+        # Delete existing chunks
+        db.query(LyricChunk).filter(LyricChunk.track_id == track.id).delete()
+        
+        if track.lyrics and track.lyrics.strip():
+            chunks = chunk_lyrics(track.lyrics)
+            for idx, text_chunk in enumerate(chunks):
+                raw_chunk = get_embedding(text_chunk)
+                chunk_embed = np.array(raw_chunk, dtype=np.float32) if isinstance(raw_chunk, list) and len(raw_chunk) == 384 else None
+                lc = LyricChunk(
+                    track_id=track.id,
+                    chunk_index=idx,
+                    text=text_chunk,
+                    embedding=chunk_embed
+                )
+                db.add(lc)
+    except Exception as e:
+        print(f"[Search Service] Failed to process lyric chunks: {str(e)}", flush=True)
+
 
 def _to_response(track: Track) -> TrackResponse:
     # Prioritize HLS playlist URL, fallback to raw audio
@@ -291,6 +334,12 @@ def create_track(*, db: Session, payload: TrackCreate, user: User) -> TrackRespo
     db.add(track)
     db.commit()
     db.refresh(track)
+
+    # Compute search vector and semantic embedding
+    index_and_embed_track(db, track)
+    db.commit()
+    db.refresh(track)
+
     return _to_response(track)
 
 
@@ -322,6 +371,13 @@ def update_track(
 
     for field, value in updates.items():
         setattr(track, field, value)
+
+    # Recompute search indexing if any key metadata or lyrics were updated
+    search_affecting_fields = {"title", "genres", "lyrics", "album_id", "artist_id"}
+    if any(k in updates for k in search_affecting_fields):
+        db.commit()
+        db.refresh(track)
+        index_and_embed_track(db, track)
 
     db.commit()
     db.refresh(track)

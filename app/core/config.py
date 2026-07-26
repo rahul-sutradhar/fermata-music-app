@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     mistral_api_key: str | None = None
     mistral_model: str = "mistral-large-latest"
 
+    # Gemini AI
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-1.5-flash"
+
 
 @lru_cache
 def get_settings() -> Settings:

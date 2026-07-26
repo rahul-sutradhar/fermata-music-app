@@ -6,7 +6,7 @@ from app.core.deps import CurrentUser, DbSession, CurrentArtistOrAdmin
 from app.schemas.errors import ErrorResponse
 from app.schemas.track import TrackCreate, TrackResponse, TrackUpdate
 from app.services import tracks as track_service
-from app.services.tracks import _to_response as _track_to_response
+from app.services.tracks import _to_response as _track_to_response, index_and_embed_track
 from app.core.storage import get_b2_client
 from app.core.config import settings
 from app.models.track import Track
@@ -197,10 +197,55 @@ def upload_track_cover(
     )
 
 
+# ── Re-indexing / Re-embedding endpoints ──────────────────────────────────────
+
+@router.post(
+    "/{track_id}/reindex",
+    response_model=TrackResponse,
+    responses={404: {"model": ErrorResponse}},
+)
+def reindex_track(track_id: int, db: DbSession, current_user: CurrentUser) -> TrackResponse:
+    """
+    Admin: Recompute search_tsv and embedding for a single track.
+    Use this after changing the embedding model or fixing track metadata.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    track = db.get(Track, track_id)
+    if track is None:
+        raise HTTPException(status_code=404, detail="Track not found")
+    index_and_embed_track(db, track)
+    db.commit()
+    db.refresh(track)
+    return _track_to_response(track)
+
+
+@router.post("/reindex-all", status_code=200)
+def reindex_all_tracks(db: DbSession, current_user: CurrentUser) -> dict:
+    """
+    Admin: Recompute search_tsv and embeddings for every track in the database.
+    Run this after switching embedding models.
+    WARNING: Calls the HF API once per track and once per lyric chunk — may be slow.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    from sqlalchemy import select as sa_select
+    tracks = db.scalars(sa_select(Track)).all()
+    reindexed, failed = [], []
+    for track in tracks:
+        try:
+            index_and_embed_track(db, track)
+            reindexed.append(track.id)
+        except Exception as e:
+            failed.append({"id": track.id, "title": track.title, "error": str(e)})
+    db.commit()
+    return {"reindexed": reindexed, "failed": failed, "total": len(tracks)}
+
+
 @router.post(
     "/{track_id}/lyrics/fetch",
     response_model=TrackResponse,
-    responses={404: {"model": ErrorResponse}, 503: {"model": ErrorResponse}},
+    responses={404: {"model": ErrorResponse}},
 )
 def fetch_track_lyrics(track_id: int, db: DbSession) -> TrackResponse:
     """
@@ -223,46 +268,70 @@ def fetch_track_lyrics(track_id: int, db: DbSession) -> TrackResponse:
 
     # --- Tier 1: lrclib.net ---
     try:
-        params = {"track_name": song_name, "artist_name": artist_name}
-        r = req_lib.get(
-            "https://lrclib.net/api/get",
-            params=params,
-            headers={"User-Agent": "FermataApp/1.0"},
-            timeout=8,
-        )
-        logger.info(f"[lyrics][lrclib] status={r.status_code}")
-        if r.status_code == 200:
-            plain = (r.json().get("plainLyrics") or "").strip()
-            if plain:
-                track.lyrics = plain
-                db.commit()
-                db.refresh(track)
-                return _track_to_response(track)
-            logger.info("[lyrics][lrclib] No plainLyrics in response payload.")
+        # Build candidate artists list to try in sequence
+        artists_to_try = [artist_name]
+        primary_artist = ""
+        if "," in artist_name or "feat" in artist_name.lower() or "ft" in artist_name.lower():
+            import re
+            parts = re.split(r',|feat\b|ft\b', artist_name, flags=re.IGNORECASE)
+            primary_artist = parts[0].strip()
+            if primary_artist and primary_artist != artist_name:
+                artists_to_try.append(primary_artist)
         else:
-            logger.warning(f"[lyrics][lrclib] Non-200 response: {r.status_code} — {r.text[:200]}")
+            primary_artist = artist_name
+
+        plain_lyrics = None
+
+        # 1. Try exact match lookups
+        for artist in artists_to_try:
+            params = {"track_name": song_name}
+            if artist:
+                params["artist_name"] = artist
+            
+            logger.info(f"[lyrics][lrclib] Trying exact match for title={song_name!r} artist={artist!r}")
+            r = req_lib.get(
+                "https://lrclib.net/api/get",
+                params=params,
+                headers={"User-Agent": "FermataApp/1.0"},
+                timeout=8,
+            )
+            if r.status_code == 200:
+                plain_lyrics = (r.json().get("plainLyrics") or "").strip()
+                if plain_lyrics:
+                    logger.info("[lyrics][lrclib] Found exact lyrics match.")
+                    break
+
+        # 2. Try fuzzy search fallback if exact fails
+        if not plain_lyrics and primary_artist:
+            search_query = f"{song_name} {primary_artist}"
+            logger.info(f"[lyrics][lrclib] Exact match failed. Trying fuzzy search for query={search_query!r}")
+            r_search = req_lib.get(
+                "https://lrclib.net/api/search",
+                params={"q": search_query},
+                headers={"User-Agent": "FermataApp/1.0"},
+                timeout=8,
+            )
+            if r_search.status_code == 200:
+                results = r_search.json()
+                for res in results:
+                    plain_lyrics = (res.get("plainLyrics") or "").strip()
+                    if plain_lyrics:
+                        logger.info(f"[lyrics][lrclib] Found search lyrics match from title='{res.get('name')}' artist='{res.get('artistName')}'")
+                        break
+
+
+
+        if plain_lyrics:
+            track.lyrics = plain_lyrics
+            index_and_embed_track(db, track)
+            db.commit()
+            db.refresh(track)
+            return _track_to_response(track)
+
     except Exception as e:
         logger.warning(f"[lyrics][lrclib] Exception: {e}")
 
-    # --- Tier 2: lyrics.ovh ---
-    try:
-        url = f"https://api.lyrics.ovh/v1/{urllib.parse.quote(artist_name)}/{urllib.parse.quote(song_name)}"
-        r = req_lib.get(url, timeout=8)
-        logger.info(f"[lyrics][ovh] status={r.status_code}")
-        if r.status_code == 200:
-            lyrics = (r.json().get("lyrics") or "").strip()
-            if lyrics:
-                track.lyrics = lyrics
-                db.commit()
-                db.refresh(track)
-                return _track_to_response(track)
-            logger.info("[lyrics][ovh] lyrics field empty in response.")
-        else:
-            logger.warning(f"[lyrics][ovh] Non-200 response: {r.status_code}")
-    except Exception as e:
-        logger.warning(f"[lyrics][ovh] Exception: {e}")
-
-    # --- Tier 3: Mistral LLM ---
+    # --- Tier 2: Mistral LLM ---
     if settings.mistral_api_key:
         try:
             from langchain_mistralai import ChatMistralAI
@@ -279,6 +348,7 @@ def fetch_track_lyrics(track_id: int, db: DbSession) -> TrackResponse:
             logger.info(f"[lyrics][llm] LLM responded ({len(result)} chars)")
             if result and "lyrics not found" not in result.lower():
                 track.lyrics = result
+                index_and_embed_track(db, track)
                 db.commit()
                 db.refresh(track)
                 return _track_to_response(track)
@@ -287,7 +357,45 @@ def fetch_track_lyrics(track_id: int, db: DbSession) -> TrackResponse:
     else:
         logger.info("[lyrics][llm] Skipping LLM tier — MISTRAL_API_KEY not set in settings.")
 
-    raise HTTPException(status_code=503, detail="Could not fetch lyrics from any available source.")
+    # --- Tier 3: Gemini LLM ---
+    if settings.gemini_api_key:
+        try:
+            logger.info(f"[lyrics][gemini] Querying Gemini for lyrics: '{song_name}' by '{artist_name}'...")
+            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.gemini_model}:generateContent?key={settings.gemini_api_key}"
+            prompt = (
+                f"You are a music cataloging assistant. Retrieve the complete and accurate lyrics for the song '{song_name}' by '{artist_name}'.\n\n"
+                "Constraints:\n"
+                "- Output ONLY the lyrics. Do not add introductory sentences, structural metadata commentary, notes, or explanations.\n"
+                "- Do not include guitar chords or piano symbols within the lyrics lines.\n"
+                "- Keep structural separators like [Verse 1], [Chorus], [Bridge] clean.\n"
+                "- If you cannot find or reconstruct the lyrics with 100% certainty, reply with exactly: Lyrics not found."
+            )
+            payload = {
+                "contents": [{
+                    "parts": [{"text": prompt}]
+                }]
+            }
+            res = req_lib.post(gemini_url, json=payload, timeout=12)
+            if res.status_code == 200:
+                res_data = res.json()
+                candidates = res_data.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    if parts:
+                        result = parts[0].get("text", "").strip()
+                        logger.info(f"[lyrics][gemini] Gemini responded ({len(result)} chars)")
+                        if result and "lyrics not found" not in result.lower():
+                            track.lyrics = result
+                            index_and_embed_track(db, track)
+                            db.commit()
+                            db.refresh(track)
+                            return _track_to_response(track)
+            else:
+                logger.error(f"[lyrics][gemini] API error {res.status_code}: {res.text}")
+        except Exception as e:
+            logger.error(f"[lyrics][gemini] Exception: {e}")
+
+    raise HTTPException(status_code=404, detail="Could not fetch lyrics from any available source.")
 
 
 @router.post(
@@ -308,24 +416,54 @@ def transliterate_track_lyrics(track_id: int, db: DbSession) -> dict:
     if not track.lyrics or not track.lyrics.strip():
         raise HTTPException(status_code=422, detail="Track has no lyrics to transliterate.")
 
-    if not settings.mistral_api_key:
-        raise HTTPException(status_code=503, detail="Mistral API not configured for transliteration.")
+    if not settings.mistral_api_key and not settings.gemini_api_key:
+        raise HTTPException(status_code=503, detail="Neither Mistral nor Gemini APIs configured for transliteration.")
 
-    try:
-        from langchain_mistralai import ChatMistralAI
-        from langchain_core.messages import HumanMessage
-        llm = ChatMistralAI(model=settings.mistral_model, api_key=settings.mistral_api_key, temperature=0.1)
-        prompt = (
-            "You are a phonetic transliteration assistant.\n"
-            "Transliterate the following song lyrics from their native script (e.g., Bengali, Hindi, Tamil, Telugu, Kannada, Malayalam) "
-            "into English alphabets that represent the same pronunciation as the original language.\n"
-            "Do NOT translate the meaning. Do NOT change the structure or line breaks.\n"
-            "If a line is already in English, leave it unchanged.\n"
-            "Output ONLY the transliterated lyrics, nothing else.\n\n"
-            f"Lyrics:\n{track.lyrics}"
-        )
-        response = llm.invoke([HumanMessage(content=prompt)])
-        transliteration = response.content.strip()
-        return {"track_id": track_id, "transliteration": transliteration}
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Transliteration failed: {str(e)}")
+    prompt = (
+        "You are a phonetic transliteration assistant.\n"
+        "Transliterate the following song lyrics from their native script (e.g., Bengali, Hindi, Tamil, Telugu, Kannada, Malayalam) "
+        "into English alphabets that represent the same pronunciation as the original language.\n"
+        "Do NOT translate the meaning. Do NOT change the structure or line breaks.\n"
+        "If a line is already in English, leave it unchanged.\n"
+        "Output ONLY the transliterated lyrics, nothing else.\n\n"
+        f"Lyrics:\n{track.lyrics}"
+    )
+
+    import requests as req_lib
+    import logging
+    logger = logging.getLogger(__name__)
+
+    if settings.mistral_api_key:
+        try:
+            from langchain_mistralai import ChatMistralAI
+            from langchain_core.messages import HumanMessage
+            llm = ChatMistralAI(model=settings.mistral_model, api_key=settings.mistral_api_key, temperature=0.1)
+            response = llm.invoke([HumanMessage(content=prompt)])
+            transliteration = response.content.strip()
+            return {"track_id": track_id, "transliteration": transliteration}
+        except Exception as e:
+            logger.error(f"[transliterate][mistral] Exception: {e}")
+
+    if settings.gemini_api_key:
+        try:
+            logger.info(f"[transliterate][gemini] Requesting transliteration from Gemini model: {settings.gemini_model}...")
+            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.gemini_model}:generateContent?key={settings.gemini_api_key}"
+            payload = {
+                "contents": [{
+                    "parts": [{"text": prompt}]
+                }]
+            }
+            res = req_lib.post(gemini_url, json=payload, timeout=15)
+            if res.status_code == 200:
+                res_data = res.json()
+                candidates = res_data.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    if parts:
+                        transliteration = parts[0].get("text", "").strip()
+                        return {"track_id": track_id, "transliteration": transliteration}
+            raise RuntimeError(f"Gemini API returned status {res.status_code}: {res.text}")
+        except Exception as e:
+            logger.error(f"[transliterate][gemini] Exception: {e}")
+
+    raise HTTPException(status_code=503, detail="Transliteration failed via all configured providers.")

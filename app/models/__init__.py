@@ -12,6 +12,7 @@ from app.models.otp import UserOTP
 from app.models.track import Track
 from app.models.user import User
 from app.models.ingestion_request import IngestionRequest
+from app.models.lyric_chunk import LyricChunk
 
 __all__ = [
     "Album",
@@ -32,4 +33,5 @@ __all__ = [
     "User",
     "UserLibrary",
     "IngestionRequest",
+    "LyricChunk",
 ]

@@ -40,6 +40,7 @@ export default function ReportMissingPage() {
   const chatEndRef = useRef<HTMLDivElement>(null)
   const setTrack = usePlayerStore((s) => s.setTrack)
   const setQueue = usePlayerStore((s) => s.setQueue)
+  const lastProcessedQuery = useRef<string | null>(null)
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -56,6 +57,8 @@ export default function ReportMissingPage() {
     // If navigated here with a prefilled query, always start a fresh session
     // (clear any prior completed or non-pending session so the query goes through)
     if (prefilledQuery) {
+      if (lastProcessedQuery.current === prefilledQuery) return
+      lastProcessedQuery.current = prefilledQuery
       // Clear stale/completed sessions so the query runs fresh
       if (cached) {
         try {

@@ -1,11 +1,12 @@
 import { useState, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { X, Music } from 'lucide-react'
+import { X, Music, AlertCircle } from 'lucide-react'
 import SearchInput from '@/components/SearchInput'
 import CardGrid from '@/components/CardGrid'
 import Card from '@/components/Card'
 import TrackList from '@/components/TrackList'
 import { search } from '@/api/search'
+import { getTrack } from '@/api/tracks'
 import { usePlayerStore } from '@/store/playerStore'
 import { useAuthStore } from '@/store/authStore'
 import type { SearchResponse, Track } from '@/types'
@@ -16,6 +17,7 @@ export default function SearchPage() {
   const [loading, setLoading] = useState(false)
   const user = useAuthStore((s) => s.user)
   const [recentSearchPlayed, setRecentSearchPlayed] = useState<Track[]>([])
+  const [staleTrackId, setStaleTrackId] = useState<number | null>(null)
 
   const setTrack = usePlayerStore((s) => s.setTrack)
   const setQueue = usePlayerStore((s) => s.setQueue)
@@ -47,11 +49,12 @@ export default function SearchPage() {
     }
     setLoading(true)
     try {
-      const res = await search(q, 20)
+      const res = await search(q.trim(), 20)
       setResults(res)
     } catch (err) {
       console.error('Search query failed:', err)
-      setResults({ query: q, tracks: [], albums: [], artists: [] })
+      // Don't set a fake empty result — show nothing so the history / browse UI stays visible
+      setResults(null)
     } finally {
       setLoading(false)
     }
@@ -187,17 +190,35 @@ export default function SearchPage() {
                 {recentSearchPlayed.map((track) => (
                   <div
                     key={track.id}
-                    onClick={() => {
-                      setQueue([track])
-                      setTrack(track)
+                    onClick={async () => {
+                      setStaleTrackId(null)
+                      try {
+                        // Verify track still exists in backend before loading into player
+                        const fresh = await getTrack(track.id)
+                        setQueue([fresh])
+                        setTrack(fresh)
+                      } catch {
+                        // Track was deleted — remove from history and show notice
+                        setStaleTrackId(track.id)
+                        handleRemoveTrack(track.id, { stopPropagation: () => {} } as any)
+                      }
                     }}
                     className="group flex items-center justify-between px-4 py-3 rounded-lg hover:bg-surface-highlight/50 transition-colors cursor-pointer"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <Music size={16} className="text-subtext" />
+                      {staleTrackId === track.id
+                        ? <AlertCircle size={16} className="text-red-400 shrink-0" />
+                        : <Music size={16} className="text-subtext shrink-0" />}
                       <div className="min-w-0 font-sans">
-                        <p className="text-sm font-semibold truncate text-primary group-hover:text-spotify-green transition-colors">
+                        <p className={`text-sm font-semibold truncate transition-colors ${
+                          staleTrackId === track.id
+                            ? 'text-red-400'
+                            : 'text-primary group-hover:text-spotify-green'
+                        }`}>
                           {track.title}
+                          {staleTrackId === track.id && (
+                            <span className="ml-2 text-xs font-normal text-red-400/80">No longer available</span>
+                          )}
                         </p>
                         <p className="text-xs text-subtext truncate">
                           {track.artist_name || 'Unknown Artist'}

@@ -121,8 +121,9 @@ export default function ExpandedPlayer() {
       } else {
         setFetchError('No lyrics could be found for this track.')
       }
-    } catch {
-      setFetchError('Failed to fetch lyrics. Please try again later.')
+    } catch (err: any) {
+      console.error('Lyrics fetch caught error:', err)
+      setFetchError(err.message || 'Failed to fetch lyrics. Please try again later.')
     } finally {
       setFetchingLyrics(false)
     }

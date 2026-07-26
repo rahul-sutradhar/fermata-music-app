@@ -35,25 +35,38 @@ def _resolve_candidate_url(cand: Dict[str, Any]) -> str:
     """
     title = cand.get("title", "")
     artist = cand.get("artist", "")
-    query = f"{title} {artist}"
+    # Build a specific query — the "official audio" suffix dramatically improves
+    # relevance for non-English / niche tracks like Indian Hip-Hop songs.
+    parts = [p for p in [title, artist] if p.strip()]
+    query = " ".join(parts) + " official audio"
     
-    # 1. Try lightweight HTML parsing of YouTube search results page first (fast, reliable, avoids 429)
+    # 1. Try lightweight HTML parsing of YouTube search results page first (fast, avoids 429)
     try:
         import re
+        from collections import Counter
         search_url = f"https://www.youtube.com/results?search_query={urllib.parse.quote_plus(query)}"
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9",
         }
-        res = requests.get(search_url, headers=headers, timeout=5)
+        res = requests.get(search_url, headers=headers, timeout=8)
         if res.status_code == 200:
+            # Collect all video IDs that appear in the page
             matches = re.findall(r'/watch\?v=([a-zA-Z0-9_-]{11})', res.text)
             if matches:
-                return f"https://www.youtube.com/watch?v={matches[0]}"
+                # The actual search-result video IDs appear multiple times (thumbnail + link)
+                # whereas sidebar/unrelated IDs appear only once — pick the most frequent.
+                from collections import Counter
+                counts = Counter(matches)
+                best_id = counts.most_common(1)[0][0]
+                return f"https://www.youtube.com/watch?v={best_id}"
     except Exception:
         pass
 
-    # 2. Fall back to yt-dlp lookup
+    # 2. Fall back to yt-dlp lookup (more accurate but slower)
     import yt_dlp  # lazy import — saves ~40MB at startup
+    # Use the original title+artist without the "official audio" suffix; yt-dlp handles ranking
+    ydl_query = " ".join(parts)
     ydl_opts = {
         'format': 'bestaudio/best',
         'noplaylist': True,
@@ -63,7 +76,7 @@ def _resolve_candidate_url(cand: Dict[str, Any]) -> str:
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(f"ytsearch1:{query}", download=False)
+            info = ydl.extract_info(f"ytsearch1:{ydl_query} official audio", download=False)
             if 'entries' in info and info['entries']:
                 video_id = info['entries'][0]['id']
                 return f"https://www.youtube.com/watch?v={video_id}"
