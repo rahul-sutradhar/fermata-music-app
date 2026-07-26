@@ -467,3 +467,69 @@ def transliterate_track_lyrics(track_id: int, db: DbSession) -> dict:
             logger.error(f"[transliterate][gemini] Exception: {e}")
 
     raise HTTPException(status_code=503, detail="Transliteration failed via all configured providers.")
+
+
+# ── Autoplay Recommendation Endpoints ─────────────────────────────────────────
+
+from fastapi import Header
+from typing import Optional
+from pydantic import BaseModel
+from app.models.user import User
+
+class AutoplayPayload(BaseModel):
+    current_track_id: Optional[int] = None
+    session_id: Optional[str] = None
+
+
+def get_current_user_optional(
+    db: DbSession,
+    authorization: Optional[str] = Header(None)
+) -> Optional[User]:
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    token = authorization.split(" ")[1]
+    try:
+        from datetime import datetime
+        from app.core.oauth import hash_token
+        from app.models.access_token import AccessToken
+        from sqlalchemy import select
+        
+        token_hash = hash_token(token)
+        token_obj = db.scalar(
+            select(AccessToken).where(
+                AccessToken.token_hash == token_hash,
+                AccessToken.expires_at > datetime.utcnow()
+            )
+        )
+        if token_obj is None:
+            return None
+        return db.scalar(select(User).where(User.id == token_obj.user_id))
+    except Exception:
+        return None
+
+
+@router.post("/autoplay", response_model=TrackResponse)
+def autoplay_next_track(
+    payload: AutoplayPayload,
+    db: DbSession,
+    current_user: Optional[User] = Depends(get_current_user_optional)
+) -> TrackResponse:
+    """
+    Suggest the next track to play based on the session's vibe vector,
+    user genre affinity, and popularity, avoiding repeats.
+    """
+    from app.services.autoplay import get_next_autoplay_track
+    user_id = current_user.id if current_user else None
+    
+    try:
+        next_track = get_next_autoplay_track(
+            db=db,
+            current_track_id=payload.current_track_id,
+            session_id=payload.session_id,
+            user_id=user_id
+        )
+        return _track_to_response(next_track)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
