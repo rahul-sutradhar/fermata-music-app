@@ -91,6 +91,7 @@ export default function AdminPanelPage() {
   const [ingestionRequests, setIngestionRequests] = useState<IngestionRequestItem[]>([])
   const [ingestionSubTab, setIngestionSubTab] = useState<'pending' | 'retry' | 'completed' | 'exists' | 'rejected'>('pending')
   const [approvingRequestId, setApprovingRequestId] = useState<number | null>(null)
+  const [editedUrls, setEditedUrls] = useState<Record<number, string>>({})
 
   // Accordion state for albums expansion
   const [expandedAlbumIds, setExpandedAlbumIds] = useState<Set<number>>(new Set())
@@ -402,7 +403,8 @@ export default function AdminPanelPage() {
     if (e) e.stopPropagation()
     setApprovingRequestId(requestId)
     try {
-      await approveIngestionRequest(requestId)
+      const customUrl = editedUrls[requestId]
+      await approveIngestionRequest(requestId, customUrl)
       await loadData()
     } catch (err: any) {
       alert(err.message || 'Failed to approve request')
@@ -1600,19 +1602,48 @@ export default function AdminPanelPage() {
 
                       {/* Clickable Youtube URL */}
                       <div className="flex items-center min-w-0">
-                        {req.source_url ? (
-                          <a
-                            href={req.source_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-spotify-green hover:underline flex items-center gap-1 truncate"
-                            title={req.source_url}
-                          >
-                            <ExternalLink size={12} className="shrink-0" />
-                            YouTube URL
-                          </a>
+                        {req.status === 'pending' || req.status === 'failed' ? (
+                          <div className="flex items-center gap-1.5 min-w-0 w-full">
+                            <a
+                              href={editedUrls[req.id] || req.source_url || '#'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-spotify-green hover:underline flex items-center gap-1 truncate max-w-[85px]"
+                              title={editedUrls[req.id] || req.source_url}
+                            >
+                              <ExternalLink size={12} className="shrink-0" />
+                              {editedUrls[req.id] ? 'Edited Link' : 'YouTube URL'}
+                            </a>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                const currentUrl = editedUrls[req.id] || req.source_url || ''
+                                const newUrl = prompt('Edit YouTube Source URL for this request:', currentUrl)
+                                if (newUrl !== null) {
+                                  setEditedUrls((prev) => ({ ...prev, [req.id]: newUrl.trim() }))
+                                }
+                              }}
+                              className="p-1 rounded bg-surface-highlight/30 hover:bg-surface-highlight text-spotify-green hover:text-white transition-all shrink-0"
+                              title="Edit YouTube URL"
+                            >
+                              <Pencil size={10} />
+                            </button>
+                          </div>
                         ) : (
-                          <span className="text-xs text-subtext">—</span>
+                          req.source_url ? (
+                            <a
+                              href={req.source_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-spotify-green hover:underline flex items-center gap-1 truncate"
+                              title={req.source_url}
+                            >
+                              <ExternalLink size={12} className="shrink-0" />
+                              YouTube URL
+                            </a>
+                          ) : (
+                            <span className="text-xs text-subtext">—</span>
+                          )
                         )}
                       </div>
 

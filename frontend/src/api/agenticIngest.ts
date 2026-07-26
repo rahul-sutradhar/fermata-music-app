@@ -83,9 +83,10 @@ export async function listIngestionRequests(): Promise<IngestionRequestItem[]> {
   })
 }
 
-export async function approveIngestionRequest(requestId: number): Promise<{ message: string }> {
+export async function approveIngestionRequest(requestId: number, sourceUrl?: string): Promise<{ message: string }> {
   return apiRequest<{ message: string }>(`/api/v1/agentic-ingest/requests/${requestId}/approve`, {
     method: 'POST',
+    body: sourceUrl ? JSON.stringify({ source_url: sourceUrl }) : undefined,
   })
 }
 

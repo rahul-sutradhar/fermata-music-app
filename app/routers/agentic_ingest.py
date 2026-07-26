@@ -553,11 +553,16 @@ def _execute_ingestion(db: DbSession, request_id: int):
         print("[Ingestion] Post-ingestion GC complete. Memory released.", flush=True)
 
 
+class ApproveRequestPayload(BaseModel):
+    source_url: Optional[str] = None
+
+
 @router.post("/requests/{request_id}/approve")
 def approve_ingestion_request(
     request_id: int, 
     db: DbSession, 
-    current_admin: CurrentAdmin
+    current_admin: CurrentAdmin,
+    payload: ApproveRequestPayload = ApproveRequestPayload()
 ):
     """
     Approve ingestion request and put it in the background queue.
@@ -576,6 +581,9 @@ def approve_ingestion_request(
             detail="This request is already in queue, processing, or completed."
         )
         
+    if payload.source_url is not None:
+        db_req.source_url = payload.source_url
+
     db_req.status = "queued"
     db.commit()
     
