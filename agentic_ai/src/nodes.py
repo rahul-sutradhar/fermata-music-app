@@ -263,7 +263,7 @@ def search_candidates(state: AgenticState) -> Dict[str, Any]:
         if MISTRAL_AVAILABLE:
             try:
                 new_logs.append("[Search] Attempting Mistral AI metadata search...")
-                model_name = os.getenv("MISTRAL_MODEL", "mistral-large-latest")
+                model_name = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
                 llm = ChatMistralAI(model=model_name, temperature=0.2)
                 
                 prompt = f"""
@@ -832,104 +832,7 @@ def _get_artist_genres(artist_name: str) -> List[str]:
     return ["Pop", "Rock", "Indie"]
 
 
-def _fetch_lyrics_from_lrclib(song_name: str, artist_name: str) -> str | None:
-    """
-    Fetch plain lyrics from lrclib.net — a free, open, no-auth public lyrics API.
-    """
-    print(f"[lrclib] Querying lyrics for: '{song_name}' by '{artist_name}'...", flush=True)
-    try:
-        params = {"track_name": song_name, "artist_name": artist_name}
-        headers = {"User-Agent": "FermataApp/1.0 (github.com/fermata-music)"}
-        res = requests.get("https://lrclib.net/api/get", params=params, headers=headers, timeout=8)
-        if res.status_code == 200:
-            data = res.json()
-            plain = data.get("plainLyrics") or ""
-            if plain.strip():
-                print(f"[lrclib] Lyrics found ({len(plain)} characters).", flush=True)
-                return plain.strip()
-            print(f"[lrclib] Response OK but no plainLyrics in payload.", flush=True)
-        elif res.status_code == 404:
-            print(f"[lrclib] Track not found in lrclib database.", flush=True)
-        else:
-            print(f"[lrclib] Request failed (status {res.status_code}).", flush=True)
-    except Exception as e:
-        print(f"[lrclib] Exception: {str(e)}", flush=True)
-    return None
-
-
-def _fetch_lyrics_from_ovh(song_name: str, artist_name: str) -> str | None:
-    """
-    Fetch plain lyrics from lyrics.ovh — a free public lyrics API, no auth required.
-    """
-    print(f"[lyrics.ovh] Querying lyrics for: '{song_name}' by '{artist_name}'...", flush=True)
-    try:
-        url = f"https://api.lyrics.ovh/v1/{urllib.parse.quote(artist_name)}/{urllib.parse.quote(song_name)}"
-        res = requests.get(url, timeout=8)
-        if res.status_code == 200:
-            lyrics = res.json().get("lyrics", "").strip()
-            if lyrics:
-                print(f"[lyrics.ovh] Lyrics found ({len(lyrics)} characters).", flush=True)
-                return lyrics
-            print(f"[lyrics.ovh] Response OK but lyrics field empty.", flush=True)
-        else:
-            print(f"[lyrics.ovh] Request failed (status {res.status_code}).", flush=True)
-    except Exception as e:
-        print(f"[lyrics.ovh] Exception: {str(e)}", flush=True)
-    return None
-
-
-def _fetch_lyrics_multi_source(song_name: str, artist_name: str) -> str | None:
-    """
-    Multi-source lyrics fetcher with 3-tier fallback:
-    1. lrclib.net (free, no auth, high coverage)
-    2. lyrics.ovh (free, no auth)
-    Returns None if all sources fail (LLM fallback is handled separately).
-    """
-    lyrics = _fetch_lyrics_from_lrclib(song_name, artist_name)
-    if lyrics:
-        return lyrics
-
-    lyrics = _fetch_lyrics_from_ovh(song_name, artist_name)
-    if lyrics:
-        return lyrics
-
-    print(f"[lyrics] All free API sources exhausted for '{song_name}' by '{artist_name}'.", flush=True)
-    return None
-
-
-def _fetch_lyrics_via_llm(song_name: str, artist_name: str) -> str:
-    """
-    Use LLM (Mistral or mock) to fetch lyrics for a given song and artist with a refined prompt.
-    """
-    print(f"[LLM] Querying LLM for lyrics: '{song_name}' by '{artist_name}'...", flush=True)
-    if MISTRAL_AVAILABLE:
-        try:
-            llm = ChatMistralAI(model=os.getenv("MISTRAL_MODEL", "mistral-large-latest"), temperature=0.1)
-            prompt = (
-                f"You are a music cataloging assistant. Retrieve the complete and accurate lyrics for the song '{song_name}' by '{artist_name}'.\n\n"
-                "Constraints:\n"
-                "- Output ONLY the lyrics. Do not add introductory sentences (like 'Here are the lyrics...'), structural metadata commentary, notes, or explanations.\n"
-                "- Do not include guitar chords or piano symbols within the lyrics lines.\n"
-                "- Keep the structural separators like [Verse 1], [Chorus], [Bridge], [Outro] clean and correctly placed.\n"
-                "- If you cannot find or reconstruct the lyrics with 100% certainty, reply with: 'Lyrics not found.'"
-            )
-            response = llm.invoke([HumanMessage(content=prompt)])
-            result = response.content.strip()
-            if "lyrics not found" in result.lower():
-                print(f"[LLM] LLM reported lyrics not found.", flush=True)
-                return ""
-            print(f"[LLM] Lyrics retrieved successfully via LLM ({len(result)} characters).", flush=True)
-            return result
-        except Exception as e:
-            print(f"[LLM] Exception during LLM invocation: {str(e)}", flush=True)
-            pass
-            
-    print(f"[LLM] Fallback: returning mock lyrics placeholder.", flush=True)
-    return (
-        f"[Verse 1]\nThis is a placeholder for '{song_name}' by '{artist_name}' because the Genius source and LLM were unconfigured.\n"
-        "Singing along to the melody of life,\nFinding joy amidst the strife.\n\n"
-        "[Chorus]\nOh, let the music play,\nChasing all the clouds away."
-    )
+# Legacy helper functions for lyrics fetching have been migrated to app.services.lyrics.py
 
 
 def fetch_artist_metadata(state: AgenticState) -> Dict[str, Any]:
@@ -1154,17 +1057,27 @@ def populate_track(state: AgenticState, config: RunnableConfig) -> Dict[str, Any
                 if artist_genres_list:
                     genres = ", ".join(artist_genres_list[:3])
             
-            # 1.5. Resolve Lyrics (lrclib → lyrics.ovh → LLM fallback)
+            # 1.5. Resolve Lyrics (unified robust lyrics fetcher with web search)
             lyrics = selected_song.get("lyrics")
             if not lyrics:
                 artist_name = selected_song.get("artist", "Unknown")
                 new_logs.append(f"[Database] Fetching lyrics for '{title}' by '{artist_name}'...")
-                lyrics = _fetch_lyrics_multi_source(title, artist_name)
+                
+                from app.services.lyrics import fetch_lyrics_robustly
+                
+                # Fetch lyrics robustly
+                lyrics = fetch_lyrics_robustly(
+                    song_name=title,
+                    artist_name=artist_name,
+                    album_title=selected_song.get("album"),
+                    duration_seconds=state.get("duration_seconds") or selected_song.get("duration_seconds"),
+                    genres=genres,
+                    youtube_url=selected_song.get("source_url") or state.get("audio_url") or state.get("source_url")
+                )
                 if lyrics:
                     new_logs.append(f"[Database] Successfully retrieved lyrics for '{title}'.")
                 else:
-                    new_logs.append(f"[LLM] Free lyrics sources returned empty. Falling back to LLM for '{title}'...")
-                    lyrics = _fetch_lyrics_via_llm(title, artist_name)
+                    new_logs.append(f"[Database] Lyrics could not be fetched for '{title}'.")
             
             # 2. Retrieve the track allocated during approval, or fall back to searching by title and artist
             db_track = None

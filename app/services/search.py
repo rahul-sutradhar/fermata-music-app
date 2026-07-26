@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import select, or_, text, func, bindparam, Float
+from sqlalchemy import select, and_, or_, text, func, bindparam, Float
 from sqlalchemy.orm import Session
 
 from app.models.track import Track, SQLiteFriendlyVector
@@ -34,9 +34,8 @@ def _artist_row_to_item(artist: Artist) -> SearchResultItem:
 
 
 def search(*, db: Session, q: str, limit: int = 10) -> SearchResponse:
-    from sqlalchemy import and_
-    from sqlalchemy.orm import joinedload
     import difflib
+    from sqlalchemy.orm import joinedload
 
     # Cleanup query terms
     terms = [w.strip() for w in q.split() if w.strip()]
@@ -94,14 +93,21 @@ def search(*, db: Session, q: str, limit: int = 10) -> SearchResponse:
     # Signal A: Exact/Prefix FTS match on Track Metadata
     if is_sqlite:
         sqlite_conditions = []
-        from sqlalchemy import and_
         for word in terms:
+            word_like = f"%{word}%"
             sqlite_conditions.append(
-                Track.title.ilike(f"%{word}%")
+                or_(
+                    Track.title.ilike(word_like),
+                    Album.title.ilike(word_like),
+                    Artist.name.ilike(word_like),
+                    Track.genres.ilike(word_like),
+                )
             )
         try:
             sqlite_tracks = db.scalars(
                 select(Track)
+                .outerjoin(Album, Track.album_id == Album.id)
+                .outerjoin(Artist, Track.artist_id == Artist.id)
                 .where(and_(*sqlite_conditions))
                 .limit(limit)
             ).all()
@@ -141,7 +147,6 @@ def search(*, db: Session, q: str, limit: int = 10) -> SearchResponse:
 
         # Signal A-fallback: ILIKE title/artist match — catches tracks with no search_tsv (not yet re-indexed)
         try:
-            from sqlalchemy import and_
             ilike_conditions = [Track.title.ilike(f"%{w}%") for w in terms]
             ilike_tracks = db.scalars(
                 select(Track)

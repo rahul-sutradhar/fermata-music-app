@@ -73,8 +73,14 @@ export function uploadTrackCover(trackId: number, file: File) {
  * Fetch and persist lyrics for a track that currently has none.
  * Tries lrclib → lyrics.ovh → Mistral LLM.
  */
-export function fetchTrackLyrics(trackId: number) {
-  return apiRequest<Track>(`/tracks/${trackId}/lyrics/fetch`, { method: 'POST' })
+export function fetchTrackLyrics(trackId: number, feedback?: string | null, youtubeUrl?: string | null) {
+  const bodyPayload: Record<string, string> = {}
+  if (feedback) bodyPayload.feedback = feedback
+  if (youtubeUrl) bodyPayload.youtube_url = youtubeUrl
+  return apiRequest<Track>(`/tracks/${trackId}/lyrics/fetch`, {
+    method: 'POST',
+    body: Object.keys(bodyPayload).length ? JSON.stringify(bodyPayload) : undefined,
+  })
 }
 
 /**

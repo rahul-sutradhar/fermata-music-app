@@ -12,11 +12,10 @@ import {
   Repeat1,
   Volume2,
   VolumeX,
-  Download,
   Languages,
   Loader2,
 } from 'lucide-react'
-import { fetchTrackLyrics, transliterateTrackLyrics } from '@/api/tracks'
+import { transliterateTrackLyrics } from '@/api/tracks'
 
 function formatTime(ms: number) {
   const totalSeconds = Math.floor(ms / 1000)
@@ -47,9 +46,6 @@ export default function ExpandedPlayer() {
   const progressBarRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
 
-  // Lyrics-fetch states
-  const [fetchingLyrics, setFetchingLyrics] = useState(false)
-  const [fetchError, setFetchError] = useState<string | null>(null)
 
   // Transliteration states
   const [transliterating, setTransliterating] = useState(false)
@@ -62,7 +58,6 @@ export default function ExpandedPlayer() {
     setTransliteration(null)
     setShowTransliteration(false)
     setTranslitError(null)
-    setFetchError(null)
   }, [currentTrack?.id])
 
   const handleSeek = useCallback(
@@ -110,24 +105,7 @@ export default function ExpandedPlayer() {
     setRepeatMode(modes[(idx + 1) % modes.length])
   }
 
-  const handleFetchLyrics = async () => {
-    if (!currentTrack) return
-    setFetchingLyrics(true)
-    setFetchError(null)
-    try {
-      const updated = await fetchTrackLyrics(currentTrack.id)
-      if (updated.lyrics) {
-        setCurrentTrack({ ...currentTrack, lyrics: updated.lyrics })
-      } else {
-        setFetchError('No lyrics could be found for this track.')
-      }
-    } catch (err: any) {
-      console.error('Lyrics fetch caught error:', err)
-      setFetchError(err.message || 'Failed to fetch lyrics. Please try again later.')
-    } finally {
-      setFetchingLyrics(false)
-    }
-  }
+  // handleFetchLyrics removed - lyrics fetching is performed via the Admin Console
 
   const handleTransliterate = async () => {
     if (!currentTrack) return
@@ -318,18 +296,7 @@ export default function ExpandedPlayer() {
                 </button>
               )}
 
-              {/* Fetch Lyrics: only when no lyrics */}
-              {!hasLyrics && (
-                <button
-                  onClick={handleFetchLyrics}
-                  disabled={fetchingLyrics}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full bg-spotify-green/20 border border-spotify-green text-spotify-green hover:bg-spotify-green/30 transition-all cursor-pointer select-none disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Fetch lyrics from online sources"
-                >
-                  {fetchingLyrics ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-                  {fetchingLyrics ? 'Fetching…' : 'Fetch Lyrics'}
-                </button>
-              )}
+              {/* Fetch/Refetch Lyrics option removed - lyrics fetching is performed via the Admin Console */}
             </div>
           </div>
 
@@ -340,20 +307,10 @@ export default function ExpandedPlayer() {
                 {showTransliteration && transliteration ? transliteration : currentTrack.lyrics}
                 {translitError && <p className="mt-4 text-xs text-red-400">{translitError}</p>}
               </>
-            ) : fetchingLyrics ? (
-              <div className="h-full flex flex-col items-center justify-center gap-3 text-zinc-500">
-                <Loader2 size={32} className="animate-spin text-spotify-green" />
-                <p className="text-sm">Searching for lyrics across sources…</p>
-              </div>
-            ) : fetchError ? (
-              <div className="h-full flex flex-col items-center justify-center gap-2">
-                <p className="text-sm text-red-400">{fetchError}</p>
-                <p className="text-xs text-zinc-600">This track may not have indexed lyrics yet.</p>
-              </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center gap-3 text-zinc-500">
                 <p className="text-sm italic">Lyrics not available for this song.</p>
-                <p className="text-xs text-zinc-600">Click “Fetch Lyrics” to search online.</p>
+                <p className="text-xs text-zinc-600">Lyrics can be fetched from the Admin Console.</p>
               </div>
             )}
           </div>

@@ -17,6 +17,7 @@ import {
   FolderMinus,
   RefreshCw,
   ExternalLink,
+  Download,
 } from 'lucide-react'
 import {
   listTracks,
@@ -25,6 +26,7 @@ import {
   deleteTrack,
   uploadTrackAudio,
   uploadTrackCover,
+  fetchTrackLyrics,
 } from '@/api/tracks'
 import { listUsers, createUser, updateUser, deleteUser } from '@/api/admin'
 import { listArtists, createArtist, updateArtist, deleteArtist } from '@/api/artists'
@@ -128,6 +130,44 @@ export default function AdminPanelPage() {
 
   // Audio / Cover upload state
   const [uploadingForId, setUploadingForId] = useState<number | null>(null)
+
+  // Lyrics fetching state
+  const [fetchingLyricsForId, setFetchingLyricsForId] = useState<number | null>(null)
+
+  const handleFetchLyrics = async (track: Track) => {
+    const hasLyrics = !!(track.lyrics && track.lyrics.trim())
+    let feedback: string | null = null
+    if (hasLyrics) {
+      feedback = prompt(
+        "Refetch Lyrics Hint / Correction (Optional):\nProvide any notes or hints to help the model find the correct lyrics (e.g. 'This is the hip hop track by Lash Curry from MTV Hustle, not the pop song'):"
+      )
+      if (feedback === null) return
+    }
+
+    // Find the ingestion request matching this track to get the YouTube source URL
+    const matchingRequest = ingestionRequests.find((req) => {
+      const titleMatch = req.song_name?.toLowerCase() === track.title?.toLowerCase()
+      const artistMatch = !req.artist_name || !track.artist_name ||
+        req.artist_name.toLowerCase() === track.artist_name.toLowerCase()
+      return titleMatch && artistMatch
+    })
+    const youtubeUrl = matchingRequest?.source_url || null
+
+    setFetchingLyricsForId(track.id)
+    try {
+      const updated = await fetchTrackLyrics(track.id, feedback, youtubeUrl)
+      // Update tracks state
+      setTracks((prev) =>
+        prev.map((t) => (t.id === track.id ? { ...t, lyrics: updated.lyrics } : t))
+      )
+      alert("Lyrics fetched successfully!")
+    } catch (err: any) {
+      console.error('Lyrics fetch caught error:', err)
+      alert(err.message || 'Failed to fetch lyrics. Please try again.')
+    } finally {
+      setFetchingLyricsForId(null)
+    }
+  }
 
   // Searchable artist select states for album modal
   const [allArtistsList, setAllArtistsList] = useState<Artist[]>([])
@@ -812,16 +852,37 @@ export default function AdminPanelPage() {
         </button>
       </div>
 
-      {/* Search Input */}
-      <div className="relative max-w-sm mb-4">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-subtext" />
-        <input
-          type="text"
-          value={searchQ}
-          onChange={(e) => setSearchQ(e.target.value)}
-          placeholder={`Search ${activeTab === 'artists' ? 'artists accounts/profiles' : activeTab}...`}
-          className="w-full pl-9 pr-4 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-primary/20 transition-colors placeholder:text-subtext/50"
-        />
+      {/* Search Input + Tracks toolbar */}
+      <div className="flex items-center gap-3 mb-4">
+        <div className="relative max-w-sm flex-1">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-subtext" />
+          <input
+            type="text"
+            value={searchQ}
+            onChange={(e) => setSearchQ(e.target.value)}
+            placeholder={`Search ${activeTab === 'artists' ? 'artists accounts/profiles' : activeTab}...`}
+            className="w-full pl-9 pr-4 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-primary/20 transition-colors placeholder:text-subtext/50"
+          />
+        </div>
+        {activeTab === 'tracks' && (
+          <button
+            onClick={async () => {
+              if (!confirm('Backfill embeddings for all tracks missing them? This may take a moment.')) return
+              try {
+                const { apiRequest } = await import('@/api/client')
+                const result = await apiRequest<{ processed: number; failed: number; tracks: { id: number; title: string }[]; errors: any[] }>('/tracks/backfill-embeddings', { method: 'POST' })
+                alert(`Backfill complete!\nProcessed: ${result.processed}\nFailed: ${result.failed}${result.tracks.length ? '\n\nEmbedded:\n' + result.tracks.map(t => `• ${t.title}`).join('\n') : ''}`)
+              } catch (err: any) {
+                alert(`Backfill failed: ${err.message}`)
+              }
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-surface-highlight text-xs font-semibold text-subtext hover:text-spotify-green hover:bg-surface-highlight/80 transition-colors shrink-0"
+            title="Find and regenerate missing track embeddings"
+          >
+            <RefreshCw size={13} />
+            Backfill Embeddings
+          </button>
+        )}
       </div>
 
       {/* Sub-tabs for Ingestion Queue */}
@@ -1044,12 +1105,16 @@ export default function AdminPanelPage() {
                         <span className="text-xs font-semibold text-subtext tabular-nums">{index + 1}</span>
                         <div className="flex items-center gap-3 min-w-0">
                           {track.cover_url ? (
-                            <img src={track.cover_url} alt={track.title} className="w-10 h-10 rounded-md object-cover shrink-0 shadow" />
-                          ) : (
-                            <div className="w-10 h-10 rounded-md bg-surface-highlight flex items-center justify-center shrink-0">
-                              <Music size={18} className="text-subtext/50" />
-                            </div>
-                          )}
+                            <img
+                              src={track.cover_url}
+                              alt={track.title}
+                              className="w-10 h-10 rounded-md object-cover shrink-0 shadow"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden') }}
+                            />
+                          ) : null}
+                          <div className={`w-10 h-10 rounded-md bg-surface-highlight flex items-center justify-center shrink-0 ${track.cover_url ? 'hidden' : ''}`}>
+                            <Music size={18} className="text-subtext/50" />
+                          </div>
                           <div className="min-w-0">
                             <p className="text-sm font-medium truncate">{track.title}</p>
                             {track.artist_name && (
@@ -1153,6 +1218,23 @@ export default function AdminPanelPage() {
                               <FolderMinus size={14} />
                             </button>
                           )}
+
+                          {/* Fetch / Refetch Lyrics */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleFetchLyrics(track)
+                            }}
+                            disabled={fetchingLyricsForId === track.id}
+                            className={`p-2 rounded-lg text-subtext hover:text-spotify-green hover:bg-surface-highlight transition-colors ${fetchingLyricsForId === track.id ? 'opacity-50 pointer-events-none' : ''}`}
+                            title={track.lyrics && track.lyrics.trim() ? "Refetch Lyrics" : "Fetch Lyrics"}
+                          >
+                            {fetchingLyricsForId === track.id ? (
+                              <RefreshCw size={14} className="animate-spin text-spotify-green" />
+                            ) : (
+                              <Download size={14} />
+                            )}
+                          </button>
 
                           {/* Delete Track */}
                           <button
