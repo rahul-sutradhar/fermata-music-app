@@ -33,6 +33,7 @@ class AgenticState(TypedDict):
     audio_status: str  # "pending", "completed", "failed"
     hls_playlist_key: Optional[str]  # B2 key for the HLS playlist file
     hls_key_key: Optional[str]       # B2 key for the AES-128 encryption key file
+    duration_seconds: Optional[int]
     
     cover_url: Optional[str]
     cover_status: str  # "pending", "completed", "failed"

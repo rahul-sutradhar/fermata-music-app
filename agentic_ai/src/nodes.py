@@ -491,6 +491,7 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             new_logs.append(f"[Pipeline] Branch A: Searching YouTube for query: '{title} {artist}'")
 
         track_id = state.get("track_id", 9901)
+        duration_seconds = 200
 
         temp_dir = tempfile.gettempdir()
         temp_file_path = os.path.join(temp_dir, f"audio_{track_id}")
@@ -530,7 +531,8 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             raise ValueError("All download attempts failed (no-cookies and cookie-authenticated).")
 
         ext = entry.get('ext', 'mp3')
-        new_logs.append(f"[Pipeline] Branch A: Matched and downloaded YouTube video: '{entry.get('title', 'Unknown')}' (Duration: {entry.get('duration')}s)")
+        duration_seconds = int(entry.get('duration') or 200)
+        new_logs.append(f"[Pipeline] Branch A: Matched and downloaded YouTube video: '{entry.get('title', 'Unknown')}' (Duration: {duration_seconds}s)")
 
         downloaded_file = f"{temp_file_path}.{ext}"
 
@@ -624,6 +626,7 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
         "audio_url": audio_url,
         "hls_playlist_key": hls_playlist_key,
         "hls_key_key": hls_key_key,
+        "duration_seconds": duration_seconds,
         "audio_status": "completed",
         "logs": new_logs
     }
@@ -1185,7 +1188,7 @@ def populate_track(state: AgenticState, config: RunnableConfig) -> Dict[str, Any
                 db_track.cover_image_key = cover_key
                 db_track.genres = genres
                 db_track.lyrics = lyrics
-                db_track.duration_seconds = selected_song.get("duration_seconds", 200)
+                db_track.duration_seconds = state.get("duration_seconds") or selected_song.get("duration_seconds", 200)
                 
                 # Fetch and connect all artists
                 artist_ids = state.get("artist_ids", [])
@@ -1208,7 +1211,7 @@ def populate_track(state: AgenticState, config: RunnableConfig) -> Dict[str, Any
                     title=title,
                     artist_id=artist_id,
                     album_id=album_id,
-                    duration_seconds=selected_song.get("duration_seconds", 200),
+                    duration_seconds=state.get("duration_seconds") or selected_song.get("duration_seconds", 200),
                     audio_file_key=audio_key,
                     hls_playlist_key=state.get("hls_playlist_key"),
                     hls_key_key=state.get("hls_key_key"),
