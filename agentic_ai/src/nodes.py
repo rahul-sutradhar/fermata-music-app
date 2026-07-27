@@ -90,7 +90,7 @@ def _resolve_candidate_url(cand: Dict[str, Any]) -> str:
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'extractor_args': {
             'youtube': {
-                'player_client': ['android_vr', 'android', 'ios']
+                'player_client': ['android', 'ios']
             }
         }
     }
@@ -230,7 +230,7 @@ def search_candidates(state: AgenticState) -> Dict[str, Any]:
                 'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'extractor_args': {
                     'youtube': {
-                        'player_client': ['android_vr', 'android', 'ios']
+                        'player_client': ['android', 'ios']
                     }
                 }
             }
@@ -555,7 +555,7 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             **common_opts,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android_vr', 'android', 'ios']
+                    'player_client': ['android', 'ios']
                 }
             },
         }
