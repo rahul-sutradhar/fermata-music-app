@@ -82,7 +82,6 @@ def _resolve_candidate_url(cand: Dict[str, Any]) -> str:
             pass
 
     ydl_opts = {
-        'format': 'bestaudio/best',
         'noplaylist': True,
         'quiet': True,
         'no_warnings': True,
@@ -90,7 +89,7 @@ def _resolve_candidate_url(cand: Dict[str, Any]) -> str:
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'ios']
+                'player_client': ['web_embedded', 'android', 'ios']
             }
         }
     }
@@ -222,7 +221,6 @@ def search_candidates(state: AgenticState) -> Dict[str, Any]:
                     pass
 
             ydl_opts = {
-                'format': 'bestaudio/best',
                 'noplaylist': True,
                 'quiet': True,
                 'no_warnings': True,
@@ -230,7 +228,7 @@ def search_candidates(state: AgenticState) -> Dict[str, Any]:
                 'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'extractor_args': {
                     'youtube': {
-                        'player_client': ['android', 'ios']
+                        'player_client': ['web_embedded', 'android', 'ios']
                     }
                 }
             }
@@ -555,12 +553,12 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             **common_opts,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'ios']
+                    'player_client': ['web_embedded', 'android', 'ios']
                 }
             },
         }
-        new_logs.append("[Pipeline] Branch A: Attempting download without cookies (android_vr/android/ios clients)...")
-        entry = _try_download(ydl_opts_no_cookies, target_link, "no-cookies/android_vr")
+        new_logs.append("[Pipeline] Branch A: Attempting download without cookies (web_embedded/android/ios clients)...")
+        entry = _try_download(ydl_opts_no_cookies, target_link, "no-cookies/web_embedded")
 
         # --- Attempt 2: fall back to cookies + default client if attempt 1 failed ---
         if entry is None and (temp_cookie_file or cookie_path):
