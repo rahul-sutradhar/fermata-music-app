@@ -67,13 +67,36 @@ def _resolve_candidate_url(cand: Dict[str, Any]) -> str:
     import yt_dlp  # lazy import — saves ~40MB at startup
     # Use the original title+artist without the "official audio" suffix; yt-dlp handles ranking
     ydl_query = " ".join(parts)
+    
+    # Locate cookies if available
+    cookie_path = None
+    if os.path.exists("cookies.txt"):
+        cookie_path = "cookies.txt"
+    elif os.path.exists("/etc/secrets/cookies.txt"):
+        cookie_path = "/etc/secrets/cookies.txt"
+    temp_cookie_file = None
+    if cookie_path:
+        try:
+            temp_cookie_file = _get_normalized_cookie_file(cookie_path)
+        except Exception:
+            pass
+
     ydl_opts = {
         'format': 'bestaudio/best',
         'noplaylist': True,
         'quiet': True,
         'no_warnings': True,
         'skip_download': True,
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android_vr', 'android', 'ios']
+            }
+        }
     }
+    if temp_cookie_file or cookie_path:
+        ydl_opts['cookiefile'] = temp_cookie_file or cookie_path
+
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(f"ytsearch1:{ydl_query} official audio", download=False)
@@ -185,13 +208,35 @@ def search_candidates(state: AgenticState) -> Dict[str, Any]:
         new_logs.append(f"[Search] Direct source link detected: '{song_name_clean}'")
         try:
             import yt_dlp  # lazy import
+            
+            cookie_path = None
+            if os.path.exists("cookies.txt"):
+                cookie_path = "cookies.txt"
+            elif os.path.exists("/etc/secrets/cookies.txt"):
+                cookie_path = "/etc/secrets/cookies.txt"
+            temp_cookie_file = None
+            if cookie_path:
+                try:
+                    temp_cookie_file = _get_normalized_cookie_file(cookie_path)
+                except Exception:
+                    pass
+
             ydl_opts = {
                 'format': 'bestaudio/best',
                 'noplaylist': True,
                 'quiet': True,
                 'no_warnings': True,
                 'skip_download': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['android_vr', 'android', 'ios']
+                    }
+                }
             }
+            if temp_cookie_file or cookie_path:
+                ydl_opts['cookiefile'] = temp_cookie_file or cookie_path
+
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(song_name_clean, download=False)
                 title = info.get('title', 'Unknown Title')

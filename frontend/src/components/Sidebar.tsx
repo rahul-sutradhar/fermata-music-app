@@ -135,7 +135,7 @@ export default function Sidebar() {
 
       {/* Playlists */}
       {token && (
-        <div className="flex-1 mt-6 px-3 overflow-hidden flex flex-col">
+        <div className="flex-1 min-h-0 mt-6 px-3 overflow-hidden flex flex-col">
           <div className="flex items-center justify-between mb-3 px-3">
             <span className="text-xs font-semibold uppercase tracking-wider text-subtext">
               Playlists
@@ -180,7 +180,10 @@ export default function Sidebar() {
 
 
       {/* Footer */}
-      <div className="p-3 mt-auto border-t border-surface-highlight space-y-1">
+      <div 
+        className="p-3 mt-auto border-t border-surface-highlight space-y-1"
+        style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom))' }}
+      >
         <button
           onClick={toggleTheme}
           className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-subtext hover:text-primary hover:bg-surface-highlight/50 transition-colors"
