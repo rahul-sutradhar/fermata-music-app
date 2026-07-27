@@ -5,9 +5,10 @@ interface Props {
   tracks: Track[]
   showHeader?: boolean
   onTrackPlay?: (track: Track) => void
+  playlistId?: number
 }
 
-export default function TrackList({ tracks, showHeader = true, onTrackPlay }: Props) {
+export default function TrackList({ tracks, showHeader = true, onTrackPlay, playlistId }: Props) {
   if (!tracks.length) {
     return (
       <div className="py-12 text-center text-subtext">
@@ -21,7 +22,7 @@ export default function TrackList({ tracks, showHeader = true, onTrackPlay }: Pr
       {showHeader && <TrackListHeader />}
       <div className="mt-1 space-y-0.5">
         {tracks.map((track, i) => (
-          <TrackRow key={track.id} track={track} index={i} tracks={tracks} onPlay={onTrackPlay} />
+          <TrackRow key={track.id} track={track} index={i} tracks={tracks} onPlay={onTrackPlay} playlistId={playlistId} />
         ))}
       </div>
     </div>

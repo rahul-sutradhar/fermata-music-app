@@ -67,3 +67,14 @@ body {
 .page-transition {
   animation: fadeInSlideUp 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
+
+/* Hide scrollbars globally on mobile viewports */
+@media (max-width: 768px) {
+  * {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+  *::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
+}

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { Track } from '@/types'
+import { getAutoplayTrack } from '@/api/tracks'
 
 interface PlayerState {
   currentTrack: Track | null
@@ -35,7 +36,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   repeatMode: 'off',
   isExpanded: false,
 
-  setTrack: (track) => set({ currentTrack: track, progressMs: 0, durationMs: track.duration_seconds ? track.duration_seconds * 1000 : 0 }),
+  setTrack: (track) => set({ currentTrack: track, isPlaying: true, progressMs: 0, durationMs: track.duration_seconds ? track.duration_seconds * 1000 : 0 }),
   setQueue: (tracks) => set({ queue: tracks }),
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setProgressMs: (progressMs) => set({ progressMs }),
@@ -44,7 +45,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setShuffle: (shuffle) => set({ shuffle }),
   setRepeatMode: (repeatMode) => set({ repeatMode }),
 
-  playNext: (manual = false) => {
+  playNext: async (manual = false) => {
     const { currentTrack, queue, shuffle, repeatMode } = get()
     if (!currentTrack) return
 
@@ -76,8 +77,28 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         const nextTrack = effectiveQueue[0]
         set({ currentTrack: nextTrack, progressMs: 0, isPlaying: true })
       } else {
-        // Reached end of queue with repeat off
-        set({ isPlaying: false, progressMs: 0 })
+        // Reached end of queue with repeat off: Trigger Autoplay!
+        try {
+          let sessionId = sessionStorage.getItem('fermata_session_id')
+          if (!sessionId) {
+            sessionId = Math.random().toString(36).substring(2, 15)
+            sessionStorage.setItem('fermata_session_id', sessionId)
+          }
+          const nextTrack = await getAutoplayTrack(currentTrack.id, sessionId)
+          if (nextTrack) {
+            set({
+              queue: [...effectiveQueue, nextTrack],
+              currentTrack: nextTrack,
+              progressMs: 0,
+              isPlaying: true,
+            })
+          } else {
+            set({ isPlaying: false, progressMs: 0 })
+          }
+        } catch (err) {
+          console.error('[Autoplay] Failed to fetch next track:', err)
+          set({ isPlaying: false, progressMs: 0 })
+        }
       }
     }
   },

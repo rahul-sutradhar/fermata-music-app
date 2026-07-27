@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback, useState } from 'react'
-import { Volume2, VolumeX, Music, Maximize2 } from 'lucide-react'
+import { Volume2, VolumeX, Music, Play, Pause } from 'lucide-react'
 import { usePlayerStore } from '@/store/playerStore'
 import { getTrackAudioUrl, getTrack } from '@/api/tracks'
 import { addRecentlyPlayed, getPlayerState, updatePlayerState } from '@/api/player'
@@ -18,6 +18,7 @@ export default function NowPlayingBar() {
   const isPlaying = usePlayerStore((s) => s.isPlaying)
   const volume = usePlayerStore((s) => s.volume)
   const progressMs = usePlayerStore((s) => s.progressMs)
+  const durationMs = usePlayerStore((s) => s.durationMs)
   const shuffle = usePlayerStore((s) => s.shuffle)
   const repeatMode = usePlayerStore((s) => s.repeatMode)
 
@@ -316,95 +317,112 @@ export default function NowPlayingBar() {
   }, [volume, setVolume])
 
   if (!currentTrack) {
-    return (
-      <div className="h-20 bg-surface-elevated border-t border-surface-highlight flex items-center justify-center">
-        <p className="text-subtext text-sm">No track selected</p>
-      </div>
-    )
+    return null
   }
 
+  const progress = durationMs > 0 ? (progressMs / durationMs) * 100 : 0
+
   return (
-    <div className="h-20 bg-surface-elevated border-t border-surface-highlight flex items-center px-3 md:px-4 gap-2 md:gap-4 shrink-0">
+    <>
       {/* Hidden audio element */}
       <audio ref={audioRef} preload="metadata" />
 
-      {/* Track Info — Left */}
-      <div className="flex items-center gap-3 min-w-0 md:w-[240px] shrink-0">
-        {currentTrack.cover_url ? (
-          <img
-            src={currentTrack.cover_url}
-            alt={currentTrack.title}
-            className="w-10 h-10 md:w-12 md:h-12 rounded-md object-cover shrink-0 shadow"
-          />
-        ) : (
-          <div className="w-10 h-10 md:w-12 md:h-12 rounded-md bg-surface-highlight flex items-center justify-center shrink-0">
-            <Music size={18} className="text-subtext" />
-          </div>
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="text-xs md:text-sm font-medium truncate">{currentTrack.title}</p>
-          <p className="text-[10px] md:text-xs text-subtext truncate">
-            {currentTrack.artist_name || 'Unknown Artist'}
-          </p>
-        </div>
-        <button
-          onClick={() => usePlayerStore.setState({ isExpanded: !usePlayerStore.getState().isExpanded })}
-          className="p-1.5 text-subtext hover:text-primary hover:bg-surface-highlight rounded-full transition-colors shrink-0 cursor-pointer"
-          title="Expand Screen (Lyrics & Art)"
-        >
-          <Maximize2 size={16} />
-        </button>
-      </div>
-
-      {/* Controls — Center */}
-      <div className="flex-initial md:flex-1 flex justify-center">
-        <PlayerControls audioRef={audioRef} />
-      </div>
-
-      {/* Volume — Right */}
-      <div className="flex items-center gap-2 md:w-[160px] justify-end relative">
-        <button
-          onClick={() => {
-            if (window.innerWidth < 768) {
-              setShowMobileVolume(!showMobileVolume)
-            } else {
-              toggleMute()
-            }
-          }}
-          className="p-1 text-subtext hover:text-primary transition-colors cursor-pointer"
-          title="Volume Control"
-        >
-          {volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
-        </button>
-        <input
-          type="range"
-          min={0}
-          max={100}
-          value={volume}
-          onChange={(e) => setVolume(Number(e.target.value))}
-          className="hidden md:block w-24 accent-spotify-green h-1 cursor-pointer"
-        />
-
-        {/* Mobile floating volume slider popup */}
-        {showMobileVolume && (
-          <div className="absolute bottom-14 right-0 bg-surface-elevated border border-surface-highlight p-3 rounded-lg shadow-2xl flex items-center gap-2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
-            <button
-              onClick={toggleMute}
-              className="text-subtext hover:text-primary transition-colors cursor-pointer"
-            >
-              {volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
-            </button>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={volume}
-              onChange={(e) => setVolume(Number(e.target.value))}
-              className="w-20 accent-spotify-green h-1 cursor-pointer"
+      {/* Desktop view */}
+      <div 
+        onClick={() => usePlayerStore.setState({ isExpanded: true })}
+        className="hidden md:flex h-20 bg-surface-elevated border-t border-surface-highlight items-center px-4 gap-4 justify-between shrink-0 cursor-pointer hover:bg-surface-elevated/80 transition-colors"
+      >
+        {/* Track Info — Left */}
+        <div className="flex items-center gap-3 min-w-0 w-[240px] shrink-0">
+          {currentTrack.cover_url ? (
+            <img
+              src={currentTrack.cover_url}
+              alt={currentTrack.title}
+              className="w-12 h-12 rounded-md object-cover shrink-0 shadow"
             />
+          ) : (
+            <div className="w-12 h-12 rounded-md bg-surface-highlight flex items-center justify-center shrink-0">
+              <Music size={18} className="text-subtext" />
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium truncate">{currentTrack.title}</p>
+            <p className="text-xs text-subtext truncate">
+              {currentTrack.artist_name || 'Unknown Artist'}
+            </p>
           </div>
-        )}
+        </div>
+
+        {/* Controls — Center */}
+        <div onClick={(e) => e.stopPropagation()} className="flex-1 flex justify-center max-w-[600px]">
+          <PlayerControls audioRef={audioRef} />
+        </div>
+
+        {/* Volume — Right */}
+        <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-2 w-[160px] justify-end relative">
+          <button
+            onClick={toggleMute}
+            className="p-1 text-subtext hover:text-primary transition-colors cursor-pointer"
+            title="Volume Control"
+          >
+            {volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
+          </button>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={volume}
+            onChange={(e) => setVolume(Number(e.target.value))}
+            className="w-24 accent-spotify-green h-1 cursor-pointer bg-zinc-700 rounded-full"
+          />
+        </div>
       </div>
-    </div>
+
+      {/* Mobile view (Spotify-like floating card) */}
+      <div 
+        onClick={() => usePlayerStore.setState({ isExpanded: true })}
+        className="flex md:hidden items-center justify-between mx-2 mb-2 h-14 bg-surface-elevated/95 backdrop-blur border border-surface-highlight/60 rounded-lg px-3 gap-3 relative overflow-hidden shadow-lg shadow-black/40 cursor-pointer hover:bg-surface-elevated/80 transition-colors"
+      >
+        {/* Progress Bar (at the very bottom of the card) */}
+        <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-surface-highlight/30">
+          <div className="h-full bg-spotify-green transition-all duration-100" style={{ width: `${progress}%` }} />
+        </div>
+
+        {/* Track Info */}
+        <div className="flex items-center min-w-0 flex-1 gap-2.5">
+          {currentTrack.cover_url ? (
+            <img
+              src={currentTrack.cover_url}
+              alt={currentTrack.title}
+              className="w-9 h-9 rounded object-cover shrink-0 shadow"
+            />
+          ) : (
+            <div className="w-9 h-9 rounded bg-surface-highlight flex items-center justify-center shrink-0">
+              <Music size={14} className="text-subtext" />
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold truncate text-primary">{currentTrack.title}</p>
+            <p className="text-[10px] text-subtext truncate mt-0.5">
+              {currentTrack.artist_name || 'Unknown Artist'}
+            </p>
+          </div>
+        </div>
+
+        {/* Controls */}
+        <div className="flex items-center gap-3 shrink-0">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setIsPlaying(!isPlaying)
+            }}
+            className="p-1 hover:scale-105 transition-transform text-primary cursor-pointer"
+            title={isPlaying ? 'Pause' : 'Play'}
+          >
+            {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
+          </button>
+        </div>
+      </div>
+    </>
   )
 }

@@ -27,10 +27,10 @@ export default function PlaylistPage() {
   const setTrack = usePlayerStore((s) => s.setTrack)
   const setQueue = usePlayerStore((s) => s.setQueue)
 
-  const loadData = async () => {
+  const loadData = async (silent = false) => {
     if (!id) return
     try {
-      setLoading(true)
+      if (!silent) setLoading(true)
       const [data, pls] = await Promise.all([
         getPlaylistItems(Number(id)),
         getMyPlaylists(),
@@ -57,6 +57,9 @@ export default function PlaylistPage() {
 
   useEffect(() => {
     loadData()
+    const handleRefresh = () => loadData(true)
+    window.addEventListener('playlist-updated', handleRefresh)
+    return () => window.removeEventListener('playlist-updated', handleRefresh)
   }, [id])
 
   const tracks = items
@@ -119,7 +122,18 @@ export default function PlaylistPage() {
   }
 
   return (
-    <div>
+    <div className="animate-in fade-in duration-300">
+      {/* Back Button */}
+      <div className="mb-6">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-1.5 text-xs font-bold text-subtext hover:text-primary transition-colors cursor-pointer select-none bg-surface-highlight/40 hover:bg-surface-highlight/70 px-3 py-1.5 rounded-full border border-surface-highlight/20"
+          title="Go Back"
+        >
+          ← Back
+        </button>
+      </div>
+
       {/* Header */}
       <div className="flex items-end gap-6 mb-8">
         <div className="relative group/cover w-48 h-48 rounded-lg bg-surface-highlight flex items-center justify-center shadow-2xl shrink-0 overflow-hidden">
@@ -181,7 +195,7 @@ export default function PlaylistPage() {
 
       {/* Tracks */}
       {tracks.length > 0 ? (
-        <TrackList tracks={tracks} />
+        <TrackList tracks={tracks} playlistId={Number(id)} />
       ) : (
         <div className="py-12 text-center text-subtext">
           <p className="text-lg font-medium">This playlist is empty</p>

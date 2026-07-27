@@ -37,6 +37,7 @@ export interface Track {
   artist_id?: number | null
   artist_name?: string | null
   lyrics?: string | null
+  genres?: string | null
   created_at?: string | null
   updated_at?: string | null
 }

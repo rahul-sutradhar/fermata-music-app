@@ -17,9 +17,10 @@ interface Props {
   index: number
   tracks: Track[]
   onPlay?: (track: Track) => void
+  playlistId?: number
 }
 
-export default function TrackRow({ track, index, tracks, onPlay }: Props) {
+export default function TrackRow({ track, index, tracks, onPlay, playlistId }: Props) {
   const currentTrack = usePlayerStore((s) => s.currentTrack)
   const isPlaying = usePlayerStore((s) => s.isPlaying)
   const setTrack = usePlayerStore((s) => s.setTrack)
@@ -164,6 +165,7 @@ export default function TrackRow({ track, index, tracks, onPlay }: Props) {
         {showMenu && (
           <AddToPlaylistMenu
             trackId={track.id}
+            playlistId={playlistId}
             onClose={() => setShowMenu(false)}
           />
         )}

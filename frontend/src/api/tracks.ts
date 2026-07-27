@@ -93,3 +93,13 @@ export function transliterateTrackLyrics(trackId: number) {
     { method: 'POST' }
   )
 }
+
+export function getAutoplayTrack(currentTrackId: number, sessionId: string) {
+  return apiRequest<Track>('/tracks/autoplay', {
+    method: 'POST',
+    body: JSON.stringify({
+      current_track_id: currentTrackId,
+      session_id: sessionId,
+    }),
+  })
+}
