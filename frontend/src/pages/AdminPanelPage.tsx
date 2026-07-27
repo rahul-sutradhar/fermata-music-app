@@ -966,7 +966,7 @@ export default function AdminPanelPage() {
               </button>
             </div>
             <div className="rounded-xl border border-surface-highlight overflow-hidden bg-surface-elevated/40">
-              <div className="grid grid-cols-[40px_1fr_100px] md:grid-cols-[40px_1fr_1.5fr_120px_120px_100px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[28px_1fr_100px] md:grid-cols-[40px_1fr_1.5fr_120px_120px_100px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>#</span>
                 <span>Username</span>
                 <span className="hidden md:block">Email</span>
@@ -979,7 +979,7 @@ export default function AdminPanelPage() {
                   <div className="py-8 text-center text-subtext text-sm">No artist accounts found</div>
                 ) : (
                   users.filter(u => u.role === 'artist').map((u, index) => (
-                    <div key={u.id} className="grid grid-cols-[40px_1fr_100px] md:grid-cols-[40px_1fr_1.5fr_120px_120px_100px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
+                    <div key={u.id} className="grid grid-cols-[28px_1fr_100px] md:grid-cols-[40px_1fr_1.5fr_120px_120px_100px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
                       <span className="text-xs font-semibold text-subtext tabular-nums">{index + 1}</span>
                       <div className="min-w-0">
                         <span className="text-sm font-medium truncate block">{u.username}</span>
@@ -1027,7 +1027,7 @@ export default function AdminPanelPage() {
               </button>
             </div>
             <div className="rounded-xl border border-surface-highlight overflow-hidden bg-surface-elevated/40">
-              <div className="grid grid-cols-[40px_1fr_100px] md:grid-cols-[40px_1fr_200px_120px_120px_100px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[28px_1fr_100px] md:grid-cols-[40px_1fr_200px_120px_120px_100px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>#</span>
                 <span>Artist Name</span>
                 <span className="hidden md:block">Linked Account</span>
@@ -1040,7 +1040,7 @@ export default function AdminPanelPage() {
                   <div className="py-8 text-center text-subtext text-sm">No artist profiles found</div>
                 ) : (
                   artists.map((a, index) => (
-                    <div key={a.id} className="grid grid-cols-[40px_1fr_100px] md:grid-cols-[40px_1fr_200px_120px_120px_100px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
+                    <div key={a.id} className="grid grid-cols-[28px_1fr_100px] md:grid-cols-[40px_1fr_200px_120px_120px_100px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
                       <span className="text-xs font-semibold text-subtext tabular-nums">{index + 1}</span>
                       <div className="min-w-0">
                         <span className="text-sm font-medium truncate block">{a.name}</span>
@@ -1082,7 +1082,7 @@ export default function AdminPanelPage() {
           {/* TRACKS TABLE (ALL USERS, SORTED DESCENDING BY ID/DATE) */}
           {activeTab === 'tracks' && (
             <>
-              <div className="grid grid-cols-[40px_1fr_120px] md:grid-cols-[40px_1fr_140px_110px_110px_90px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[28px_1fr_120px] md:grid-cols-[40px_1fr_140px_110px_110px_90px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>#</span>
                 <span>Title</span>
                 <span className="hidden md:block">Album</span>
@@ -1105,7 +1105,7 @@ export default function AdminPanelPage() {
                       <div
                         key={track.id}
                         onClick={() => handlePlayTrack(track, tracks)}
-                        className={`grid grid-cols-[40px_1fr_120px] md:grid-cols-[40px_1fr_140px_110px_110px_90px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${isCurrentPlaying
+                        className={`grid grid-cols-[28px_1fr_120px] md:grid-cols-[40px_1fr_140px_110px_110px_90px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${isCurrentPlaying
                           ? 'bg-spotify-green/15 text-spotify-green font-semibold'
                           : 'hover:bg-surface-highlight/20'
                           }`}
@@ -1267,7 +1267,7 @@ export default function AdminPanelPage() {
           {/* NORMAL USERS TABLE */}
           {activeTab === 'users' && (
             <>
-              <div className="grid grid-cols-[40px_1fr_100px] md:grid-cols-[40px_1fr_1.5fr_120px_120px_120px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[28px_1fr_100px] md:grid-cols-[40px_1fr_1.5fr_120px_120px_120px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>#</span>
                 <span>Username</span>
                 <span className="hidden md:block">Email</span>
@@ -1280,7 +1280,7 @@ export default function AdminPanelPage() {
                   <div className="py-12 text-center text-subtext text-sm">No normal users found</div>
                 ) : (
                   users.map((u, index) => (
-                    <div key={u.id} className="grid grid-cols-[40px_1fr_100px] md:grid-cols-[40px_1fr_1.5fr_120px_120px_120px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
+                    <div key={u.id} className="grid grid-cols-[28px_1fr_100px] md:grid-cols-[40px_1fr_1.5fr_120px_120px_120px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
                       <span className="text-xs font-semibold text-subtext tabular-nums">{index + 1}</span>
                       <div className="min-w-0">
                         <span className="text-sm font-medium truncate block">{u.username}</span>
@@ -1315,7 +1315,7 @@ export default function AdminPanelPage() {
           {/* ADMINS TABLE */}
           {activeTab === 'admins' && (
             <>
-              <div className="grid grid-cols-[40px_1fr_100px] md:grid-cols-[40px_1fr_1.5fr_120px_120px_120px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[28px_1fr_100px] md:grid-cols-[40px_1fr_1.5fr_120px_120px_120px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>#</span>
                 <span>Username</span>
                 <span className="hidden md:block">Email</span>
@@ -1328,7 +1328,7 @@ export default function AdminPanelPage() {
                   <div className="py-12 text-center text-subtext text-sm">No administrators found</div>
                 ) : (
                   users.map((u, index) => (
-                    <div key={u.id} className="grid grid-cols-[40px_1fr_100px] md:grid-cols-[40px_1fr_1.5fr_120px_120px_120px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
+                    <div key={u.id} className="grid grid-cols-[28px_1fr_100px] md:grid-cols-[40px_1fr_1.5fr_120px_120px_120px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
                       <span className="text-xs font-semibold text-subtext tabular-nums">{index + 1}</span>
                       <div className="min-w-0">
                         <span className="text-sm font-medium truncate block">{u.username}</span>
@@ -1363,7 +1363,7 @@ export default function AdminPanelPage() {
           {/* ALBUMS TABLE WITH ACCORDION & SERIAL ID (ALL USERS, SORTED DESCENDING BY ID/DATE) */}
           {activeTab === 'albums' && (
             <>
-              <div className="grid grid-cols-[40px_1fr_100px] md:grid-cols-[40px_1fr_180px_90px_110px_110px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[28px_1fr_100px] md:grid-cols-[40px_1fr_180px_90px_110px_110px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>#</span>
                 <span>Album Title</span>
                 <span className="hidden md:block">Artist Profile</span>
@@ -1388,7 +1388,7 @@ export default function AdminPanelPage() {
                         {/* Album Row */}
                         <div
                           onClick={(e) => toggleAlbumExpand(al.id, e)}
-                          className={`grid grid-cols-[40px_1fr_100px] md:grid-cols-[40px_1fr_180px_90px_110px_110px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${isExpanded ? 'bg-surface-highlight/40' : 'hover:bg-surface-highlight/20'
+                          className={`grid grid-cols-[28px_1fr_100px] md:grid-cols-[40px_1fr_180px_90px_110px_110px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${isExpanded ? 'bg-surface-highlight/40' : 'hover:bg-surface-highlight/20'
                             }`}
                         >
                           {/* Frontend Serial Number */}
@@ -1507,7 +1507,7 @@ export default function AdminPanelPage() {
                                     <div
                                       key={track.id}
                                       onClick={() => handlePlayTrack(track, albumTracks)}
-                                      className={`grid grid-cols-[30px_1fr_120px] md:grid-cols-[30px_1fr_130px_80px_180px] gap-3 items-center py-2 px-3 rounded-lg cursor-pointer transition-colors ${isActiveTrack
+                                      className={`grid grid-cols-[24px_1fr_120px] md:grid-cols-[30px_1fr_130px_80px_180px] gap-3 items-center py-2 px-3 rounded-lg cursor-pointer transition-colors ${isActiveTrack
                                         ? 'bg-spotify-green/15 text-spotify-green font-semibold'
                                         : 'hover:bg-surface-highlight/30 text-primary'
                                         }`}
@@ -1655,7 +1655,7 @@ export default function AdminPanelPage() {
           {/* INGESTION QUEUE TABLE */}
           {activeTab === 'ingestion' && (
             <>
-              <div className="grid grid-cols-[40px_1fr_90px_100px] md:grid-cols-[40px_1.5fr_1.2fr_1.2fr_120px_150px_100px_140px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[28px_1fr_90px_100px] md:grid-cols-[40px_1.5fr_1.2fr_1.2fr_120px_150px_100px_140px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>#</span>
                 <span>Song Name</span>
                 <span className="hidden md:block">Artists</span>
@@ -1674,7 +1674,7 @@ export default function AdminPanelPage() {
                   getSortedIngestionRequests().map((req, index) => (
                     <div
                       key={req.id}
-                      className="grid grid-cols-[40px_1fr_90px_100px] md:grid-cols-[40px_1.5fr_1.2fr_1.2fr_120px_150px_100px_140px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors"
+                      className="grid grid-cols-[28px_1fr_90px_100px] md:grid-cols-[40px_1.5fr_1.2fr_1.2fr_120px_150px_100px_140px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors"
                     >
                       {/* Serial Number */}
                       <span className="text-xs font-semibold text-subtext tabular-nums">

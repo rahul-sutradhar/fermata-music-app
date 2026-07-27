@@ -1,25 +1,138 @@
-# Obsidian / documentation
-.obsidian/
-.trash/
-Documentation/
+﻿# =============================================================================
+# Fermata – Root .gitignore
+# =============================================================================
 
-# Virtual Environments
+# -----------------------------------------------------------------------------
+# Environment & Secrets (NEVER commit these)
+# -----------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+credentials/
+
+# -----------------------------------------------------------------------------
+# Python
+# -----------------------------------------------------------------------------
+# Bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+
+# Virtual environments
 .venv/
 venv/
 ENV/
 env/
+env.bak/
+venv.bak/
 
-# Python Bytecode & Cache
-__pycache__/
-*.py[cod]
-*$py.class
-.pytest_cache/
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+MANIFEST
+.eggs/
+pip-wheel-metadata/
+share/python-wheels/
+*.whl
+
+# Type checking & linting caches
 .mypy_cache/
 .ruff_cache/
-.coverage
-htmlcov/
+.pytype/
+pyrightconfig.json
 
-# IDE / Editor configurations
+# Testing & coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+nosetests.xml
+test-results/
+
+# Profiling
+*.prof
+
+# -----------------------------------------------------------------------------
+# Node / JavaScript (root-level tooling)
+# -----------------------------------------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.npm/
+.yarn/
+
+# -----------------------------------------------------------------------------
+# Cloudflare CDN Worker
+# -----------------------------------------------------------------------------
+fermata-cdn-worker/node_modules/
+fermata-cdn-worker/.wrangler/
+fermata-cdn-worker/dist/
+fermata-cdn-worker/.dev.vars
+
+# -----------------------------------------------------------------------------
+# Database & Migrations (generated files)
+# -----------------------------------------------------------------------------
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+alembic/versions/__pycache__/
+
+# -----------------------------------------------------------------------------
+# Storage & Uploads (local files, not for VCS)
+# -----------------------------------------------------------------------------
+storage/*
+!storage/.gitkeep
+!storage/playlist_covers/
+storage/playlist_covers/*
+!storage/playlist_covers/.gitkeep
+
+# -----------------------------------------------------------------------------
+# Docker
+# -----------------------------------------------------------------------------
+.dockerignore.local
+docker-compose.override.yml
+.docker/
+
+# -----------------------------------------------------------------------------
+# Logs
+# -----------------------------------------------------------------------------
+*.log
+logs/
+log/
+*.log.*
+
+# -----------------------------------------------------------------------------
+# OS-generated files
+# -----------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# -----------------------------------------------------------------------------
+# IDE & Editor
+# -----------------------------------------------------------------------------
 .vscode/
 .idea/
 *.suo
@@ -27,42 +140,45 @@ htmlcov/
 *.njsproj
 *.sln
 *.sw?
-.DS_Store
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.iml
+nbproject/
+.nb-gradle/
 
-# Environment and secrets
-.env
-.env.*
-!.env.example
+# -----------------------------------------------------------------------------
+# Obsidian / Documentation workspace
+# -----------------------------------------------------------------------------
+.obsidian/
+.trash/
+Documentation/
 
-# Lock / terminal files
-.terminal.lock
-.uv.lock
-
-# Logs
-*.log
-logs/
-
-# Distribution / packaging
-dist/
-build/
-*.egg-info/
-
-# Storage & local uploads
-storage/*
-!storage/playlist_covers/
-storage/playlist_covers/*
-!storage/playlist_covers/.gitkeep
-
-# Temporary / backup / run output files
+# -----------------------------------------------------------------------------
+# Temporary / Scratch / Output files
+# -----------------------------------------------------------------------------
 ~$*
 out.txt
 recover.py
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+scratch/
+tmp/
 
-# Node dependencies
-node_modules/
+# -----------------------------------------------------------------------------
+# uv / pip lock (uv.lock is committed; .uv.lock cache is not)
+# -----------------------------------------------------------------------------
+.uv.lock
+.uv/
 
-# Cloudflare CDN Worker build assets / modules
-fermata-cdn-worker/node_modules/
-fermata-cdn-worker/.wrangler/
-fermata-cdn-worker/dist/
-
+# -----------------------------------------------------------------------------
+# CI / CD artifacts
+# -----------------------------------------------------------------------------
+.github/workflows/*.local.yml
+junit.xml
