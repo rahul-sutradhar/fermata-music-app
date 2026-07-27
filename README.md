@@ -97,15 +97,15 @@ The entire system is containerized, deployed on Render, and built with security-
 │   │  Rate Limiter    │    │  Self-Healing Lifespan     │   │
 │   │  (Redis / Mem)   │    │  (Alembic auto-migrate)    │   │
 │   └──────────────────┘    └────────────────────────────┘   │
-└──────────┬─────────────────────────────┬───────────────────┘
-           │                             │
-    ┌──────▼─────┐           ┌───────────▼────────┐
+└──────────┬───────────────────────────┬─────────────────────┘
+           │                           │
+    ┌──────▼─────┐           ┌─────────▼──────────┐
     │ PostgreSQL │           │   Backblaze B2     │
     │ (Supabase) │           │  (S3-Compatible    │
     │            │           │   Object Storage)  │
-    └────────────┘           └────────┬───────────┘
-                                      │
-                            ┌─────────▼───────────┐
+    └────────────┘           └─────────┬──────────┘
+                                       │
+                            ┌──────────▼──────────┐
                             │  Cloudflare Worker  │
                             │  (CDN + Pre-signed  │
                             │   URL Proxy Cache)  │
@@ -143,8 +143,8 @@ admin_reviews_request
   ├── (rejected) ────────► notify_rejection ──► END
   │
   ▼ (approved — 3 parallel branches)
-  ├─── download_and_upload_audio  ──┐
-  ├─── process_and_upload_cover   ──┼─► sync_join ──► populate_track ──► notify_user ──► END
+  ├─── download_and_upload_audio ────────────────┐
+  ├─── process_and_upload_cover ─────────────────┼─► sync_join ──► populate_track ──► notify_user ──► END
   └─── fetch_artist_metadata ► populate_artist ──┘
 ```
 
@@ -274,7 +274,7 @@ DEBUG=false
 ENVIRONMENT=production
 
 # Database
-DATABASE_URL=postgresql://user:password@host:5432/fermata
+DATABASE_URL=your-database-url
 
 # JWT
 SECRET_KEY=your-256-bit-secret
@@ -282,17 +282,17 @@ ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 
 # Redis (Upstash)
-REDIS_URL=rediss://default:token@host.upstash.io:6379
+REDIS_URL=your-redis-url
 RATE_LIMIT_REQUESTS=100
 RATE_LIMIT_WINDOW_SECONDS=60
 AUTH_RATE_LIMIT_REQUESTS=10
 
 # Backblaze B2
-B2_S3_ENDPOINT_URL=https://s3.us-west-004.backblazeb2.com
+B2_S3_ENDPOINT_URL=your-endpoint-url
 B2_ACCESS_KEY_ID=your-key-id
 B2_SECRET_ACCESS_KEY=your-secret-key
-B2_BUCKET_NAME=fermata-audio
-B2_REGION_NAME=us-west-004
+B2_BUCKET_NAME=your-bucket-name
+B2_REGION_NAME=your-bucket-region-name
 
 # AI Pipeline
 MISTRAL_API_KEY=your-mistral-key
@@ -303,30 +303,103 @@ HEALTH_CHECK_TOKEN=your-health-token
 
 ## 📡 API Reference
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| `POST` | `/auth/register` | — | Register with email + OTP verification |
-| `POST` | `/auth/login` | — | Login → access + refresh tokens |
-| `POST` | `/auth/refresh` | Refresh Token | Rotate access token |
-| `POST` | `/auth/verify-otp` | — | Verify email OTP |
-| `GET` | `/auth/me` | ✅ User | Get current user profile |
-| `GET` | `/tracks` | ✅ User | List all tracks |
-| `GET` | `/tracks/{id}` | ✅ User | Get track with pre-signed stream URL |
-| `POST` | `/tracks` | ✅ Artist/Admin | Create track |
-| `PATCH` | `/tracks/{id}` | ✅ Artist/Admin | Update track metadata |
-| `DELETE` | `/tracks/{id}` | ✅ Artist/Admin | Delete track |
-| `GET/POST/PATCH/DELETE` | `/albums` | Mixed | Album CRUD |
-| `GET/POST/PATCH/DELETE` | `/artists` | Mixed | Artist profile CRUD |
-| `GET` | `/search` | ✅ User | Full-text search (tracks, albums, artists) |
-| `GET/POST/DELETE` | `/playlists` | ✅ User | Playlist management |
-| `GET/PATCH` | `/me/player` | ✅ User | Player state sync |
-| `POST` | `/me/player/recently-played` | ✅ User | Log play event |
-| `GET/POST/DELETE` | `/me/library` | ✅ User | Saved tracks/albums |
-| `POST` | `/api/v1/agentic-ingest/search` | ✅ User | Start AI song search |
-| `POST` | `/api/v1/agentic-ingest/select` | ✅ User | Select candidate → queue |
-| `POST` | `/api/v1/agentic-ingest/approve/{id}` | ✅ Admin | Approve/reject ingestion |
-| `GET` | `/api/v1/agentic-ingest/queue` | ✅ Admin | View ingestion queue |
-| `GET` | `/health` | Token | Service health check |
+### 🔑 Authentication
+
+| Method | Endpoint | Auth Required | Description |
+| :----: | :------- | :-----------: | :---------- |
+| `POST` | `/auth/register` | Public | Create a new account (triggers OTP email verification) |
+| `POST` | `/auth/login` | Public | Login with email + password; returns access & refresh tokens |
+| `POST` | `/auth/refresh` | Refresh Token | Rotate short-lived access token |
+| `POST` | `/auth/verify-otp` | Public | Verify email with OTP code to activate account |
+| `POST` | `/auth/forgot-password` | Public | Request a password-reset OTP |
+| `POST` | `/auth/reset-password` | Public | Reset password using OTP |
+| `GET`  | `/auth/me` | 🔒 User | Return the authenticated user's profile |
+| `POST` | `/auth/logout` | 🔒 User | Revoke the current access token |
+
+### 🎵 Tracks
+
+| Method | Endpoint | Auth Required | Description |
+| :----: | :------- | :-----------: | :---------- |
+| `GET`    | `/tracks` | 🔒 User | List all tracks in the catalog |
+| `GET`    | `/tracks/{id}` | 🔒 User | Fetch a single track + pre-signed CDN stream URL |
+| `POST`   | `/tracks` | 🔒 Artist / Admin | Upload and create a new track |
+| `PATCH`  | `/tracks/{id}` | 🔒 Artist / Admin | Update track title, metadata, or cover |
+| `DELETE` | `/tracks/{id}` | 🔒 Artist / Admin | Remove a track and its storage objects |
+
+### 💿 Albums
+
+| Method | Endpoint | Auth Required | Description |
+| :----: | :------- | :-----------: | :---------- |
+| `GET`    | `/albums` | 🔒 User | List all albums |
+| `GET`    | `/albums/{id}` | 🔒 User | Fetch album details with full track listing |
+| `POST`   | `/albums` | 🔒 Artist / Admin | Create a new album |
+| `PATCH`  | `/albums/{id}` | 🔒 Artist / Admin | Update album title or cover art |
+| `DELETE` | `/albums/{id}` | 🔒 Artist / Admin | Delete album and all associated tracks |
+
+### 🎤 Artists
+
+| Method | Endpoint | Auth Required | Description |
+| :----: | :------- | :-----------: | :---------- |
+| `GET`    | `/artists` | 🔒 User | List all artist profiles |
+| `GET`    | `/artists/{id}` | 🔒 User | Fetch artist profile + discography |
+| `POST`   | `/artists` | 🔒 Admin | Create a new artist catalog profile |
+| `PATCH`  | `/artists/{id}` | 🔒 Artist / Admin | Update artist name, bio, or avatar |
+| `DELETE` | `/artists/{id}` | 🔒 Admin | Delete artist profile |
+
+### 🔍 Search
+
+| Method | Endpoint | Auth Required | Description |
+| :----: | :------- | :-----------: | :---------- |
+| `GET` | `/search?q={query}` | 🔒 User | Full-text search across tracks, albums, and artists |
+
+### 📋 Playlists
+
+| Method | Endpoint | Auth Required | Description |
+| :----: | :------- | :-----------: | :---------- |
+| `GET`    | `/playlists` | 🔒 User | List the current user's playlists |
+| `POST`   | `/playlists` | 🔒 User | Create a new playlist |
+| `GET`    | `/playlists/{id}` | 🔒 User | Fetch a playlist with its tracks |
+| `PATCH`  | `/playlists/{id}` | 🔒 User | Rename playlist or reorder tracks |
+| `DELETE` | `/playlists/{id}` | 🔒 User | Delete a playlist |
+| `POST`   | `/playlists/{id}/tracks` | 🔒 User | Add a track to a playlist |
+| `DELETE` | `/playlists/{id}/tracks/{track_id}` | 🔒 User | Remove a track from a playlist |
+
+### 🎧 Player
+
+| Method | Endpoint | Auth Required | Description |
+| :----: | :------- | :-----------: | :---------- |
+| `GET`   | `/me/player` | 🔒 User | Get current player state (track, position, shuffle, repeat) |
+| `PATCH` | `/me/player` | 🔒 User | Update player state |
+| `POST`  | `/me/player/recently-played` | 🔒 User | Log a track play event to recently played history |
+| `GET`   | `/me/player/recently-played` | 🔒 User | Fetch recently played track list |
+
+### 📚 Library
+
+| Method | Endpoint | Auth Required | Description |
+| :----: | :------- | :-----------: | :---------- |
+| `GET`    | `/me/library` | 🔒 User | List all saved tracks and albums |
+| `POST`   | `/me/library/tracks/{id}` | 🔒 User | Save a track to library |
+| `DELETE` | `/me/library/tracks/{id}` | 🔒 User | Remove a track from library |
+| `POST`   | `/me/library/albums/{id}` | 🔒 User | Save an album to library |
+| `DELETE` | `/me/library/albums/{id}` | 🔒 User | Remove an album from library |
+
+### 🤖 Agentic Ingestion (AI Pipeline)
+
+| Method | Endpoint | Auth Required | Description |
+| :----: | :------- | :-----------: | :---------- |
+| `POST` | `/api/v1/agentic-ingest/search` | 🔒 User | Kick off AI web search for a song; returns candidates |
+| `POST` | `/api/v1/agentic-ingest/select` | 🔒 User | User selects a candidate to submit to the ingestion queue |
+| `GET`  | `/api/v1/agentic-ingest/queue` | 🔒 Admin | View all ingestion requests with their status |
+| `POST` | `/api/v1/agentic-ingest/approve/{id}` | 🔒 Admin | Approve a request — triggers parallel download/upload pipeline |
+| `POST` | `/api/v1/agentic-ingest/reject/{id}` | 🔒 Admin | Reject an ingestion request |
+| `GET`  | `/api/v1/agentic-ingest/status/{id}` | 🔒 User | Poll ingestion job status |
+
+### ⚙️ System
+
+| Method | Endpoint | Auth Required | Description |
+| :----: | :------- | :-----------: | :---------- |
+| `GET` | `/health?token={token}` | Token | Service liveness check |
+| `GET` | `/docs` | Public | Interactive OpenAPI documentation (Swagger UI) |
 
 ---
 
