@@ -77,39 +77,39 @@ The entire system is containerized, deployed on Render, and built with security-
 ```
 ┌────────────────────────────────────────────────────────────┐
 │                        CLIENT (Browser)                    │
-│         React 19 · TypeScript · Vite · Zustand            │
+│         React 19 · TypeScript · Vite · Zustand             │
 └────────────────────────────┬───────────────────────────────┘
                              │ HTTPS
 ┌────────────────────────────▼───────────────────────────────┐
 │               FastAPI Backend (Render / Docker)            │
 │                                                            │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  │
-│  │   Auth   │  │  Tracks  │  │  Albums  │  │ Playlist │  │
-│  │  Router  │  │  Router  │  │  Router  │  │  Router  │  │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘  │
+│   ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
+│   │   Auth   │  │  Tracks  │  │  Albums  │  │ Playlist │   │
+│   │  Router  │  │  Router  │  │  Router  │  │  Router  │   │
+│   └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
 │                                                            │
-│  ┌─────────────────────────────────────────────────────┐  │
+│  ┌──────────────────────────────────────────────────────┐  │
 │  │          Agentic Ingestion Router (/api/v1)          │  │
 │  │  LangGraph Workflow → HITL Queue → Admin Gate        │  │
-│  └─────────────────────────────────────────────────────┘  │
+│  └──────────────────────────────────────────────────────┘  │
 │                                                            │
-│  ┌──────────────────┐    ┌────────────────────────────┐   │
-│  │  Rate Limiter    │    │  Self-Healing Lifespan      │   │
-│  │  (Redis / Mem)   │    │  (Alembic auto-migrate)    │   │
-│  └──────────────────┘    └────────────────────────────┘   │
-└────┬─────────────────────────────┬──────────────────────────┘
-     │                             │
-┌────▼───────┐            ┌────────▼───────────┐
-│ PostgreSQL │            │   Backblaze B2     │
-│ (Supabase) │            │  (S3-Compatible    │
-│            │            │   Object Storage)  │
-└────────────┘            └────────┬───────────┘
-                                   │
-                         ┌─────────▼──────────┐
-                         │  Cloudflare Worker  │
-                         │  (CDN + Pre-signed  │
-                         │   URL Proxy Cache)  │
-                         └────────────────────┘
+│   ┌──────────────────┐    ┌────────────────────────────┐   │
+│   │  Rate Limiter    │    │  Self-Healing Lifespan     │   │
+│   │  (Redis / Mem)   │    │  (Alembic auto-migrate)    │   │
+│   └──────────────────┘    └────────────────────────────┘   │
+└──────────┬─────────────────────────────┬───────────────────┘
+           │                             │
+    ┌──────▼─────┐           ┌───────────▼────────┐
+    │ PostgreSQL │           │   Backblaze B2     │
+    │ (Supabase) │           │  (S3-Compatible    │
+    │            │           │   Object Storage)  │
+    └────────────┘           └────────┬───────────┘
+                                      │
+                            ┌─────────▼───────────┐
+                            │  Cloudflare Worker  │
+                            │  (CDN + Pre-signed  │
+                            │   URL Proxy Cache)  │
+                            └─────────────────────┘
 ```
 
 ---
@@ -122,7 +122,7 @@ The ingestion pipeline is a **stateful, interruptible LangGraph graph**. Unlike 
 START
   │
   ▼
-search_candidates          ← Web search (DuckDuckGo), deduplication
+search_candidates    ←    Web search (DuckDuckGo), deduplication
   │
   ├── (no results) ──────► report_missing_song ──► END
   │
@@ -130,7 +130,7 @@ search_candidates          ← Web search (DuckDuckGo), deduplication
 [INTERRUPT: user selects from candidates]
   │
   ▼
-submit_to_hitl_queue       ← Persists to ingestion_requests DB table
+submit_to_hitl_queue    ←    Persists to ingestion_requests DB table
   │
   ├── (report_missing) ──► report_missing_song ──► END
   │
