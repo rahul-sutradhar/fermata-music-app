@@ -25,7 +25,20 @@ def get_my_library(
 ) -> list[LibraryItemResponse]:
     """Get current user's liked tracks library."""
     items = library_service.get_user_library(db, current_user.id, skip, limit)
-    return [LibraryItemResponse.model_validate(item) for item in items]
+    from app.services.tracks import _to_response as _track_to_response
+    
+    res = []
+    for item in items:
+        track_resp = _track_to_response(item.track) if item.track else None
+        res.append(
+            LibraryItemResponse(
+                id=item.id,
+                track_id=item.track_id,
+                added_at=item.added_at,
+                track=track_resp
+            )
+        )
+    return res
 
 
 @router.put(
@@ -94,7 +107,20 @@ def get_my_liked_albums(
 ) -> list[LikedAlbumResponse]:
     """Get current user's liked albums."""
     items = library_service.get_user_liked_albums(db, current_user.id, skip, limit)
-    return [LikedAlbumResponse.model_validate(item) for item in items]
+    from app.services.albums import _to_album_response
+    
+    res = []
+    for item in items:
+        album_resp = _to_album_response(item.album) if item.album else None
+        res.append(
+            LikedAlbumResponse(
+                id=item.id,
+                album_id=item.album_id,
+                added_at=item.added_at,
+                album=album_resp
+            )
+        )
+    return res
 
 
 @router.put(

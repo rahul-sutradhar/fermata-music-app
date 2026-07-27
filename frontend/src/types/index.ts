@@ -74,12 +74,14 @@ export interface LibraryItem {
   id: number
   track_id: number
   added_at: string
+  track?: Track
 }
 
 export interface LikedAlbum {
   id: number
   album_id: number
   added_at: string
+  album?: Album
 }
 
 export interface TopItem {

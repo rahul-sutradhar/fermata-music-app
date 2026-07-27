@@ -1,9 +1,10 @@
 """Library service."""
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models import Album, Track, UserLibrary
+
 from app.models.library import UserLikedAlbum
 
 
@@ -72,6 +73,11 @@ def get_user_library(
     return db.scalars(
         select(UserLibrary)
         .where(UserLibrary.user_id == user_id)
+        .options(
+            joinedload(UserLibrary.track).joinedload(Track.album).joinedload(Album.artist),
+            joinedload(UserLibrary.track).selectinload(Track.artists),
+            joinedload(UserLibrary.track).joinedload(Track.artist_rel),
+        )
         .order_by(UserLibrary.added_at.desc())
         .offset(skip)
         .limit(limit)
@@ -141,6 +147,9 @@ def get_user_liked_albums(
     return db.scalars(
         select(UserLikedAlbum)
         .where(UserLikedAlbum.user_id == user_id)
+        .options(
+            joinedload(UserLikedAlbum.album).joinedload(Album.artist)
+        )
         .order_by(UserLikedAlbum.added_at.desc())
         .offset(skip)
         .limit(limit)

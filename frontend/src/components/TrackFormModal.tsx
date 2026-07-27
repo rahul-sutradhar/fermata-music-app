@@ -220,8 +220,8 @@ export default function TrackFormModal({
   })
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-surface-elevated rounded-xl p-6 w-full max-w-md shadow-2xl border border-surface-highlight">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-surface-elevated rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto scrollbar-thin shadow-2xl border border-surface-highlight">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-bold">
             {initialData ? 'Edit Track' : 'Create Track'}

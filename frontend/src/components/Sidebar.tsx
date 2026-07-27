@@ -21,6 +21,7 @@ import {
 
 import { useAuthStore } from '@/store/authStore'
 import { useThemeStore } from '@/store/themeStore'
+import { usePlayerStore } from '@/store/playerStore'
 import { getMyPlaylists, createPlaylist, deletePlaylist } from '@/api/playlists'
 import { listArtists } from '@/api/artists'
 import type { Playlist, Artist } from '@/types'
@@ -47,6 +48,7 @@ export default function Sidebar() {
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
   const { theme, toggleTheme } = useThemeStore()
+  const currentTrack = usePlayerStore((s) => s.currentTrack)
   const navigate = useNavigate()
 
   const [playlists, setPlaylists] = useState<Playlist[]>([])
@@ -94,7 +96,7 @@ export default function Sidebar() {
     }`
 
   return (
-    <aside className="flex flex-col bg-base h-full w-full md:pb-20 min-h-0">
+    <aside className={`flex flex-col bg-base h-full w-full min-h-0 ${currentTrack ? 'md:pb-20' : ''}`}>
       {/* Logo */}
       <div className="p-6 pb-2">
         <div className="flex items-center gap-2">

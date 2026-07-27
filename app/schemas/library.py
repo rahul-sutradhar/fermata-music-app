@@ -4,6 +4,9 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from app.schemas.track import TrackResponse
+from app.schemas.album import AlbumResponse
+
 
 class LibraryItemResponse(BaseModel):
     """Response for items in user library (liked tracks)."""
@@ -11,6 +14,7 @@ class LibraryItemResponse(BaseModel):
     id: int
     track_id: int
     added_at: datetime
+    track: TrackResponse | None = None
 
     class Config:
         from_attributes = True
@@ -22,7 +26,9 @@ class LikedAlbumResponse(BaseModel):
     id: int
     album_id: int
     added_at: datetime
+    album: AlbumResponse | None = None
 
     class Config:
         from_attributes = True
+
 

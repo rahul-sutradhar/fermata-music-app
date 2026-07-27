@@ -966,12 +966,12 @@ export default function AdminPanelPage() {
               </button>
             </div>
             <div className="rounded-xl border border-surface-highlight overflow-hidden bg-surface-elevated/40">
-              <div className="grid grid-cols-[40px_1fr_1.5fr_120px_120px_100px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[40px_1fr_100px] md:grid-cols-[40px_1fr_1.5fr_120px_120px_100px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>#</span>
                 <span>Username</span>
-                <span>Email</span>
-                <span>Created</span>
-                <span>Updated</span>
+                <span className="hidden md:block">Email</span>
+                <span className="hidden md:block">Created</span>
+                <span className="hidden md:block">Updated</span>
                 <span className="text-right">Actions</span>
               </div>
               <div className="divide-y divide-surface-highlight/30">
@@ -979,12 +979,15 @@ export default function AdminPanelPage() {
                   <div className="py-8 text-center text-subtext text-sm">No artist accounts found</div>
                 ) : (
                   users.filter(u => u.role === 'artist').map((u, index) => (
-                    <div key={u.id} className="grid grid-cols-[40px_1fr_1.5fr_120px_120px_100px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
+                    <div key={u.id} className="grid grid-cols-[40px_1fr_100px] md:grid-cols-[40px_1fr_1.5fr_120px_120px_100px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
                       <span className="text-xs font-semibold text-subtext tabular-nums">{index + 1}</span>
-                      <span className="text-sm font-medium truncate">{u.username}</span>
-                      <span className="text-sm text-subtext truncate">{u.email}</span>
-                      <span className="text-xs text-subtext truncate">{formatDate(u.created_at)}</span>
-                      <span className="text-xs text-subtext truncate">{formatDate(u.updated_at)}</span>
+                      <div className="min-w-0">
+                        <span className="text-sm font-medium truncate block">{u.username}</span>
+                        <span className="text-xs text-subtext block md:hidden truncate">{u.email}</span>
+                      </div>
+                      <span className="text-sm text-subtext truncate hidden md:block">{u.email}</span>
+                      <span className="text-xs text-subtext truncate hidden md:block">{formatDate(u.created_at)}</span>
+                      <span className="text-xs text-subtext truncate hidden md:block">{formatDate(u.updated_at)}</span>
                       <div className="flex items-center gap-1 justify-end">
                         <button
                           onClick={() => openUserModal(u, 'artist')}
@@ -1024,12 +1027,12 @@ export default function AdminPanelPage() {
               </button>
             </div>
             <div className="rounded-xl border border-surface-highlight overflow-hidden bg-surface-elevated/40">
-              <div className="grid grid-cols-[40px_1fr_200px_120px_120px_100px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[40px_1fr_100px] md:grid-cols-[40px_1fr_200px_120px_120px_100px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>#</span>
                 <span>Artist Name</span>
-                <span>Linked Account</span>
-                <span>Created</span>
-                <span>Updated</span>
+                <span className="hidden md:block">Linked Account</span>
+                <span className="hidden md:block">Created</span>
+                <span className="hidden md:block">Updated</span>
                 <span className="text-right">Actions</span>
               </div>
               <div className="divide-y divide-surface-highlight/30">
@@ -1037,14 +1040,19 @@ export default function AdminPanelPage() {
                   <div className="py-8 text-center text-subtext text-sm">No artist profiles found</div>
                 ) : (
                   artists.map((a, index) => (
-                    <div key={a.id} className="grid grid-cols-[40px_1fr_200px_120px_120px_100px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
+                    <div key={a.id} className="grid grid-cols-[40px_1fr_100px] md:grid-cols-[40px_1fr_200px_120px_120px_100px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
                       <span className="text-xs font-semibold text-subtext tabular-nums">{index + 1}</span>
-                      <span className="text-sm font-medium truncate">{a.name}</span>
-                      <span className="text-sm text-subtext truncate">
+                      <div className="min-w-0">
+                        <span className="text-sm font-medium truncate block">{a.name}</span>
+                        <span className="text-xs text-subtext block md:hidden truncate">
+                          {a.user_id ? (userMap[a.user_id] ? `Linked: ${userMap[a.user_id]}` : `User ID: ${a.user_id}`) : 'Not linked'}
+                        </span>
+                      </div>
+                      <span className="text-sm text-subtext truncate hidden md:block">
                         {a.user_id ? (userMap[a.user_id] ? `${userMap[a.user_id]} (ID: ${a.user_id})` : `ID: ${a.user_id}`) : 'Not linked'}
                       </span>
-                      <span className="text-xs text-subtext truncate">{formatDate(a.created_at)}</span>
-                      <span className="text-xs text-subtext truncate">{formatDate(a.updated_at)}</span>
+                      <span className="text-xs text-subtext truncate hidden md:block">{formatDate(a.created_at)}</span>
+                      <span className="text-xs text-subtext truncate hidden md:block">{formatDate(a.updated_at)}</span>
                       <div className="flex items-center gap-1 justify-end">
                         <button
                           onClick={() => openArtistModal(a)}
@@ -1074,13 +1082,13 @@ export default function AdminPanelPage() {
           {/* TRACKS TABLE (ALL USERS, SORTED DESCENDING BY ID/DATE) */}
           {activeTab === 'tracks' && (
             <>
-              <div className="grid grid-cols-[40px_1fr_140px_110px_110px_90px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[40px_1fr_120px] md:grid-cols-[40px_1fr_140px_110px_110px_90px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>#</span>
                 <span>Title</span>
-                <span>Album</span>
-                <span>Created</span>
-                <span>Updated</span>
-                <span>Duration</span>
+                <span className="hidden md:block">Album</span>
+                <span className="hidden md:block">Created</span>
+                <span className="hidden md:block">Updated</span>
+                <span className="hidden md:block">Duration</span>
                 <span className="text-right">Actions</span>
               </div>
               <div className="divide-y divide-surface-highlight/30">
@@ -1097,7 +1105,7 @@ export default function AdminPanelPage() {
                       <div
                         key={track.id}
                         onClick={() => handlePlayTrack(track, tracks)}
-                        className={`grid grid-cols-[40px_1fr_140px_110px_110px_90px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${isCurrentPlaying
+                        className={`grid grid-cols-[40px_1fr_120px] md:grid-cols-[40px_1fr_140px_110px_110px_90px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${isCurrentPlaying
                           ? 'bg-spotify-green/15 text-spotify-green font-semibold'
                           : 'hover:bg-surface-highlight/20'
                           }`}
@@ -1129,7 +1137,7 @@ export default function AdminPanelPage() {
                         </div>
 
                         {/* Album / Single badge */}
-                        <span className="text-sm truncate">
+                        <span className="text-sm truncate hidden md:block">
                           {track.album_id ? (
                             <span className="text-subtext font-medium truncate block">{album?.title || `Album #${track.album_id}`}</span>
                           ) : (
@@ -1139,15 +1147,15 @@ export default function AdminPanelPage() {
                           )}
                         </span>
 
-                        <span className="text-xs text-subtext truncate">{formatDate(track.created_at)}</span>
-                        <span className="text-xs text-subtext truncate">{formatDate(track.updated_at)}</span>
+                        <span className="text-xs text-subtext truncate hidden md:block">{formatDate(track.created_at)}</span>
+                        <span className="text-xs text-subtext truncate hidden md:block">{formatDate(track.updated_at)}</span>
 
-                        <span className="text-sm text-subtext tabular-nums">
+                        <span className="text-sm text-subtext tabular-nums hidden md:block">
                           {track.duration_seconds
                             ? `${Math.floor(track.duration_seconds / 60)}:${(track.duration_seconds % 60).toString().padStart(2, '0')}`
                             : '—'}
                         </span>
-                        <div className="flex items-center gap-1 justify-end">
+                        <div className="flex items-center gap-1 justify-end flex-wrap">
                           {/* Play Track Button */}
                           <button
                             onClick={(e) => handlePlayTrack(track, tracks, e)}
@@ -1259,12 +1267,12 @@ export default function AdminPanelPage() {
           {/* NORMAL USERS TABLE */}
           {activeTab === 'users' && (
             <>
-              <div className="grid grid-cols-[40px_1fr_1.5fr_120px_120px_120px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[40px_1fr_100px] md:grid-cols-[40px_1fr_1.5fr_120px_120px_120px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>#</span>
                 <span>Username</span>
-                <span>Email</span>
-                <span>Created</span>
-                <span>Updated</span>
+                <span className="hidden md:block">Email</span>
+                <span className="hidden md:block">Created</span>
+                <span className="hidden md:block">Updated</span>
                 <span className="text-right">Actions</span>
               </div>
               <div className="divide-y divide-surface-highlight/30">
@@ -1272,12 +1280,15 @@ export default function AdminPanelPage() {
                   <div className="py-12 text-center text-subtext text-sm">No normal users found</div>
                 ) : (
                   users.map((u, index) => (
-                    <div key={u.id} className="grid grid-cols-[40px_1fr_1.5fr_120px_120px_120px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
+                    <div key={u.id} className="grid grid-cols-[40px_1fr_100px] md:grid-cols-[40px_1fr_1.5fr_120px_120px_120px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
                       <span className="text-xs font-semibold text-subtext tabular-nums">{index + 1}</span>
-                      <span className="text-sm font-medium truncate">{u.username}</span>
-                      <span className="text-sm text-subtext truncate">{u.email}</span>
-                      <span className="text-xs text-subtext truncate">{formatDate(u.created_at)}</span>
-                      <span className="text-xs text-subtext truncate">{formatDate(u.updated_at)}</span>
+                      <div className="min-w-0">
+                        <span className="text-sm font-medium truncate block">{u.username}</span>
+                        <span className="text-xs text-subtext block md:hidden truncate">{u.email}</span>
+                      </div>
+                      <span className="text-sm text-subtext truncate hidden md:block">{u.email}</span>
+                      <span className="text-xs text-subtext truncate hidden md:block">{formatDate(u.created_at)}</span>
+                      <span className="text-xs text-subtext truncate hidden md:block">{formatDate(u.updated_at)}</span>
                       <div className="flex items-center gap-1 justify-end">
                         <button
                           onClick={() => openUserModal(u, 'user')}
@@ -1304,12 +1315,12 @@ export default function AdminPanelPage() {
           {/* ADMINS TABLE */}
           {activeTab === 'admins' && (
             <>
-              <div className="grid grid-cols-[40px_1fr_1.5fr_120px_120px_120px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[40px_1fr_100px] md:grid-cols-[40px_1fr_1.5fr_120px_120px_120px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>#</span>
                 <span>Username</span>
-                <span>Email</span>
-                <span>Created</span>
-                <span>Updated</span>
+                <span className="hidden md:block">Email</span>
+                <span className="hidden md:block">Created</span>
+                <span className="hidden md:block">Updated</span>
                 <span className="text-right">Actions</span>
               </div>
               <div className="divide-y divide-surface-highlight/30">
@@ -1317,12 +1328,15 @@ export default function AdminPanelPage() {
                   <div className="py-12 text-center text-subtext text-sm">No administrators found</div>
                 ) : (
                   users.map((u, index) => (
-                    <div key={u.id} className="grid grid-cols-[40px_1fr_1.5fr_120px_120px_120px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
+                    <div key={u.id} className="grid grid-cols-[40px_1fr_100px] md:grid-cols-[40px_1fr_1.5fr_120px_120px_120px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors">
                       <span className="text-xs font-semibold text-subtext tabular-nums">{index + 1}</span>
-                      <span className="text-sm font-medium truncate">{u.username}</span>
-                      <span className="text-sm text-subtext truncate">{u.email}</span>
-                      <span className="text-xs text-subtext truncate">{formatDate(u.created_at)}</span>
-                      <span className="text-xs text-subtext truncate">{formatDate(u.updated_at)}</span>
+                      <div className="min-w-0">
+                        <span className="text-sm font-medium truncate block">{u.username}</span>
+                        <span className="text-xs text-subtext block md:hidden truncate">{u.email}</span>
+                      </div>
+                      <span className="text-sm text-subtext truncate hidden md:block">{u.email}</span>
+                      <span className="text-xs text-subtext truncate hidden md:block">{formatDate(u.created_at)}</span>
+                      <span className="text-xs text-subtext truncate hidden md:block">{formatDate(u.updated_at)}</span>
                       <div className="flex items-center gap-1 justify-end">
                         <button
                           onClick={() => openUserModal(u, 'admin')}
@@ -1349,13 +1363,13 @@ export default function AdminPanelPage() {
           {/* ALBUMS TABLE WITH ACCORDION & SERIAL ID (ALL USERS, SORTED DESCENDING BY ID/DATE) */}
           {activeTab === 'albums' && (
             <>
-              <div className="grid grid-cols-[40px_1fr_180px_90px_110px_110px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[40px_1fr_100px] md:grid-cols-[40px_1fr_180px_90px_110px_110px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>#</span>
                 <span>Album Title</span>
-                <span>Artist Profile</span>
-                <span>Tracks</span>
-                <span>Created</span>
-                <span>Updated</span>
+                <span className="hidden md:block">Artist Profile</span>
+                <span className="hidden md:block">Tracks</span>
+                <span className="hidden md:block">Created</span>
+                <span className="hidden md:block">Updated</span>
                 <span className="text-right">Actions</span>
               </div>
               <div className="divide-y divide-surface-highlight/30">
@@ -1374,7 +1388,7 @@ export default function AdminPanelPage() {
                         {/* Album Row */}
                         <div
                           onClick={(e) => toggleAlbumExpand(al.id, e)}
-                          className={`grid grid-cols-[40px_1fr_180px_90px_110px_110px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${isExpanded ? 'bg-surface-highlight/40' : 'hover:bg-surface-highlight/20'
+                          className={`grid grid-cols-[40px_1fr_100px] md:grid-cols-[40px_1fr_180px_90px_110px_110px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${isExpanded ? 'bg-surface-highlight/40' : 'hover:bg-surface-highlight/20'
                             }`}
                         >
                           {/* Frontend Serial Number */}
@@ -1399,21 +1413,26 @@ export default function AdminPanelPage() {
                                 <Disc size={18} className="text-subtext/50" />
                               </div>
                             )}
-                            <span className="text-sm font-medium truncate">{al.title}</span>
+                            <div className="min-w-0">
+                              <span className="text-sm font-medium truncate block">{al.title}</span>
+                              <span className="text-xs text-subtext block md:hidden truncate">
+                                {artist?.name || 'Unknown Artist'} • {albumTracks.length} track{albumTracks.length === 1 ? '' : 's'}
+                              </span>
+                            </div>
                           </div>
 
-                          <span className="text-sm text-subtext truncate">
+                          <span className="text-sm text-subtext truncate hidden md:block">
                             {artist ? `${artist.name} (ID: ${artist.id})` : `Artist ID: ${al.artist_id}`}
                           </span>
 
-                          <span className="text-sm text-subtext tabular-nums">
+                          <span className="text-sm text-subtext tabular-nums hidden md:block">
                             {albumTracks.length} track{albumTracks.length === 1 ? '' : 's'}
                           </span>
 
-                          <span className="text-xs text-subtext truncate">{formatDate(al.created_at)}</span>
-                          <span className="text-xs text-subtext truncate">{formatDate(al.updated_at)}</span>
+                          <span className="text-xs text-subtext truncate hidden md:block">{formatDate(al.created_at)}</span>
+                          <span className="text-xs text-subtext truncate hidden md:block">{formatDate(al.updated_at)}</span>
 
-                          <div className="flex items-center gap-1 justify-end">
+                          <div className="flex items-center gap-1 justify-end flex-wrap">
                             {/* Play Entire Album Button */}
                             <button
                               onClick={(e) => handlePlayAlbum(al, e)}
@@ -1488,7 +1507,7 @@ export default function AdminPanelPage() {
                                     <div
                                       key={track.id}
                                       onClick={() => handlePlayTrack(track, albumTracks)}
-                                      className={`grid grid-cols-[30px_1fr_130px_80px_180px] gap-3 items-center py-2 px-3 rounded-lg cursor-pointer transition-colors ${isActiveTrack
+                                      className={`grid grid-cols-[30px_1fr_120px] md:grid-cols-[30px_1fr_130px_80px_180px] gap-3 items-center py-2 px-3 rounded-lg cursor-pointer transition-colors ${isActiveTrack
                                         ? 'bg-spotify-green/15 text-spotify-green font-semibold'
                                         : 'hover:bg-surface-highlight/30 text-primary'
                                         }`}
@@ -1522,12 +1541,12 @@ export default function AdminPanelPage() {
                                       </div>
 
                                       {/* Added to Album Date */}
-                                      <span className="text-[11px] text-subtext truncate">
+                                      <span className="text-[11px] text-subtext truncate hidden md:block">
                                         Added: {formatDate(track.updated_at || track.created_at)}
                                       </span>
 
                                       {/* Duration */}
-                                      <span className="text-xs text-subtext tabular-nums">
+                                      <span className="text-xs text-subtext tabular-nums hidden md:block">
                                         {track.duration_seconds
                                           ? `${Math.floor(track.duration_seconds / 60)}:${(track.duration_seconds % 60).toString().padStart(2, '0')}`
                                           : '—'}
@@ -1636,13 +1655,13 @@ export default function AdminPanelPage() {
           {/* INGESTION QUEUE TABLE */}
           {activeTab === 'ingestion' && (
             <>
-              <div className="grid grid-cols-[40px_1.5fr_1.2fr_1.2fr_120px_150px_100px_140px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[40px_1fr_90px_100px] md:grid-cols-[40px_1.5fr_1.2fr_1.2fr_120px_150px_100px_140px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>#</span>
                 <span>Song Name</span>
-                <span>Artists</span>
-                <span>Requested By</span>
-                <span>Date Applied</span>
-                <span>Source Link</span>
+                <span className="hidden md:block">Artists</span>
+                <span className="hidden md:block">Requested By</span>
+                <span className="hidden md:block">Date Applied</span>
+                <span className="hidden md:block">Source Link</span>
                 <span>Status</span>
                 <span className="text-right">Actions</span>
               </div>
@@ -1655,35 +1674,53 @@ export default function AdminPanelPage() {
                   getSortedIngestionRequests().map((req, index) => (
                     <div
                       key={req.id}
-                      className="grid grid-cols-[40px_1.5fr_1.2fr_1.2fr_120px_150px_100px_140px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors"
+                      className="grid grid-cols-[40px_1fr_90px_100px] md:grid-cols-[40px_1.5fr_1.2fr_1.2fr_120px_150px_100px_140px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors"
                     >
                       {/* Serial Number */}
                       <span className="text-xs font-semibold text-subtext tabular-nums">
                         {index + 1}
                       </span>
 
-                      {/* Song Name */}
-                      <span className="text-sm font-medium truncate text-primary animate-in fade-in" title={req.song_name}>
-                        {req.song_name}
-                      </span>
+                      {/* Song Name with mobile stack */}
+                      <div className="min-w-0 flex flex-col">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-sm font-medium truncate text-primary block" title={req.song_name}>
+                            {req.song_name}
+                          </span>
+                          {req.source_url && (
+                            <a
+                              href={editedUrls[req.id] || req.source_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-spotify-green hover:text-spotify-green-hover shrink-0 md:hidden p-0.5"
+                              title="Open Source Link"
+                            >
+                              <ExternalLink size={12} />
+                            </a>
+                          )}
+                        </div>
+                        <span className="text-xs text-subtext block md:hidden truncate">
+                          {req.artist_name || 'Unknown Artist'} • By {req.requested_by || 'system'}
+                        </span>
+                      </div>
 
                       {/* Artists Name */}
-                      <span className="text-sm text-subtext truncate animate-in fade-in" title={req.artist_name}>
+                      <span className="text-sm text-subtext truncate animate-in fade-in hidden md:block" title={req.artist_name}>
                         {req.artist_name}
                       </span>
 
                       {/* Requested By User */}
-                      <span className="text-sm text-subtext truncate animate-in fade-in" title={req.requested_by}>
+                      <span className="text-sm text-subtext truncate animate-in fade-in hidden md:block" title={req.requested_by}>
                         {req.requested_by}
                       </span>
 
                       {/* Date Applied */}
-                      <span className="text-xs text-subtext truncate">
+                      <span className="text-xs text-subtext truncate hidden md:block">
                         {formatDate(req.created_at)}
                       </span>
 
                       {/* Clickable Youtube URL */}
-                      <div className="flex items-center min-w-0">
+                      <div className="flex items-center min-w-0 hidden md:flex">
                         {req.status === 'pending' || req.status === 'failed' ? (
                           <div className="flex items-center gap-1.5 min-w-0 w-full">
                             <a
@@ -1759,7 +1796,7 @@ export default function AdminPanelPage() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center gap-2 justify-end">
+                      <div className="flex items-center gap-2 justify-end flex-wrap">
                         {approvingRequestId === req.id ? (
                           <div className="flex items-center gap-1.5 text-xs text-subtext mr-1">
                             <RefreshCw size={12} className="animate-spin text-spotify-green" />
@@ -1857,7 +1894,7 @@ export default function AdminPanelPage() {
 
       {/* USER FORM MODAL */}
       {userModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           {(() => {
             const isMasterAdminTarget = editingUser && (Number(editingUser.id) === 1 || editingUser.username.toLowerCase() === 'admin')
             const isSecondaryAdminEditingOtherAdmin =
@@ -1871,7 +1908,7 @@ export default function AdminPanelPage() {
             const canChangeRole = Boolean(!isReadOnlyModal && (Number(currentUser?.id) === 1 || editingUser?.id === currentUser?.id))
 
             return (
-              <form onSubmit={handleUserSubmit} className="bg-surface-elevated rounded-xl p-6 w-full max-w-md shadow-2xl border border-surface-highlight space-y-4 text-left">
+              <form onSubmit={handleUserSubmit} className="bg-surface-elevated rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto scrollbar-thin shadow-2xl border border-surface-highlight space-y-4 text-left">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-bold">
                     {editingUser ? (isReadOnlyModal ? 'View Account Details (Read Only)' : 'Edit User') : 'Create User'}
@@ -1975,8 +2012,8 @@ export default function AdminPanelPage() {
 
       {/* ARTIST PROFILE MODAL */}
       {artistModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <form onSubmit={handleArtistSubmit} className="bg-surface-elevated rounded-xl p-6 w-full max-w-md shadow-2xl border border-surface-highlight space-y-4 text-left">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <form onSubmit={handleArtistSubmit} className="bg-surface-elevated rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto scrollbar-thin shadow-2xl border border-surface-highlight space-y-4 text-left">
             <h2 className="text-lg font-bold">{editingArtist ? 'Edit Artist Profile' : 'Add Artist Profile'}</h2>
             <div>
               <label className="block text-sm font-medium text-subtext mb-1">Public Display Name</label>
@@ -2083,8 +2120,8 @@ export default function AdminPanelPage() {
 
       {/* ALBUM FORM MODAL */}
       {albumModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <form onSubmit={handleAlbumSubmit} className="bg-surface-elevated rounded-xl p-6 w-full max-w-md shadow-2xl border border-surface-highlight space-y-4 text-left">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <form onSubmit={handleAlbumSubmit} className="bg-surface-elevated rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto scrollbar-thin shadow-2xl border border-surface-highlight space-y-4 text-left">
             <h2 className="text-lg font-bold">{editingAlbum ? 'Edit Album' : 'Create Album'}</h2>
 
             {/* Album Cover Attachment */}

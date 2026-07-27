@@ -99,15 +99,21 @@ export default function LibraryPage() {
         getMyPlaylists(),
       ])
 
-      // Resolve full track objects
+      // Resolve full track objects (prefer embedded, fallback to getTrack)
       const trackDetails = await Promise.all(
-        libraryItems.map((item) => getTrack(item.track_id).catch(() => null)),
+        libraryItems.map((item) => {
+          if (item.track) return item.track
+          return getTrack(item.track_id).catch(() => null)
+        }),
       )
       setTracks(trackDetails.filter(Boolean) as Track[])
 
-      // Resolve full album objects
+      // Resolve full album objects (prefer embedded, fallback to getAlbum)
       const albumDetails = await Promise.all(
-        likedAlbumItems.map((item) => getAlbum(item.album_id).catch(() => null)),
+        likedAlbumItems.map((item) => {
+          if (item.album) return item.album
+          return getAlbum(item.album_id).catch(() => null)
+        }),
       )
       setAlbums(albumDetails.filter(Boolean) as Album[])
 
