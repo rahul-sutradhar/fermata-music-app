@@ -147,7 +147,7 @@ export default function Layout() {
         
         {/* Drawer Content */}
         <div 
-          className={`z-10 relative flex flex-col w-72 h-screen h-[100dvh] bg-base shadow-2xl transition-transform duration-300 ease-in-out ${
+          className={`z-10 relative flex flex-col w-72 h-screen h-[100dvh] bg-base shadow-2xl overflow-hidden transition-transform duration-300 ease-in-out ${
             isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
