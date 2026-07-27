@@ -135,7 +135,7 @@ export default function Layout() {
       
       {/* Mobile Sidebar Drawer Overlay (Transitions smooth sliding and backdrop fading) */}
       <div 
-        className={`fixed inset-0 z-50 flex md:hidden h-screen h-[100dvh] transition-all duration-300 ${
+        className={`fixed inset-0 z-50 flex md:hidden transition-all duration-300 ${
           isMobileSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
       >
@@ -147,7 +147,7 @@ export default function Layout() {
         
         {/* Drawer Content */}
         <div 
-          className={`z-10 relative flex flex-col w-72 h-screen h-[100dvh] bg-base shadow-2xl overflow-hidden transition-transform duration-300 ease-in-out ${
+          className={`z-10 relative flex flex-col w-72 h-full bg-base shadow-2xl overflow-hidden transition-transform duration-300 ease-in-out ${
             isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
