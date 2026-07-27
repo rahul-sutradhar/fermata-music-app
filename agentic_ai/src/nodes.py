@@ -1158,6 +1158,14 @@ def populate_track(state: AgenticState, config: RunnableConfig) -> Dict[str, Any
                     if primary_artist:
                         db_track.artists = [primary_artist]
 
+                # Run search indexing and embedding computation
+                try:
+                    from app.services.tracks import index_and_embed_track
+                    index_and_embed_track(db, db_track)
+                except Exception as index_exc:
+                    new_logs.append(f"[Database Warning] Failed to index and embed track '{title}': {str(index_exc)}")
+                    print(f"[Database Warning] Failed to index and embed track '{title}': {str(index_exc)}", flush=True)
+
                 db.commit()
                 db.refresh(db_track)
                 track_id = db_track.id
@@ -1189,6 +1197,16 @@ def populate_track(state: AgenticState, config: RunnableConfig) -> Dict[str, Any
                         db_track.artists = [primary_artist]
 
                 db.add(db_track)
+                db.flush()  # Allocates track.id first for relationships and chunks
+
+                # Run search indexing and embedding computation
+                try:
+                    from app.services.tracks import index_and_embed_track
+                    index_and_embed_track(db, db_track)
+                except Exception as index_exc:
+                    new_logs.append(f"[Database Warning] Failed to index and embed track '{title}': {str(index_exc)}")
+                    print(f"[Database Warning] Failed to index and embed track '{title}': {str(index_exc)}", flush=True)
+
                 db.commit()
                 db.refresh(db_track)
                 track_id = db_track.id

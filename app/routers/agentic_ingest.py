@@ -603,19 +603,14 @@ def reject_ingestion_request(request_id: int, db: DbSession, current_admin: Curr
     if not db_req:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found.")
         
-    if db_req.status == "processing":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail="Cannot reject a request that is actively being processed."
-        )
-        
-    if db_req.status not in ["pending", "failed", "queued"]:
+    if db_req.status not in ["pending", "failed", "queued", "processing"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail="This request is already processed, completed, or rejected."
         )
         
     db_req.status = "rejected"
+    db_req.lock_token = None
     db.commit()
     
     return {"message": "Request rejected successfully."}
@@ -635,13 +630,8 @@ def delete_ingestion_request(request_id: int, db: DbSession, current_admin: Curr
     if not db_req:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found.")
         
-    if db_req.status == "processing":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail="Cannot cancel/delete a request that is actively being processed."
-        )
-        
     db_req.status = "rejected"
+    db_req.lock_token = None
     db.commit()
     
     return {"message": "Request cancelled and moved to Rejected tab."}

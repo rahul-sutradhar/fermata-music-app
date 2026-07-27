@@ -163,7 +163,7 @@ export default function Layout() {
           </div>
           
           {/* Sidebar content (closes menu on item click) */}
-          <div className="h-full" onClick={() => setIsMobileSidebarOpen(false)}>
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden" onClick={() => setIsMobileSidebarOpen(false)}>
             <Sidebar />
           </div>
         </div>

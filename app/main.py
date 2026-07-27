@@ -47,6 +47,14 @@ async def lifespan(app: FastAPI):
                             text("INSERT INTO admins (id, name) VALUES (:id, :name)"),
                             {"id": uid, "name": uname or "Admin"}
                         )
+                
+                # Auto-recovery: Reset any orphaned "processing" requests to "failed" on startup
+                stuck_requests = session.execute(
+                    text("UPDATE ingestion_requests SET status = 'failed', lock_token = NULL WHERE status = 'processing'")
+                )
+                if stuck_requests.rowcount > 0:
+                    print(f"[Startup Repair] Reset {stuck_requests.rowcount} stuck 'processing' ingestion requests to 'failed'.", flush=True)
+                
                 session.commit()
         except Exception as repair_exc:
             print(f"[Startup Repair Warning] Admin self-healing warning: {repair_exc}", flush=True)
