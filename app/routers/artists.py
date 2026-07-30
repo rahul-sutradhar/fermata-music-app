@@ -99,7 +99,7 @@ def list_artist_singles(
 ) -> list[TrackResponse]:
     """Return standalone single tracks released by an artist."""
     from sqlalchemy import select
-    from sqlalchemy.orm import joinedload
+    from sqlalchemy.orm import joinedload, selectinload
     from app.models.track import Track
     from app.models.album import Album
     from app.services.tracks import _to_response
@@ -111,14 +111,14 @@ def list_artist_singles(
         .options(
             joinedload(Track.album).joinedload(Album.artist),
             joinedload(Track.artist_rel),
-            joinedload(Track.artists),
+            selectinload(Track.artists),
         )
         .where(Track.artist_id == artist_id, Track.album_id.is_(None))
         .order_by(Track.id)
         .offset(skip)
         .limit(limit)
     )
-    tracks = db.scalars(query).unique().all()
+    tracks = db.scalars(query).all()
     return [_to_response(t) for t in tracks]
 
 

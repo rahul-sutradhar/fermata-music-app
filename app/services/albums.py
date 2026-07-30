@@ -1,7 +1,7 @@
 from pathlib import Path
 from fastapi import HTTPException, status, UploadFile
 from sqlalchemy import select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.core.storage import get_audio_url
 from app.models.album import Album
@@ -69,12 +69,12 @@ def list_album_tracks(
         .options(
             joinedload(Track.album).joinedload(Album.artist),
             joinedload(Track.artist_rel),
-            joinedload(Track.artists),
+            selectinload(Track.artists),
         )
         .where(Track.album_id == album_id)
         .order_by(Track.id)
     )
-    tracks = db.scalars(query.offset(skip).limit(limit)).unique().all()
+    tracks = db.scalars(query.offset(skip).limit(limit)).all()
     return [_to_track_response(track) for track in tracks]
 
 
