@@ -72,6 +72,34 @@ function formatDate(dateStr?: string | null): string {
   }
 }
 
+function renderDate(dateStr?: string | null) {
+  if (!dateStr) return <span className="text-xs text-subtext">—</span>
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return <span className="text-xs text-subtext">—</span>
+    const datePart = d.toLocaleDateString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    })
+    const timePart = d.toLocaleTimeString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    })
+    return (
+      <div className="flex flex-col text-xs text-subtext select-none leading-normal text-left">
+        <span className="font-medium text-primary">{datePart}</span>
+        <span className="text-[10px] text-subtext/75">{timePart}</span>
+      </div>
+    )
+  } catch {
+    return <span className="text-xs text-subtext">—</span>
+  }
+}
+
 export default function AdminPanelPage() {
   const currentUser = useAuthStore((s) => s.user)
   const [activeTab, setActiveTab] = useState<TabType>('tracks')
@@ -988,8 +1016,8 @@ export default function AdminPanelPage() {
                         <span className="text-xs text-subtext block md:hidden truncate">{u.email}</span>
                       </div>
                       <span className="text-sm text-subtext truncate hidden md:block">{u.email}</span>
-                      <span className="text-xs text-subtext truncate hidden md:block">{formatDate(u.created_at)}</span>
-                      <span className="text-xs text-subtext truncate hidden md:block">{formatDate(u.updated_at)}</span>
+                      <div className="hidden md:block">{renderDate(u.created_at)}</div>
+                      <div className="hidden md:block">{renderDate(u.updated_at)}</div>
                       <div className="flex items-center gap-1 justify-end">
                         <button
                           onClick={() => openUserModal(u, 'artist')}
@@ -1053,8 +1081,8 @@ export default function AdminPanelPage() {
                       <span className="text-sm text-subtext truncate hidden md:block">
                         {a.user_id ? (userMap[a.user_id] ? `${userMap[a.user_id]} (ID: ${a.user_id})` : `ID: ${a.user_id}`) : 'Not linked'}
                       </span>
-                      <span className="text-xs text-subtext truncate hidden md:block">{formatDate(a.created_at)}</span>
-                      <span className="text-xs text-subtext truncate hidden md:block">{formatDate(a.updated_at)}</span>
+                      <div className="hidden md:block">{renderDate(a.created_at)}</div>
+                      <div className="hidden md:block">{renderDate(a.updated_at)}</div>
                       <div className="flex items-center gap-1 justify-end">
                         <button
                           onClick={() => openArtistModal(a)}
@@ -1149,8 +1177,8 @@ export default function AdminPanelPage() {
                           )}
                         </span>
 
-                        <span className="text-xs text-subtext truncate hidden md:block">{formatDate(track.created_at)}</span>
-                        <span className="text-xs text-subtext truncate hidden md:block">{formatDate(track.updated_at)}</span>
+                        <div className="hidden md:block">{renderDate(track.created_at)}</div>
+                        <div className="hidden md:block">{renderDate(track.updated_at)}</div>
 
                         <span className="text-sm text-subtext tabular-nums hidden md:block">
                           {track.duration_seconds
@@ -1289,8 +1317,8 @@ export default function AdminPanelPage() {
                         <span className="text-xs text-subtext block md:hidden truncate">{u.email}</span>
                       </div>
                       <span className="text-sm text-subtext truncate hidden md:block">{u.email}</span>
-                      <span className="text-xs text-subtext truncate hidden md:block">{formatDate(u.created_at)}</span>
-                      <span className="text-xs text-subtext truncate hidden md:block">{formatDate(u.updated_at)}</span>
+                      <div className="hidden md:block">{renderDate(u.created_at)}</div>
+                      <div className="hidden md:block">{renderDate(u.updated_at)}</div>
                       <div className="flex items-center gap-1 justify-end">
                         <button
                           onClick={() => openUserModal(u, 'user')}
@@ -1337,8 +1365,8 @@ export default function AdminPanelPage() {
                         <span className="text-xs text-subtext block md:hidden truncate">{u.email}</span>
                       </div>
                       <span className="text-sm text-subtext truncate hidden md:block">{u.email}</span>
-                      <span className="text-xs text-subtext truncate hidden md:block">{formatDate(u.created_at)}</span>
-                      <span className="text-xs text-subtext truncate hidden md:block">{formatDate(u.updated_at)}</span>
+                      <div className="hidden md:block">{renderDate(u.created_at)}</div>
+                      <div className="hidden md:block">{renderDate(u.updated_at)}</div>
                       <div className="flex items-center gap-1 justify-end">
                         <button
                           onClick={() => openUserModal(u, 'admin')}
@@ -1431,8 +1459,8 @@ export default function AdminPanelPage() {
                             {albumTracks.length} track{albumTracks.length === 1 ? '' : 's'}
                           </span>
 
-                          <span className="text-xs text-subtext truncate hidden md:block">{formatDate(al.created_at)}</span>
-                          <span className="text-xs text-subtext truncate hidden md:block">{formatDate(al.updated_at)}</span>
+                          <div className="hidden md:block">{renderDate(al.created_at)}</div>
+                          <div className="hidden md:block">{renderDate(al.updated_at)}</div>
 
                           <div className="flex items-center gap-1 justify-end flex-wrap">
                             {/* Play Entire Album Button */}

@@ -9,8 +9,13 @@ from app.schemas.artist import ArtistResponse
 
 
 def _to_artist_response(artist: Artist) -> ArtistResponse:
-
-    return ArtistResponse(id=artist.id, name=artist.name, user_id=artist.id)
+    return ArtistResponse(
+        id=artist.id,
+        name=artist.name,
+        user_id=artist.id,
+        created_at=artist.created_at,
+        updated_at=artist.updated_at
+    )
 
 
 def _to_album_response(album: Album) -> AlbumResponse:
@@ -19,6 +24,9 @@ def _to_album_response(album: Album) -> AlbumResponse:
         title=album.title,
         artist_id=album.artist_id,
         artist_name=album.artist_name,
+        cover_url=album.cover_url,
+        created_at=album.created_at,
+        updated_at=album.updated_at,
     )
 
 

@@ -21,6 +21,7 @@ interface Props {
   availableAlbums?: Album[]
   availableArtists?: Artist[]
   artistId?: number | null
+  disableArtistSelect?: boolean
 }
 
 export default function TrackFormModal({
@@ -31,7 +32,9 @@ export default function TrackFormModal({
   availableAlbums,
   availableArtists,
   artistId,
+  disableArtistSelect,
 }: Props) {
+  const [submitting, setSubmitting] = useState(false)
   const [title, setTitle] = useState('')
   const [albumId, setAlbumId] = useState<string>('single')
   const [selectedArtistId, setSelectedArtistId] = useState<string>('unknown')
@@ -61,6 +64,7 @@ export default function TrackFormModal({
   const artistDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    setSubmitting(false)
     if (initialData) {
       setTitle(initialData.title)
       setAlbumId(initialData.album_id ? String(initialData.album_id) : 'single')
@@ -185,21 +189,29 @@ export default function TrackFormModal({
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (submitting) return
 
-    const finalAlbumId = albumId === 'single' || !albumId ? null : Number(albumId)
-    const finalArtistId =
-      selectedArtistId === 'unknown' || !selectedArtistId ? null : Number(selectedArtistId)
+    setSubmitting(true)
+    try {
+      const finalAlbumId = albumId === 'single' || !albumId ? null : Number(albumId)
+      const finalArtistId =
+        selectedArtistId === 'unknown' || !selectedArtistId ? null : Number(selectedArtistId)
 
-    onSubmit({
-      title,
-      album_id: finalAlbumId,
-      artist_id: finalArtistId,
-      duration_seconds: duration ? Number(duration) : undefined,
-      audioFile: audioFile || undefined,
-      coverFile: coverFile || undefined,
-    })
+      await onSubmit({
+        title,
+        album_id: finalAlbumId,
+        artist_id: finalArtistId,
+        duration_seconds: duration ? Number(duration) : undefined,
+        audioFile: audioFile || undefined,
+        coverFile: coverFile || undefined,
+      })
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const formatDuration = (secStr: string) => {
@@ -228,8 +240,11 @@ export default function TrackFormModal({
             {initialData ? 'Edit Track' : 'Create Track'}
           </h2>
           <button
-            onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-surface-highlight transition-colors text-subtext hover:text-primary"
+            onClick={() => !submitting && onClose()}
+            disabled={submitting}
+            className={`p-1.5 rounded-full hover:bg-surface-highlight transition-colors text-subtext hover:text-primary ${
+              submitting ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''
+            }`}
           >
             <X size={18} />
           </button>
@@ -242,8 +257,10 @@ export default function TrackFormModal({
               Track Cover Photo (Optional)
             </label>
             <div
-              onClick={() => coverInputRef.current?.click()}
-              className="relative aspect-square w-full max-h-48 mx-auto rounded-xl border-2 border-dashed border-surface-highlight hover:border-spotify-green/50 transition-colors flex flex-col items-center justify-center cursor-pointer overflow-hidden group bg-surface-highlight/20 shadow-md"
+              onClick={() => !submitting && coverInputRef.current?.click()}
+              className={`relative aspect-square w-full max-h-48 mx-auto rounded-xl border-2 border-dashed border-surface-highlight hover:border-spotify-green/50 transition-colors flex flex-col items-center justify-center cursor-pointer overflow-hidden group bg-surface-highlight/20 shadow-md ${
+                submitting ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''
+              }`}
             >
               {coverPreview ? (
                 <>
@@ -267,6 +284,7 @@ export default function TrackFormModal({
             <input
               ref={coverInputRef}
               type="file"
+              disabled={submitting}
               accept="image/*"
               className="hidden"
               onChange={(e) => {
@@ -286,8 +304,10 @@ export default function TrackFormModal({
               Audio File {initialData ? '(Optional)' : '(Required)'}
             </label>
             <div
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full border-2 border-dashed border-surface-highlight hover:border-spotify-green/50 rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition-colors bg-surface-highlight/10"
+              onClick={() => !submitting && fileInputRef.current?.click()}
+              className={`w-full border-2 border-dashed border-surface-highlight hover:border-spotify-green/50 rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition-colors bg-surface-highlight/10 ${
+                submitting ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''
+              }`}
             >
               <Upload size={22} className="text-subtext/60 mb-1.5" />
               <span className="text-xs font-semibold text-primary block truncate max-w-full">
@@ -314,9 +334,12 @@ export default function TrackFormModal({
             <input
               type="text"
               required
+              disabled={submitting}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors"
+              className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors ${
+                submitting ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
               placeholder="e.g. Midnight City"
             />
           </div>
@@ -326,68 +349,80 @@ export default function TrackFormModal({
             <label className="block text-sm font-medium text-subtext mb-1">
               Artist Profile
             </label>
-            <div
-              onClick={() => setShowArtistDropdown(!showArtistDropdown)}
-              className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary cursor-pointer border-2 border-transparent hover:border-spotify-green/50 flex justify-between items-center transition-colors"
-            >
-              <span className="truncate">
-                {selectedArtistId === 'unknown'
-                  ? '🎤 Unknown Artist'
-                  : artistsList.find((a) => String(a.id) === selectedArtistId)?.name || `Artist ID: ${selectedArtistId}`}
-              </span>
-              <span className="text-xs text-subtext select-none">▼</span>
-            </div>
+            {disableArtistSelect ? (
+              <div className="w-full px-3 py-2 rounded-lg bg-surface-highlight/50 text-sm text-subtext border-2 border-transparent select-none cursor-not-allowed flex justify-between items-center">
+                <span className="truncate">
+                  {selectedArtistId === 'unknown'
+                    ? '🎤 Unknown Artist'
+                    : artistsList.find((a) => String(a.id) === selectedArtistId)?.name || `Artist ID: ${selectedArtistId}`}
+                </span>
+              </div>
+            ) : (
+              <>
+                <div
+                  onClick={() => setShowArtistDropdown(!showArtistDropdown)}
+                  className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary cursor-pointer border-2 border-transparent hover:border-spotify-green/50 flex justify-between items-center transition-colors"
+                >
+                  <span className="truncate">
+                    {selectedArtistId === 'unknown'
+                      ? '🎤 Unknown Artist'
+                      : artistsList.find((a) => String(a.id) === selectedArtistId)?.name || `Artist ID: ${selectedArtistId}`}
+                  </span>
+                  <span className="text-xs text-subtext select-none">▼</span>
+                </div>
 
-            {showArtistDropdown && (
-              <div className="absolute left-0 right-0 mt-1 bg-surface-elevated border border-surface-highlight rounded-lg shadow-2xl z-50 p-2 space-y-2 max-h-48 overflow-hidden flex flex-col">
-                <input
-                  type="text"
-                  placeholder="Search artist..."
-                  value={artistSearch}
-                  onChange={(e) => setArtistSearch(e.target.value)}
-                  className="w-full px-3 py-1.5 rounded-md bg-surface-highlight text-xs text-primary outline-none border border-transparent focus:border-spotify-green/30"
-                  onClick={(e) => e.stopPropagation()}
-                />
-                <div className="flex-1 overflow-y-auto space-y-0.5 scrollbar-thin">
-                  <div
-                    onClick={() => {
-                      setSelectedArtistId('unknown')
-                      setShowArtistDropdown(false)
-                      setArtistSearch('')
-                    }}
-                    className="px-3 py-2 text-xs hover:bg-surface-highlight rounded-md cursor-pointer truncate text-spotify-green font-semibold"
-                  >
-                    🎤 Unknown Artist (Default)
-                  </div>
-
-                  {artistsList
-                    .filter((a) =>
-                      (a.name || '').toLowerCase().includes(artistSearch.toLowerCase())
-                    )
-                    .map((a) => (
+                {showArtistDropdown && (
+                  <div className="absolute left-0 right-0 mt-1 bg-surface-elevated border border-surface-highlight rounded-lg shadow-2xl z-50 p-2 space-y-2 max-h-48 overflow-hidden flex flex-col">
+                    <input
+                      type="text"
+                      placeholder="Search artist..."
+                      value={artistSearch}
+                      onChange={(e) => setArtistSearch(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-md bg-surface-highlight text-xs text-primary outline-none border border-transparent focus:border-spotify-green/30"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <div className="flex-1 overflow-y-auto space-y-0.5 scrollbar-thin">
                       <div
-                        key={a.id}
                         onClick={() => {
-                          setSelectedArtistId(String(a.id))
+                          setSelectedArtistId('unknown')
                           setShowArtistDropdown(false)
                           setArtistSearch('')
                         }}
-                        className="px-3 py-2 text-xs hover:bg-surface-highlight rounded-md cursor-pointer truncate text-primary flex justify-between items-center"
+                        className="px-3 py-2 text-xs hover:bg-surface-highlight rounded-md cursor-pointer truncate text-spotify-green font-semibold"
                       >
-                        <span className="truncate mr-2">{a.name}</span>
-                        <span className="text-[10px] text-subtext shrink-0">ID: {a.id}</span>
+                        🎤 Unknown Artist (Default)
                       </div>
-                    ))}
 
-                  {artistsList.filter((a) =>
-                    (a.name || '').toLowerCase().includes(artistSearch.toLowerCase())
-                  ).length === 0 && (
-                      <div className="px-3 py-2 text-xs text-subtext text-center">
-                        No matches found
-                      </div>
-                    )}
-                </div>
-              </div>
+                      {artistsList
+                        .filter((a) =>
+                          (a.name || '').toLowerCase().includes(artistSearch.toLowerCase())
+                        )
+                        .map((a) => (
+                          <div
+                            key={a.id}
+                            onClick={() => {
+                              setSelectedArtistId(String(a.id))
+                              setShowArtistDropdown(false)
+                              setArtistSearch('')
+                            }}
+                            className="px-3 py-2 text-xs hover:bg-surface-highlight rounded-md cursor-pointer truncate text-primary flex justify-between items-center"
+                          >
+                            <span className="truncate mr-2">{a.name}</span>
+                            <span className="text-[10px] text-subtext shrink-0">ID: {a.id}</span>
+                          </div>
+                        ))}
+
+                      {artistsList.filter((a) =>
+                        (a.name || '').toLowerCase().includes(artistSearch.toLowerCase())
+                      ).length === 0 && (
+                          <div className="px-3 py-2 text-xs text-subtext text-center">
+                            No matches found
+                          </div>
+                        )}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -397,8 +432,10 @@ export default function TrackFormModal({
               Album (Select 'Single' if not in an album)
             </label>
             <div
-              onClick={() => setShowAlbumDropdown(!showAlbumDropdown)}
-              className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary cursor-pointer border-2 border-transparent hover:border-spotify-green/50 flex justify-between items-center transition-colors"
+              onClick={() => !submitting && setShowAlbumDropdown(!showAlbumDropdown)}
+              className={`w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary cursor-pointer border-2 border-transparent hover:border-spotify-green/50 flex justify-between items-center transition-colors ${
+                submitting ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''
+              }`}
             >
               <span className="truncate">
                 {albumId === 'single'
@@ -458,16 +495,32 @@ export default function TrackFormModal({
           <div className="flex gap-3 pt-2">
             <button
               type="button"
+              disabled={submitting}
               onClick={onClose}
-              className="flex-1 px-4 py-2.5 rounded-full border border-surface-highlight text-sm font-medium hover:bg-surface-highlight transition-colors"
+              className={`flex-1 px-4 py-2.5 rounded-full border border-surface-highlight text-sm font-medium hover:bg-surface-highlight transition-colors ${
+                submitting ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''
+              }`}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-colors hover:scale-[1.02]"
+              disabled={submitting}
+              className={`flex-1 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-colors flex items-center justify-center gap-1.5 transition-all ${
+                submitting ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'hover:scale-[1.02]'
+              }`}
             >
-              {initialData ? 'Save' : 'Create'}
+              {submitting ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-black" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  {initialData ? 'Saving...' : 'Creating...'}
+                </>
+              ) : (
+                initialData ? 'Save' : 'Create'
+              )}
             </button>
           </div>
         </form>

@@ -50,6 +50,8 @@ def _to_track_response(track: Track) -> TrackResponse:
         artist_name=track.artist_name,
         cover_url=track.cover_url,
         genres=track.genres,
+        created_at=track.created_at,
+        updated_at=track.updated_at,
     )
 
 

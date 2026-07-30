@@ -57,6 +57,34 @@ function formatDate(dateStr?: string | null): string {
   }
 }
 
+function renderDate(dateStr?: string | null) {
+  if (!dateStr) return <span className="text-xs text-subtext">—</span>
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return <span className="text-xs text-subtext">—</span>
+    const datePart = d.toLocaleDateString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    })
+    const timePart = d.toLocaleTimeString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    })
+    return (
+      <div className="flex flex-col text-xs text-subtext select-none leading-normal text-left">
+        <span className="font-medium text-primary">{datePart}</span>
+        <span className="text-[10px] text-subtext/75">{timePart}</span>
+      </div>
+    )
+  } catch {
+    return <span className="text-xs text-subtext">—</span>
+  }
+}
+
 
 export default function ArtistPanelPage() {
   const currentUser = useAuthStore((s) => s.user)
@@ -550,8 +578,8 @@ export default function ArtistPanelPage() {
                           )}
                         </span>
 
-                        <span className="text-xs text-subtext truncate">{formatDate(track.created_at)}</span>
-                        <span className="text-xs text-subtext truncate">{formatDate(track.updated_at)}</span>
+                        {renderDate(track.created_at)}
+                        {renderDate(track.updated_at)}
 
                         <span className="text-sm text-subtext tabular-nums">
                           {track.duration_seconds
@@ -718,8 +746,8 @@ export default function ArtistPanelPage() {
                             {albumTracks.length} track{albumTracks.length === 1 ? '' : 's'}
                           </span>
 
-                          <span className="text-xs text-subtext truncate">{formatDate(al.created_at)}</span>
-                          <span className="text-xs text-subtext truncate">{formatDate(al.updated_at)}</span>
+                          {renderDate(al.created_at)}
+                          {renderDate(al.updated_at)}
 
 
                           <div className="flex items-center gap-1 justify-end">
@@ -961,6 +989,8 @@ export default function ArtistPanelPage() {
         onSubmit={handleTrackSubmit}
         initialData={editingTrack}
         availableAlbums={myAlbums}
+        artistId={myArtist?.id}
+        disableArtistSelect={true}
       />
 
       {/* ALBUM FORM MODAL */}

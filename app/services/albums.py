@@ -18,6 +18,8 @@ def _to_album_response(album: Album) -> AlbumResponse:
         artist_id=album.artist_id,
         artist_name=album.artist_name,
         cover_url=album.cover_url,
+        created_at=album.created_at,
+        updated_at=album.updated_at,
     )
 
 
@@ -33,6 +35,8 @@ def _to_track_response(track: Track) -> TrackResponse:
         artist_id=track.artist_id,
         artist_name=track.artist_name,
         lyrics=track.lyrics,
+        created_at=track.created_at,
+        updated_at=track.updated_at,
     )
 
 

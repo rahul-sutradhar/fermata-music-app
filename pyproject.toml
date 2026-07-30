@@ -22,6 +22,7 @@ dependencies = [
     "ddgs>=9.14.4",
     "numpy>=2.0.0",
     "gradio",
+    "websockets>=16.0",
 ]
 
 [build-system]

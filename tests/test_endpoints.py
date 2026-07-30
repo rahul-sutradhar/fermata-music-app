@@ -28,15 +28,14 @@ def test_get_album_by_id(client, db_session):
     response = client.get(f"/albums/{album.id}")
 
     assert response.status_code == 200
-    assert response.json() == {
-        "id": album.id,
-        "title": album.title,
-        "artist_id": album.artist_id,
-        "artist_name": artist.name,
-        "cover_url": None,
-        "created_at": None,
-        "updated_at": None,
-    }
+    data = response.json()
+    assert data["id"] == album.id
+    assert data["title"] == album.title
+    assert data["artist_id"] == album.artist_id
+    assert data["artist_name"] == artist.name
+    assert data["cover_url"] is None
+    assert data["created_at"] is not None
+    assert data["updated_at"] is not None
 
 
 def test_get_album_tracks(client, db_session):
@@ -56,13 +55,12 @@ def test_get_artist_by_id(client, db_session):
     response = client.get(f"/artists/{artist.id}")
 
     assert response.status_code == 200
-    assert response.json() == {
-        "id": artist.id,
-        "name": artist.name,
-        "user_id": artist.id,
-        "created_at": None,
-        "updated_at": None,
-    }
+    data = response.json()
+    assert data["id"] == artist.id
+    assert data["name"] == artist.name
+    assert data["user_id"] == artist.id
+    assert data["created_at"] is not None
+    assert data["updated_at"] is not None
 
 
 def test_get_artist_albums(client, db_session):
@@ -71,17 +69,15 @@ def test_get_artist_albums(client, db_session):
     response = client.get(f"/artists/{artist.id}/albums")
 
     assert response.status_code == 200
-    assert response.json() == [
-        {
-            "id": album.id,
-            "title": album.title,
-            "artist_id": artist.id,
-            "artist_name": artist.name,
-            "cover_url": None,
-            "created_at": None,
-            "updated_at": None,
-        }
-    ]
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["id"] == album.id
+    assert data[0]["title"] == album.title
+    assert data[0]["artist_id"] == artist.id
+    assert data[0]["artist_name"] == artist.name
+    assert data[0]["cover_url"] is None
+    assert data[0]["created_at"] is not None
+    assert data[0]["updated_at"] is not None
 
 
 

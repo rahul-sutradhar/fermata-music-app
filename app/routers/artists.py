@@ -23,15 +23,35 @@ def list_artists(
     from app.models.artist import Artist
     try:
         artists = db.scalars(select(Artist).order_by(Artist.id).offset(skip).limit(limit)).all()
-        return [ArtistResponse(id=a.id, name=a.name, user_id=a.id) for a in artists]
+        return [
+            ArtistResponse(
+                id=a.id,
+                name=a.name,
+                user_id=a.id,
+                created_at=a.created_at,
+                updated_at=a.updated_at
+            ) for a in artists
+        ]
     except Exception as exc:
         print(f"Error in list_artists ORM query: {exc}")
         try:
             rows = db.execute(
-                text("SELECT id, name FROM artists ORDER BY id LIMIT :limit OFFSET :skip"),
+                text(
+                    "SELECT a.id, a.name, u.created_at, u.updated_at "
+                    "FROM artists a JOIN users u ON a.id = u.id "
+                    "ORDER BY a.id LIMIT :limit OFFSET :skip"
+                ),
                 {"limit": limit, "skip": skip}
             ).fetchall()
-            return [ArtistResponse(id=r.id, name=r.name, user_id=r.id) for r in rows]
+            return [
+                ArtistResponse(
+                    id=r.id,
+                    name=r.name,
+                    user_id=r.id,
+                    created_at=r.created_at,
+                    updated_at=r.updated_at
+                ) for r in rows
+            ]
         except Exception as fallback_exc:
             print(f"Error in list_artists fallback: {fallback_exc}")
             return []
