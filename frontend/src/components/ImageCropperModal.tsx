@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { X, ZoomIn, ZoomOut, RotateCcw, Check, Move } from 'lucide-react'
 
 interface Props {
@@ -219,7 +220,7 @@ export default function ImageCropperModal({
   const maxScaleLimit = minScale * 3.5
   const zoomPercentage = Math.round(((scale - minScale) / (maxScaleLimit - minScale || 1)) * 100)
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-in fade-in duration-200">
       <div className="bg-surface-elevated rounded-2xl p-6 w-full max-w-lg shadow-2xl border border-surface-highlight flex flex-col space-y-4 text-left">
         {/* Header */}
@@ -232,58 +233,43 @@ export default function ImageCropperModal({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-surface-highlight transition-colors text-subtext hover:text-primary"
+            className="p-1.5 rounded-full hover:bg-surface-highlight text-subtext hover:text-primary transition-colors cursor-pointer"
+            title="Cancel"
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* Viewport Canvas Area */}
-        <div className="relative flex justify-center items-center py-2 select-none">
-          <div
-            className="relative w-[300px] h-[300px] sm:w-[360px] sm:h-[360px] rounded-2xl overflow-hidden border-2 border-spotify-green/60 shadow-2xl bg-black cursor-grab active:cursor-grabbing touch-none flex items-center justify-center"
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-            onWheel={handleWheel}
-          >
-            <canvas
-              ref={canvasRef}
-              className="w-full h-full object-cover pointer-events-none"
-            />
-
-            {/* Grid Overlay Guide */}
-            <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none opacity-20">
-              <div className="border-r border-b border-white" />
-              <div className="border-r border-b border-white" />
-              <div className="border-b border-white" />
-              <div className="border-r border-b border-white" />
-              <div className="border-r border-b border-white" />
-              <div className="border-b border-white" />
-              <div className="border-r border-white" />
-              <div className="border-r border-white" />
-              <div />
-            </div>
-
-            {/* Reposition Badge */}
-            <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] text-white flex items-center gap-1.5 pointer-events-none border border-white/10">
-              <Move size={12} className="text-spotify-green animate-pulse" />
-              <span>Drag to Pan</span>
+        {/* Cropper Container */}
+        <div
+          className="relative aspect-square w-full max-w-[400px] mx-auto bg-surface-highlight/30 rounded-xl overflow-hidden shadow-inner border border-surface-highlight/50 flex items-center justify-center cursor-move"
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          <canvas
+            ref={canvasRef}
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-zinc-950 pointer-events-none rounded-lg"
+          />
+          {/* Transparent Overlay with circular grid */}
+          <div className="absolute inset-0 pointer-events-none border-[12px] border-black/50 flex items-center justify-center rounded-xl">
+            <div className="w-full h-full border border-white/20 rounded-lg flex items-center justify-center">
+              {/* Central circle overlay */}
+              <div className="w-full h-full border border-dashed border-white/30 rounded-full flex items-center justify-center">
+                <Move className="text-white/20" size={32} />
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Zoom Controls Slider */}
-        <div className="space-y-2 pt-1">
+        {/* Controls */}
+        <div className="space-y-2">
           <div className="flex items-center justify-between text-xs font-semibold text-subtext">
-            <span className="flex items-center gap-1">
-              <ZoomOut size={14} /> Zoom
-            </span>
-            <span>{zoomPercentage}%</span>
+            <span>Zoom: {zoomPercentage}%</span>
           </div>
 
           <div className="flex items-center gap-3">
@@ -354,6 +340,7 @@ export default function ImageCropperModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

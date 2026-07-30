@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Upload, Music, Image as ImageIcon } from 'lucide-react'
 import type { Track, Album, Artist } from '@/types'
 import { listAlbums } from '@/api/albums'
@@ -219,7 +220,7 @@ export default function TrackFormModal({
     return true
   })
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-surface-elevated rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto scrollbar-thin shadow-2xl border border-surface-highlight">
         <div className="flex items-center justify-between mb-6">
@@ -248,95 +249,97 @@ export default function TrackFormModal({
                 <>
                   <img
                     src={coverPreview}
-                    alt="Cover Preview"
-                    className="w-full h-full object-cover rounded-lg"
+                    alt="Cover preview"
+                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
                   />
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs font-medium gap-1.5 p-4 text-center backdrop-blur-[2px]">
-                    <ImageIcon size={24} />
-                    <span>Click to change track photo</span>
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs font-bold text-white">
+                    Replace Photo
                   </div>
                 </>
               ) : (
-                <div className="flex flex-col items-center gap-2 text-subtext group-hover:text-primary transition-colors p-4 text-center">
-                  <ImageIcon size={28} />
-                  <span className="text-xs font-medium">
-                    {coverFile ? coverFile.name : 'Click to attach track photo'}
-                  </span>
-                  <span className="text-[10px] text-subtext/70">
-                    If left empty, album cover photo will be used
-                  </span>
-                </div>
+                <>
+                  <ImageIcon size={28} className="text-subtext/60 mb-2 group-hover:text-spotify-green transition-colors" />
+                  <span className="text-xs font-semibold text-primary">Attach Cover Art</span>
+                  <span className="text-[10px] text-subtext mt-1">PNG or JPG</span>
+                </>
               )}
-              <input
-                ref={coverInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleCoverChange}
-                className="hidden"
-              />
             </div>
+            <input
+              ref={coverInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) {
+                  setCropperFile(file)
+                  setCropperOpen(true)
+                }
+                e.target.value = ''
+              }}
+            />
           </div>
 
-          {/* Audio File attachment */}
+          {/* Audio File upload */}
           <div>
             <label className="block text-sm font-medium text-subtext mb-1.5">
-              {initialData ? 'Replace Audio File (Optional)' : 'Attach Audio File'}
+              Audio File {initialData ? '(Optional)' : '(Required)'}
             </label>
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="w-full border-2 border-dashed border-surface-highlight hover:border-spotify-green/50 rounded-lg p-3 flex flex-col items-center justify-center cursor-pointer transition-colors"
+              className="w-full border-2 border-dashed border-surface-highlight hover:border-spotify-green/50 rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition-colors bg-surface-highlight/10"
             >
-              <Upload size={20} className="text-subtext mb-1 animate-bounce" />
-              <span className="text-xs font-medium text-primary">
-                {fileName || (initialData ? 'Click to replace audio file...' : 'Choose an audio file...')}
+              <Upload size={22} className="text-subtext/60 mb-1.5" />
+              <span className="text-xs font-semibold text-primary block truncate max-w-full">
+                {fileName || 'Select audio file...'}
               </span>
               <span className="text-[10px] text-subtext mt-0.5">
-                Duration will be auto-calculated
+                MP3, WAV, FLAC, M4A, AAC
               </span>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="audio/*"
-                onChange={handleFileChange}
-                className="hidden"
-              />
             </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="audio/*"
+              required={!initialData}
+              onChange={handleFileChange}
+              className="hidden"
+            />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-subtext mb-1.5">
-              Title
+            <label className="block text-sm font-medium text-subtext mb-1">
+              Track Title
             </label>
             <input
               type="text"
+              required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              required
               className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 transition-colors"
-              placeholder="Track title"
+              placeholder="e.g. Midnight City"
             />
           </div>
 
           {/* Searchable Artist Dropdown */}
           <div className="relative" ref={artistDropdownRef}>
-            <label className="block text-sm font-medium text-subtext mb-1.5">
-              Artist
+            <label className="block text-sm font-medium text-subtext mb-1">
+              Artist Profile
             </label>
             <div
               onClick={() => setShowArtistDropdown(!showArtistDropdown)}
               className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary cursor-pointer border-2 border-transparent hover:border-spotify-green/50 flex justify-between items-center transition-colors"
             >
-              <span className="truncate font-medium">
-                {selectedArtistId === 'unknown' || !selectedArtistId
+              <span className="truncate">
+                {selectedArtistId === 'unknown'
                   ? '🎤 Unknown Artist'
-                  : artistsList.find((a) => String(a.id) === String(selectedArtistId))?.name ||
-                    `Artist ID: ${selectedArtistId}`}
+                  : artistsList.find((a) => String(a.id) === selectedArtistId)?.name || `Artist ID: ${selectedArtistId}`}
               </span>
               <span className="text-xs text-subtext select-none">▼</span>
             </div>
 
             {showArtistDropdown && (
-              <div className="absolute left-0 right-0 mt-1 bg-surface-elevated border border-surface-highlight rounded-lg shadow-2xl z-50 p-2 space-y-2">
+              <div className="absolute left-0 right-0 mt-1 bg-surface-elevated border border-surface-highlight rounded-lg shadow-2xl z-50 p-2 space-y-2 max-h-48 overflow-hidden flex flex-col">
                 <input
                   type="text"
                   placeholder="Search artist..."
@@ -345,36 +348,44 @@ export default function TrackFormModal({
                   className="w-full px-3 py-1.5 rounded-md bg-surface-highlight text-xs text-primary outline-none border border-transparent focus:border-spotify-green/30"
                   onClick={(e) => e.stopPropagation()}
                 />
-                <div className="max-h-40 overflow-y-auto space-y-0.5 scrollbar-thin">
-                  {/* Unknown Artist Option */}
+                <div className="flex-1 overflow-y-auto space-y-0.5 scrollbar-thin">
                   <div
-                    onClick={() => handleSelectArtist('unknown')}
-                    className={`px-3 py-2 text-xs rounded-md cursor-pointer truncate flex justify-between items-center ${
-                      selectedArtistId === 'unknown' || !selectedArtistId
-                        ? 'bg-spotify-green/20 text-spotify-green font-semibold'
-                        : 'hover:bg-surface-highlight text-primary'
-                    }`}
+                    onClick={() => {
+                      setSelectedArtistId('unknown')
+                      setShowArtistDropdown(false)
+                      setArtistSearch('')
+                    }}
+                    className="px-3 py-2 text-xs hover:bg-surface-highlight rounded-md cursor-pointer truncate text-spotify-green font-semibold"
                   >
-                    <span>🎤 Unknown Artist</span>
-                    <span className="text-[10px] text-subtext">Default</span>
+                    🎤 Unknown Artist (Default)
                   </div>
 
                   {artistsList
-                    .filter((a) => a.name.toLowerCase().includes(artistSearch.toLowerCase()))
+                    .filter((a) =>
+                      (a.name || '').toLowerCase().includes(artistSearch.toLowerCase())
+                    )
                     .map((a) => (
                       <div
                         key={a.id}
-                        onClick={() => handleSelectArtist(String(a.id))}
-                        className={`px-3 py-2 text-xs rounded-md cursor-pointer truncate flex justify-between items-center ${
-                          selectedArtistId === String(a.id)
-                            ? 'bg-spotify-green/20 text-spotify-green font-semibold'
-                            : 'hover:bg-surface-highlight text-primary'
-                        }`}
+                        onClick={() => {
+                          setSelectedArtistId(String(a.id))
+                          setShowArtistDropdown(false)
+                          setArtistSearch('')
+                        }}
+                        className="px-3 py-2 text-xs hover:bg-surface-highlight rounded-md cursor-pointer truncate text-primary flex justify-between items-center"
                       >
                         <span className="truncate mr-2">{a.name}</span>
                         <span className="text-[10px] text-subtext shrink-0">ID: {a.id}</span>
                       </div>
                     ))}
+
+                  {artistsList.filter((a) =>
+                    (a.name || '').toLowerCase().includes(artistSearch.toLowerCase())
+                  ).length === 0 && (
+                      <div className="px-3 py-2 text-xs text-subtext text-center">
+                        No matches found
+                      </div>
+                    )}
                 </div>
               </div>
             )}
@@ -382,24 +393,23 @@ export default function TrackFormModal({
 
           {/* Searchable Album Dropdown */}
           <div className="relative" ref={albumDropdownRef}>
-            <label className="block text-sm font-medium text-subtext mb-1.5">
-              Album
+            <label className="block text-sm font-medium text-subtext mb-1">
+              Album (Select 'Single' if not in an album)
             </label>
             <div
               onClick={() => setShowAlbumDropdown(!showAlbumDropdown)}
               className="w-full px-3 py-2 rounded-lg bg-surface-highlight text-sm text-primary cursor-pointer border-2 border-transparent hover:border-spotify-green/50 flex justify-between items-center transition-colors"
             >
-              <span className="truncate font-medium">
-                {albumId === 'single' || !albumId
-                  ? '🎵 Single Track (No Album)'
-                  : albumsList.find((a) => String(a.id) === String(albumId))?.title ||
-                    `Album ID: ${albumId}`}
+              <span className="truncate">
+                {albumId === 'single'
+                  ? '💿 Single (No Album)'
+                  : albumsList.find((al) => String(al.id) === albumId)?.title || `Album ID: ${albumId}`}
               </span>
               <span className="text-xs text-subtext select-none">▼</span>
             </div>
 
             {showAlbumDropdown && (
-              <div className="absolute left-0 right-0 mt-1 bg-surface-elevated border border-surface-highlight rounded-lg shadow-2xl z-50 p-2 space-y-2">
+              <div className="absolute left-0 right-0 mt-1 bg-surface-elevated border border-surface-highlight rounded-lg shadow-2xl z-50 p-2 space-y-2 max-h-48 overflow-hidden flex flex-col">
                 <input
                   type="text"
                   placeholder="Search album..."
@@ -408,63 +418,41 @@ export default function TrackFormModal({
                   className="w-full px-3 py-1.5 rounded-md bg-surface-highlight text-xs text-primary outline-none border border-transparent focus:border-spotify-green/30"
                   onClick={(e) => e.stopPropagation()}
                 />
-                <div className="max-h-40 overflow-y-auto space-y-0.5 scrollbar-thin">
-                  {/* Standalone Single Option */}
+                <div className="flex-1 overflow-y-auto space-y-0.5 scrollbar-thin">
                   <div
-                    onClick={() => handleSelectAlbum('single')}
-                    className={`px-3 py-2 text-xs rounded-md cursor-pointer truncate flex justify-between items-center ${
-                      albumId === 'single' || !albumId
-                        ? 'bg-spotify-green/20 text-spotify-green font-semibold'
-                        : 'hover:bg-surface-highlight text-primary'
-                    }`}
+                    onClick={() => {
+                      setAlbumId('single')
+                      setShowAlbumDropdown(false)
+                      setAlbumSearch('')
+                    }}
+                    className="px-3 py-2 text-xs hover:bg-surface-highlight rounded-md cursor-pointer truncate text-spotify-green font-semibold"
                   >
-                    <span>🎵 Standalone Single (No Album)</span>
-                    <span className="text-[10px] text-subtext">Single</span>
+                    💿 Single (No Album)
                   </div>
 
-                  {filteredAlbums.map((a) => (
+                  {filteredAlbums.map((al) => (
                     <div
-                      key={a.id}
-                      onClick={() => handleSelectAlbum(String(a.id))}
-                      className={`px-3 py-2 text-xs rounded-md cursor-pointer truncate flex justify-between items-center ${
-                        albumId === String(a.id)
-                          ? 'bg-spotify-green/20 text-spotify-green font-semibold'
-                          : 'hover:bg-surface-highlight text-primary'
-                      }`}
+                      key={al.id}
+                      onClick={() => {
+                        setAlbumId(String(al.id))
+                        setShowAlbumDropdown(false)
+                        setAlbumSearch('')
+                      }}
+                      className="px-3 py-2 text-xs hover:bg-surface-highlight rounded-md cursor-pointer truncate text-primary flex justify-between items-center"
                     >
-                      <span className="truncate mr-2">{a.title}</span>
-                      <span className="text-[10px] text-subtext shrink-0">
-                        {artistsList.find((art) => art.id === a.artist_id)?.name || `ID: ${a.id}`}
-                      </span>
+                      <span className="truncate mr-2">{al.title}</span>
+                      <span className="text-[10px] text-subtext shrink-0">ID: {al.id}</span>
                     </div>
                   ))}
 
                   {filteredAlbums.length === 0 && (
                     <div className="px-3 py-2 text-xs text-subtext text-center">
-                      No matching albums found
+                      No matches found
                     </div>
                   )}
                 </div>
               </div>
             )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-subtext mb-1.5">
-              Duration
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                readOnly
-                value={duration ? `${duration} seconds (${formatDuration(duration)})` : ''}
-                className="w-full px-3 py-2 rounded-lg bg-surface-highlight/50 text-sm text-subtext outline-none border-2 border-transparent select-none cursor-not-allowed"
-                placeholder="Upload a file to detect duration"
-              />
-              {duration && (
-                <Music size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-spotify-green" />
-              )}
-            </div>
           </div>
 
           <div className="flex gap-3 pt-2">
@@ -495,6 +483,7 @@ export default function TrackFormModal({
           setCoverPreview(URL.createObjectURL(croppedFile))
         }}
       />
-    </div>
+    </div>,
+    document.body
   )
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Plus,
   Pencil,
@@ -1894,7 +1895,7 @@ export default function AdminPanelPage() {
 
 
       {/* USER FORM MODAL */}
-      {userModalOpen && (
+      {userModalOpen && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           {(() => {
             const isMasterAdminTarget = editingUser && (Number(editingUser.id) === 1 || editingUser.username.toLowerCase() === 'admin' || editingUser.role === 'master_admin')
@@ -2008,11 +2009,12 @@ export default function AdminPanelPage() {
               </form>
             )
           })()}
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ARTIST PROFILE MODAL */}
-      {artistModalOpen && (
+      {artistModalOpen && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <form onSubmit={handleArtistSubmit} className="bg-surface-elevated rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto scrollbar-thin shadow-2xl border border-surface-highlight space-y-4 text-left">
             <h2 className="text-lg font-bold">{editingArtist ? 'Edit Artist Profile' : 'Add Artist Profile'}</h2>
@@ -2116,11 +2118,12 @@ export default function AdminPanelPage() {
               </button>
             </div>
           </form>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ALBUM FORM MODAL */}
-      {albumModalOpen && (
+      {albumModalOpen && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <form onSubmit={handleAlbumSubmit} className="bg-surface-elevated rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto scrollbar-thin shadow-2xl border border-surface-highlight space-y-4 text-left">
             <h2 className="text-lg font-bold">{editingAlbum ? 'Edit Album' : 'Create Album'}</h2>
@@ -2259,7 +2262,8 @@ export default function AdminPanelPage() {
               </button>
             </div>
           </form>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Image Cropper Modal */}
