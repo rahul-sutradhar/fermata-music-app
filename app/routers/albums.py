@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query, status, HTTPException, File, UploadFile
 
-from app.core.deps import DbSession, CurrentArtistOrAdmin, CurrentAdmin
+from app.core.deps import DbSession, CurrentArtistOrAdmin, CurrentAdmin, CurrentMasterAdmin
 from app.schemas.album import AlbumResponse, AlbumCreate, AlbumUpdate
 from app.schemas.errors import ErrorResponse
 from app.schemas.track import TrackResponse
@@ -63,8 +63,10 @@ def create_album(
     db: DbSession,
     current_user: CurrentArtistOrAdmin,
 ) -> AlbumResponse:
-    """Create a new album (Admin or owning Artist)."""
-    if current_user.role != "admin":
+    """Create a new album (Master Admin or owning Artist only)."""
+    if not current_user.is_master_admin:
+        if current_user.role != "artist":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
         artist = artist_service._get_artist_or_404(db, payload.artist_id)
         if artist.id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
@@ -83,18 +85,17 @@ def update_album(
     db: DbSession,
     current_user: CurrentArtistOrAdmin,
 ) -> AlbumResponse:
-    """Update an album (Admin or owning Artist)."""
+    """Update an album (Master Admin or owning Artist only)."""
     album = album_service._get_album_or_404(db, album_id)
-    if current_user.role != "admin":
+    if not current_user.is_master_admin:
+        if current_user.role != "artist":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
         artist = artist_service._get_artist_or_404(db, album.artist_id)
         if artist.id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
-            
-        # If trying to transfer ownership to another artist, verify they own that one too
+        # Artists cannot transfer album ownership to another artist
         if payload.artist_id is not None and payload.artist_id != album.artist_id:
-            new_artist = artist_service._get_artist_or_404(db, payload.artist_id)
-            if new_artist.id != current_user.id:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot transfer album to an artist you do not own")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot transfer album to another artist")
                 
     return album_service.update_album(db=db, album_id=album_id, title=payload.title, artist_id=payload.artist_id)
 
@@ -109,9 +110,11 @@ def delete_album(
     db: DbSession,
     current_user: CurrentArtistOrAdmin,
 ) -> None:
-    """Delete an album (Admin or owning Artist)."""
+    """Delete an album (Master Admin or owning Artist only)."""
     album = album_service._get_album_or_404(db, album_id)
-    if current_user.role != "admin":
+    if not current_user.is_master_admin:
+        if current_user.role != "artist":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
         artist = artist_service._get_artist_or_404(db, album.artist_id)
         if artist.id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")

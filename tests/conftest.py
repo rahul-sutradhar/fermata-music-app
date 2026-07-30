@@ -15,7 +15,7 @@ from app.main import app
 from app.models import (
     User, Album, Artist, Track, Playlist, PlaylistTrack,
     UserLibrary, PlayerState, RecentlyPlayed, Show, Episode,
-    Audiobook, Chapter, RefreshToken
+    Audiobook, Chapter, RefreshToken, MasterAdmin
 )
 from app.core.cache import get_memory_limiter
 
@@ -72,8 +72,13 @@ def client(db_session):
 
 @pytest.fixture()
 def current_user(db_session):
-    from app.models.admin import Admin
-    user = Admin(username="tester", email="tester@example.com", hashed_password="hash", role="admin", name="Tester", is_verified=True)
+    user = MasterAdmin(
+        username="tester",
+        email="tester@example.com",
+        hashed_password="hash",
+        role="master_admin",
+        is_verified=True,
+    )
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
@@ -87,8 +92,10 @@ def auth_client(client, current_user):
 
     app.dependency_overrides[deps.get_current_user] = override_current_user
     app.dependency_overrides[deps.get_current_admin] = override_current_user
+    app.dependency_overrides[deps.get_current_master_admin] = override_current_user
     app.dependency_overrides[deps.get_current_artist_or_admin] = override_current_user
     yield client
     app.dependency_overrides.pop(deps.get_current_user, None)
     app.dependency_overrides.pop(deps.get_current_admin, None)
+    app.dependency_overrides.pop(deps.get_current_master_admin, None)
     app.dependency_overrides.pop(deps.get_current_artist_or_admin, None)

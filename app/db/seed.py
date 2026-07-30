@@ -32,13 +32,13 @@ def seed() -> None:
             print("Database already seeded — skipping.")
             return
 
-        # Create Admin
-        from app.models.admin import Admin
-        admin = Admin(
+        # Create Master Admin (role must be 'master_admin'; can only be set via DB)
+        from app.models.master_admin import MasterAdmin
+        admin = MasterAdmin(
             username="admin",
             email="admin@fermata.com",
             hashed_password=hash_password("admin123"),
-            role="admin",
+            role="master_admin",
             name="Admin",
         )
         db.add(admin)

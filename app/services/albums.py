@@ -108,7 +108,9 @@ def upload_album_cover(
     user: User,
 ) -> AlbumResponse:
     album = _get_album_or_404(db, album_id)
-    if user.role != "admin":
+    if not user.is_master_admin:
+        if user.role != "artist":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
         from app.services.artists import _get_artist_or_404
         artist = _get_artist_or_404(db, album.artist_id)
         if artist.id != user.id:

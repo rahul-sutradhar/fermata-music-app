@@ -91,7 +91,7 @@ from app.models.user import User
 def _ensure_can_write_to_track_target(
     db: Session, *, album_id: int | None, artist_id: int | None, user: User
 ) -> None:
-    if user.role == "admin":
+    if user.is_master_admin:
         return
 
     if album_id is not None:

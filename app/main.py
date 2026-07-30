@@ -29,13 +29,18 @@ async def lifespan(app: FastAPI):
             from sqlalchemy import text
             with Session(engine) as session:
                 # 1. Restore 'admin' role to any user present in the 'admins' table
-                session.execute(text("UPDATE users SET role = 'admin' WHERE id IN (SELECT id FROM admins)"))
+                #    (but don't overwrite master_admin — they are not in the admins table)
+                session.execute(text(
+                    "UPDATE users SET role = 'admin' "
+                    "WHERE id IN (SELECT id FROM admins) AND role NOT IN ('admin', 'master_admin')"
+                ))
                 session.commit()
                 
-                # 2. Delete conflicting artist profiles for anyone who is an admin or not an artist role
+                # 2. Delete conflicting artist profiles for non-artists
                 session.execute(text("DELETE FROM artists WHERE id IN (SELECT id FROM users WHERE role != 'artist')"))
-                # 3. Delete conflicting admin profiles for anyone who is not an admin role
-                session.execute(text("DELETE FROM admins WHERE id IN (SELECT id FROM users WHERE role != 'admin')"))
+                # 3. Delete conflicting admin profiles for users whose role is no longer 'admin'
+                #    (master_admin users are never in the admins table, so this is safe)
+                session.execute(text("DELETE FROM admins WHERE id IN (SELECT id FROM users WHERE role NOT IN ('admin'))"))
                 session.commit()
                 
                 admin_users = session.execute(text("SELECT id, username FROM users WHERE role = 'admin'")).fetchall()

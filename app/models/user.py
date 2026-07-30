@@ -23,6 +23,21 @@ class User(Base):
         "polymorphic_identity": "user",
     }
 
+    @property
+    def is_master_admin(self) -> bool:
+        """True only when this user has the 'master_admin' role.
+
+        This value is authoritative — it is derived solely from the
+        ``role`` column in the database.  The role cannot be set via
+        the API; it must be changed directly in the database.
+        """
+        return self.role == "master_admin"
+
+    @property
+    def is_any_admin(self) -> bool:
+        """True when this user is either an admin or a master_admin."""
+        return self.role in ("admin", "master_admin")
+
     playlists: Mapped[list["Playlist"]] = relationship(back_populates="owner")
     library: Mapped[list["UserLibrary"]] = relationship(
         "UserLibrary", back_populates="user", cascade="all, delete-orphan"

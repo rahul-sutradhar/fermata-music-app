@@ -1,4 +1,4 @@
-﻿<div align="center">
+<div align="center">
 
 <br/>
 
@@ -428,6 +428,35 @@ Rate Limiting (ASGI Middleware)
   ├── In-memory fallback if Redis is unavailable
   └── Auth endpoints additionally subject to IP lockout
 ```
+
+---
+
+## 🔐 Role-Based Access Control (RBAC)
+
+Fermata implements a strict three-tier RBAC system using Single Table Inheritance (STI) and Join Table Inheritance (JTI) models in SQLAlchemy:
+
+1. **Master Admin (`master_admin`)**
+   - Full, unrestricted CRUD access to all users, artists, tracks, albums, and the agentic ingestion queue.
+   - **DB-Only**: This role cannot be set or assigned via the API; it must be updated manually directly in the database.
+   - The master admin account is read-only via the API for all update actions.
+
+2. **Standard Admin (`admin`)**
+   - Can manage user accounts and toggle user roles to/from `artist`.
+   - Cannot create new administrators, demote administrators, or edit any details of standard or master admin accounts.
+   - Restricted from uploading music or modifying the catalog tracks/albums.
+
+3. **Artist (`artist`)**
+   - Access to the Artist Console.
+   - Permissions restricted strictly to CRUD operations on their own tracks and albums.
+   - Cannot transfer ownership of albums or tracks to other artists.
+
+4. **User (`user`)**
+   - Standard streaming access (read-only catalog, playlists, sync player, library).
+
+### 🛡️ Double-Layer Guarding
+To prevent duplication or invalid records (e.g., an administrator incorrectly holding an artist profile):
+- **Application Level**: Validation checks in the service layers reject mapping admin or master admin IDs to artist profiles.
+- **Database Level**: A PostgreSQL trigger (`trg_prevent_non_artist` on the `artists` table) automatically blocks any insertions/updates where the user's role is not `'artist'`.
 
 ---
 

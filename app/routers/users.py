@@ -4,7 +4,7 @@ from sqlalchemy import select
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.core.deps import CurrentUser, CurrentAdmin, DbSession
+from app.core.deps import CurrentUser, CurrentAdmin, CurrentMasterAdmin, DbSession
 from app.core.oauth import hash_password
 from app.models import Artist, Track
 from app.models.user import User
@@ -90,16 +90,11 @@ def list_users(
 def admin_create_user(
     payload: AdminUserCreate,
     db: DbSession,
-    current_user: CurrentAdmin,
+    current_user: CurrentMasterAdmin,
 ) -> UserResponse:
-    """Create a user with a specific role (Admin only)."""
-    is_master_admin = (current_user.username == "admin" or current_user.id == 1)
-
-    if payload.role == "admin" and not is_master_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the master admin can create admin accounts",
-        )
+    """Create a user with a specific role (Master Admin only)."""
+    # Only master admin can create admin accounts (enforced by CurrentMasterAdmin dep above)
+    # The schema pattern already blocks master_admin from being sent via payload
 
     if db.scalar(select(User).where(User.username == payload.username)):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already taken")
@@ -147,47 +142,36 @@ def admin_update_user(
     db: DbSession,
     current_user: CurrentAdmin,
 ) -> UserResponse:
-    """Update a user's info (Admin only)."""
+    """Update a user's info.
+
+    - **Master Admin**: unrestricted.
+    - **Admin**: can update users/artists only; cannot touch any admin account;
+      cannot promote to 'admin' or 'master_admin'.
+    """
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User {user_id} not found")
 
-    is_master_admin = (current_user.username == "admin" or current_user.id == 1)
-
-    # 1. Master admin account is 100% read-only for everyone
-    if user.username == "admin" or user_id == 1:
+    # Master admin row is 100% read-only for everyone (including other master admins)
+    if user.is_master_admin:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="The master admin account is 100% read-only and cannot be modified."
+            detail="The master admin account is read-only and cannot be modified via the API."
         )
 
-    # 2. Non-master admins cannot modify details of other admin accounts
-    if not is_master_admin and user.role == "admin" and user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Administrators cannot modify details of other admin accounts."
-        )
-
-    # Permission checks for non-master admins promoting/demoting users
-    if payload.role is not None and payload.role != user.role:
-        if not is_master_admin:
-            if payload.role == "admin":
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Only the master admin can promote users to admin",
-                )
-            if user.role == "admin":
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Only the master admin can change the role of administrators",
-                )
-
-    # Prevent admin from changing their own role
-    if payload.role is not None and payload.role != user.role and user_id == current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot change your own administrator role"
-        )
+    if not current_user.is_master_admin:
+        # Rule 1: Only master admin can touch admin accounts (demote or update any field).
+        if user.is_any_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the master admin can modify administrator accounts.",
+            )
+        # Rule 2: Only master admin can promote anyone TO 'admin'.
+        if payload.role is not None and payload.role in ("admin", "master_admin"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the master admin can assign the admin role.",
+            )
 
 
     if payload.username is not None:
@@ -207,42 +191,45 @@ def admin_update_user(
         
     if payload.role is not None and payload.role != user.role:
         from sqlalchemy import text
-        # If demoting from old subclass, delete from subclass tables
-        if user.role == "admin":
+        old_role = user.role
+
+        # Step 1: Update the discriminator column in users FIRST.
+        # This is critical — the DB trigger on `artists` checks the role column
+        # at INSERT time, so we must mark the user as 'artist' before inserting.
+        db.execute(text("UPDATE users SET role = :role WHERE id = :id"), {"role": payload.role, "id": user_id})
+        db.flush()
+
+        # Step 2: Remove from the old subclass table.
+        if old_role == "admin":
             db.execute(text("DELETE FROM admins WHERE id = :id"), {"id": user_id})
-        elif user.role == "artist":
-            # Check if they have albums
+        elif old_role == "artist":
             from app.models.album import Album
             has_albums = db.scalar(select(Album).where(Album.artist_id == user_id).limit(1)) is not None
             if has_albums:
+                db.rollback()
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot demote artist: this artist has active albums or tracks. Please delete their music first."
+                    detail="Cannot demote artist: this artist has active albums or tracks. Please delete their music first.",
                 )
             db.execute(text("DELETE FROM artists WHERE id = :id"), {"id": user_id})
-            
-        # If promoting to new subclass, insert into subclass tables
+
+        # Step 3: Insert into the new subclass table.
         if payload.role == "admin":
             db.execute(text("INSERT INTO admins (id, name) VALUES (:id, :name)"), {"id": user_id, "name": user.username})
         elif payload.role == "artist":
             db.execute(text("INSERT INTO artists (id, name) VALUES (:id, :name)"), {"id": user_id, "name": user.username})
-            
-        # Flush any other pending updates (e.g. username, email) before role modification
-        db.flush()
-        
-        # Update the role discriminator column directly in the database to prevent ORM class mismatch on commit
-        db.execute(text("UPDATE users SET role = :role WHERE id = :id"), {"role": payload.role, "id": user_id})
-        
-        # Expunge the old cached Python object from the session before committing
+
+        # Expunge the old Python object so SQLAlchemy rebuilds it as the new subclass type.
         db.expunge(user)
         db.commit()
-        
-        # Re-fetch so SQLAlchemy builds a clean Python object of the new subclass type (Admin/Artist/User)
+
+        # Re-fetch as the correct subclass (Admin / Artist / User).
         user = db.get(User, user_id)
     else:
         db.commit()
         db.refresh(user)
     return UserResponse.model_validate(user)
+
 
 
 @router.delete(
@@ -253,26 +240,20 @@ def admin_update_user(
 def admin_delete_user(
     user_id: int,
     db: DbSession,
-    current_user: CurrentAdmin,
+    current_user: CurrentMasterAdmin,
 ) -> None:
-    """Delete a user (Admin only). Cannot delete yourself."""
+    """Delete a user (Master Admin only). Cannot delete yourself."""
     if user_id == current_user.id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete yourself")
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User {user_id} not found")
 
-    is_master_admin = (current_user.username == "admin" or current_user.id == 1)
-
-    # Protection for master admin
-    if user.username == "admin" or user_id == 1:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete the master admin")
-
-    # Only master admin can delete standard admins
-    if user.role == "admin" and not is_master_admin:
+    # Protection for master admin — can never be deleted via the API
+    if user.is_master_admin:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the master admin can delete administrator accounts",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete the master admin"
         )
 
     # Protection for deleting active catalog artists

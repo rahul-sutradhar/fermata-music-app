@@ -50,15 +50,41 @@ def get_current_user(
 DbSession = Annotated[Session, Depends(get_db)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
-def get_current_admin(current_user: CurrentUser) -> User:
-    if current_user.role != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+
+def get_current_master_admin(current_user: CurrentUser) -> User:
+    """Allows only users with role == 'master_admin'.
+
+    This role can ONLY be set manually in the database — no API endpoint
+    can assign or promote to it.
+    """
+    if not current_user.is_master_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
     return current_user
+
+
+def get_current_admin(current_user: CurrentUser) -> User:
+    """Allows any admin — both 'admin' and 'master_admin' roles."""
+    if not current_user.is_any_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    return current_user
+
 
 def get_current_artist_or_admin(current_user: CurrentUser) -> User:
-    if current_user.role not in ["admin", "artist"]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+    """Allows artists, admins, and master admins."""
+    if current_user.role not in ("admin", "master_admin", "artist"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
     return current_user
 
+
+CurrentMasterAdmin = Annotated[User, Depends(get_current_master_admin)]
 CurrentAdmin = Annotated[User, Depends(get_current_admin)]
 CurrentArtistOrAdmin = Annotated[User, Depends(get_current_artist_or_admin)]

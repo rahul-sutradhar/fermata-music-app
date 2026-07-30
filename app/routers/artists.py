@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query, status, HTTPException
 
-from app.core.deps import DbSession, CurrentAdmin, CurrentArtistOrAdmin
+from app.core.deps import DbSession, CurrentAdmin, CurrentMasterAdmin, CurrentArtistOrAdmin
 from app.schemas.album import AlbumResponse
 from app.schemas.artist import ArtistResponse, ArtistCreate, ArtistUpdate
 from app.schemas.errors import ErrorResponse
@@ -108,9 +108,9 @@ def list_artist_singles(
 def create_artist(
     payload: ArtistCreate,
     db: DbSession,
-    current_user: CurrentAdmin,
+    current_user: CurrentMasterAdmin,
 ) -> ArtistResponse:
-    """Create a new artist (Admin only)."""
+    """Create a new artist profile (Master Admin only)."""
     return artist_service.create_artist(db=db, name=payload.name, user_id=payload.user_id)
 
 
@@ -142,7 +142,7 @@ def update_artist(
 def delete_artist(
     artist_id: int,
     db: DbSession,
-    current_user: CurrentAdmin,
+    current_user: CurrentMasterAdmin,
 ) -> None:
-    """Delete an artist (Admin only)."""
+    """Delete an artist profile (Master Admin only)."""
     artist_service.delete_artist(db=db, artist_id=artist_id)

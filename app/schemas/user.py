@@ -56,11 +56,13 @@ class AdminUserCreate(BaseModel):
     username: str = Field(min_length=1, max_length=50)
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
-    role: str = Field(default="user", pattern="^(user|artist|admin)$")
+    role: str = Field(default="user", pattern="^(user|artist|admin)$",
+                       description="Role to assign. 'master_admin' can only be set via the database.")
 
 
 class AdminUserUpdate(BaseModel):
     username: str | None = Field(None, min_length=1, max_length=50)
     email: EmailStr | None = None
-    role: str | None = Field(None, pattern="^(user|artist|admin)$")
+    role: str | None = Field(None, pattern="^(user|artist|admin)$",
+                              description="Role to assign. 'master_admin' can only be set via the database.")
     password: str | None = Field(None, min_length=8, max_length=128)
