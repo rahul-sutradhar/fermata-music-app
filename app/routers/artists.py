@@ -108,13 +108,17 @@ def list_artist_singles(
 
     query = (
         select(Track)
-        .options(joinedload(Track.album).joinedload(Album.artist), joinedload(Track.artist_rel))
+        .options(
+            joinedload(Track.album).joinedload(Album.artist),
+            joinedload(Track.artist_rel),
+            joinedload(Track.artists),
+        )
         .where(Track.artist_id == artist_id, Track.album_id.is_(None))
         .order_by(Track.id)
         .offset(skip)
         .limit(limit)
     )
-    tracks = db.scalars(query).all()
+    tracks = db.scalars(query).unique().all()
     return [_to_response(t) for t in tracks]
 
 

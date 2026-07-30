@@ -161,13 +161,14 @@ def list_tracks(*, db: Session, skip: int, limit: int, q: str | None) -> list[Tr
         .options(
             joinedload(Track.album).joinedload(Album.artist),
             joinedload(Track.artist_rel),
+            joinedload(Track.artists),
         )
         .order_by(Track.id)
     )
     if q:
         query = query.where(Track.title.ilike(f"%{q}%"))
 
-    tracks = db.scalars(query.offset(skip).limit(limit)).all()
+    tracks = db.scalars(query.offset(skip).limit(limit)).unique().all()
     return [_to_response(track) for track in tracks]
 
 

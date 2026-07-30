@@ -66,11 +66,15 @@ def list_album_tracks(
     _get_album_or_404(db, album_id)
     query = (
         select(Track)
-        .options(joinedload(Track.album).joinedload(Album.artist))
+        .options(
+            joinedload(Track.album).joinedload(Album.artist),
+            joinedload(Track.artist_rel),
+            joinedload(Track.artists),
+        )
         .where(Track.album_id == album_id)
         .order_by(Track.id)
     )
-    tracks = db.scalars(query.offset(skip).limit(limit)).all()
+    tracks = db.scalars(query.offset(skip).limit(limit)).unique().all()
     return [_to_track_response(track) for track in tracks]
 
 

@@ -21,7 +21,7 @@ import {
   uploadTrackAudio,
   uploadTrackCover,
 } from '@/api/tracks'
-import { listArtists, createArtist, getArtistSingles } from '@/api/artists'
+import { listArtists, createArtist, getArtistSingles, getArtist, getArtistAlbums } from '@/api/artists'
 import {
   listAlbums,
   createAlbum,
@@ -154,13 +154,11 @@ export default function ArtistPanelPage() {
     if (!currentUser) return
     setLoading(true)
     try {
-      // 1. Fetch artist profile linked to current user
-      const allArtists = await listArtists(0, 200)
-      let profile = allArtists.find(
-        (a) => Number(a.user_id) === Number(currentUser.id) || Number(a.id) === Number(currentUser.id),
-      )
-
-      if (!profile) {
+      // 1. Fetch artist profile linked to current user directly by ID
+      let profile: Artist | null = null
+      try {
+        profile = await getArtist(currentUser.id)
+      } catch (err) {
         setProfileCreating(true)
         try {
           profile = await createArtist({ name: currentUser.username, user_id: currentUser.id })
@@ -174,38 +172,25 @@ export default function ArtistPanelPage() {
       setMyArtist(profile || null)
 
       if (profile) {
-        // 2. Fetch albums belonging to this artist
-        const allAlbums = await listAlbums(0, 200)
-        const filteredAlbums = allAlbums.filter((al) => Number(al.artist_id) === Number(profile!.id))
+        // 2. Fetch albums belonging directly to this artist
+        const filteredAlbums = await getArtistAlbums(profile.id, 0, 100).catch(() => [] as Album[])
         setMyAlbums(filteredAlbums)
 
-        // 3. Fetch tracks belonging to this artist
+        // 3. Fetch tracks belonging directly to this artist (album tracks + singles)
         const albumTracksPromises = filteredAlbums.map((al) =>
           getAlbumTracks(al.id, 0, 100).catch(() => [] as Track[]),
         )
         const singlesPromise = getArtistSingles(profile.id, 0, 100).catch(() => [] as Track[])
-        const allTracksPromise = listTracks(0, 200).catch(() => [] as Track[])
 
-        const [albumTrackGroups, singles, allTracks] = await Promise.all([
+        const [albumTrackGroups, singles] = await Promise.all([
           Promise.all(albumTracksPromises),
           singlesPromise,
-          allTracksPromise,
         ])
 
-        const myAlbumIds = new Set(filteredAlbums.map((al) => Number(al.id)))
         const trackMap = new Map<number, Track>()
 
         albumTrackGroups.flat().forEach((t) => trackMap.set(t.id, t))
         singles.forEach((t) => trackMap.set(t.id, t))
-        allTracks.forEach((t) => {
-          if (
-            (t.album_id && myAlbumIds.has(Number(t.album_id))) ||
-            (t.artist_id && Number(t.artist_id) === Number(profile!.id)) ||
-            (t.artist_name && t.artist_name.toLowerCase() === profile!.name.toLowerCase())
-          ) {
-            trackMap.set(t.id, t)
-          }
-        })
 
         setMyTracks(Array.from(trackMap.values()))
       }

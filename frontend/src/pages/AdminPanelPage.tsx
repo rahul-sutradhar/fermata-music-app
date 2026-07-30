@@ -104,6 +104,15 @@ export default function AdminPanelPage() {
   const currentUser = useAuthStore((s) => s.user)
   const [activeTab, setActiveTab] = useState<TabType>('tracks')
   const [searchQ, setSearchQ] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchQ)
+    }, 300)
+    return () => clearTimeout(handler)
+  }, [searchQ])
+
   const [loading, setLoading] = useState(true)
 
   // Player store integration
@@ -328,71 +337,72 @@ export default function AdminPanelPage() {
 
   const loadData = async () => {
     setLoading(true)
-    let allUsers: UserType[] = []
     try {
-      allUsers = await listUsers(0, 100)
-      const map: Record<number, string> = {}
-      allUsers.forEach(u => {
-        map[u.id] = u.username
-      })
-      setUserMap(map)
-    } catch (err) {
-      console.warn('Failed to load user list for admin map:', err)
-    }
+      const needsUsers = activeTab === 'users' || activeTab === 'admins' || activeTab === 'artists' || activeTab === 'ingestion'
+      let allUsers: UserType[] = []
+      if (needsUsers) {
+        try {
+          allUsers = await listUsers(0, 200)
+          const map: Record<number, string> = {}
+          allUsers.forEach(u => {
+            map[u.id] = u.username
+          })
+          setUserMap(map)
+        } catch (err) {
+          console.warn('Failed to load user list for admin map:', err)
+        }
+      }
 
-    try {
-      const trackSearch = activeTab === 'tracks' ? (searchQ || undefined) : undefined
-      const [allTracksData, allAlbumsData, allArtistsData, allRequestsData] = await Promise.all([
-        listTracks(0, 100, trackSearch).catch((err) => {
+      const q = debouncedSearch.trim()
+
+      if (activeTab === 'tracks') {
+        const allTracksData = await listTracks(0, 100, q || undefined).catch((err) => {
           console.error('Failed to load tracks:', err)
           return [] as Track[]
-        }),
-        listAlbums(0, 100).catch((err) => {
+        })
+        const sortedTracks = [...allTracksData].sort((a, b) => b.id - a.id)
+        setTracks(sortedTracks)
+      } else if (activeTab === 'albums') {
+        const allAlbumsData = await listAlbums(0, 200).catch((err) => {
           console.error('Failed to load albums:', err)
           return [] as Album[]
-        }),
-        listArtists(0, 100).catch((err) => {
+        })
+        const sortedAlbums = [...allAlbumsData].sort((a, b) => b.id - a.id)
+        setAlbums(sortedAlbums.filter(a => a.title.toLowerCase().includes(q.toLowerCase())))
+      } else if (activeTab === 'artists') {
+        const allArtistsData = await listArtists(0, 200).catch((err) => {
           console.error('Failed to load artists:', err)
           return [] as Artist[]
-        }),
-        listIngestionRequests().catch((err) => {
-          console.error('Failed to load ingestion requests:', err)
-          return [] as IngestionRequestItem[]
-        }),
-      ])
-
-      // Sort platform-wide tracks and albums by ID / date descending
-      const sortedTracks = [...allTracksData].sort((a, b) => b.id - a.id)
-      const sortedAlbums = [...allAlbumsData].sort((a, b) => b.id - a.id)
-
-      setTracks(sortedTracks)
-      setAlbums(sortedAlbums.filter(a => a.title.toLowerCase().includes(searchQ.toLowerCase())))
-      setAllArtistsList(allArtistsData)
-      setIngestionRequests(allRequestsData)
-
-      if (activeTab === 'users') {
+        })
+        setAllArtistsList(allArtistsData)
+        setArtists(allArtistsData.filter(a => (a.name || '').toLowerCase().includes(q.toLowerCase())))
+        setUsers(allUsers.filter(u =>
+          u.role === 'artist' && (
+            (u.username || '').toLowerCase().includes(q.toLowerCase()) ||
+            (u.email || '').toLowerCase().includes(q.toLowerCase())
+          )
+        ))
+        setArtistAccountsList(allUsers.filter(u => u.role === 'artist'))
+      } else if (activeTab === 'users') {
         setUsers(allUsers.filter(u =>
           u.role === 'user' && (
-            (u.username || '').toLowerCase().includes(searchQ.toLowerCase()) ||
-            (u.email || '').toLowerCase().includes(searchQ.toLowerCase())
+            (u.username || '').toLowerCase().includes(q.toLowerCase()) ||
+            (u.email || '').toLowerCase().includes(q.toLowerCase())
           )
         ))
       } else if (activeTab === 'admins') {
         setUsers(allUsers.filter(u =>
           (u.role === 'admin' || u.role === 'master_admin') && (
-            (u.username || '').toLowerCase().includes(searchQ.toLowerCase()) ||
-            (u.email || '').toLowerCase().includes(searchQ.toLowerCase())
+            (u.username || '').toLowerCase().includes(q.toLowerCase()) ||
+            (u.email || '').toLowerCase().includes(q.toLowerCase())
           )
         ))
-      } else if (activeTab === 'artists') {
-        setArtists(allArtistsData.filter(a => (a.name || '').toLowerCase().includes(searchQ.toLowerCase())))
-        setUsers(allUsers.filter(u =>
-          u.role === 'artist' && (
-            (u.username || '').toLowerCase().includes(searchQ.toLowerCase()) ||
-            (u.email || '').toLowerCase().includes(searchQ.toLowerCase())
-          )
-        ))
-        setArtistAccountsList(allUsers.filter(u => u.role === 'artist'))
+      } else if (activeTab === 'ingestion') {
+        const allRequestsData = await listIngestionRequests().catch((err) => {
+          console.error('Failed to load ingestion requests:', err)
+          return [] as IngestionRequestItem[]
+        })
+        setIngestionRequests(allRequestsData)
       }
     } catch (err) {
       console.error('Failed to load admin data tab:', err)
@@ -403,7 +413,7 @@ export default function AdminPanelPage() {
 
   useEffect(() => {
     loadData()
-  }, [activeTab, searchQ])
+  }, [activeTab, debouncedSearch])
 
   // Poll ingestion requests every 4 seconds if tab is active and there are queued or processing requests
   useEffect(() => {
@@ -1169,7 +1179,7 @@ export default function AdminPanelPage() {
                         {/* Album / Single badge */}
                         <span className="text-sm truncate hidden md:block">
                           {track.album_id ? (
-                            <span className="text-subtext font-medium truncate block">{album?.title || `Album #${track.album_id}`}</span>
+                            <span className="text-subtext font-medium truncate block">{track.album_title || `Album #${track.album_id}`}</span>
                           ) : (
                             <span className="px-2 py-0.5 rounded-full bg-spotify-green/20 text-spotify-green text-xs font-semibold">
                               Single
@@ -1446,13 +1456,13 @@ export default function AdminPanelPage() {
                             <div className="min-w-0">
                               <span className="text-sm font-medium truncate block">{al.title}</span>
                               <span className="text-xs text-subtext block md:hidden truncate">
-                                {artist?.name || 'Unknown Artist'} • {albumTracks.length} track{albumTracks.length === 1 ? '' : 's'}
+                                {al.artist_name || 'Unknown Artist'} • {albumTracks.length} track{albumTracks.length === 1 ? '' : 's'}
                               </span>
                             </div>
                           </div>
 
                           <span className="text-sm text-subtext truncate hidden md:block">
-                            {artist ? `${artist.name} (ID: ${artist.id})` : `Artist ID: ${al.artist_id}`}
+                            {al.artist_name ? `${al.artist_name} (ID: ${al.artist_id})` : `Artist ID: ${al.artist_id}`}
                           </span>
 
                           <span className="text-sm text-subtext tabular-nums hidden md:block">
