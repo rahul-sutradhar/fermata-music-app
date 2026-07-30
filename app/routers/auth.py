@@ -4,7 +4,8 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 
-from fastapi import APIRouter, Depends, HTTPException, status, Body, Request
+import requests
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Request, Header
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select, update
@@ -91,9 +92,39 @@ class CaptchaVerifyRequest(BaseModel):
     answer: str
 
 
+def verify_turnstile(token: str | None) -> bool:
+    """Validate Turnstile token with Cloudflare API."""
+    from app.core.config import settings
+    if settings.environment == "testing":
+        return True
+    if not token:
+        return False
+    
+    url = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+    payload = {
+        "secret": settings.turnstile_secret_key,
+        "response": token
+    }
+    try:
+        response = requests.post(url, data=payload, timeout=5)
+        res_data = response.json()
+        return res_data.get("success", False)
+    except Exception:
+        return False
+
+
 @router.post("/register", status_code=status.HTTP_200_OK)
-def register(payload: UserCreate, db: DbSession) -> Dict[str, str]:
+def register(
+    payload: UserCreate,
+    db: DbSession,
+    x_captcha_token: str | None = Header(default=None),
+) -> Dict[str, str]:
     """Register a new user with email verification. Protects against user enumeration side-channels."""
+    if not verify_turnstile(x_captcha_token):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="CAPTCHA verification failed. Please try again.",
+        )
     username_exists = db.scalar(select(User).where(User.username == payload.username))
     email_exists = db.scalar(select(User).where(User.email == payload.email))
 
@@ -167,9 +198,15 @@ def verify_otp(payload: VerifyOTPRequest, db: DbSession) -> Dict[str, str]:
 def login(
     request: Request,
     db: DbSession,
-    form_data: OAuth2PasswordRequestForm = Depends()
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    x_captcha_token: str | None = Header(default=None),
 ) -> Token:
     """OAuth2 password flow login with user enumeration timing protection and rate limit checking."""
+    if not verify_turnstile(x_captcha_token):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="CAPTCHA verification failed. Please try again.",
+        )
     client_host = request.client.host if request.client else "unknown"
     failed_key = f"failed_attempts:ip:{client_host}"
 

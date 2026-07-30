@@ -200,13 +200,13 @@ export default function Sidebar() {
               <User size={18} />
               {user.full_name || user.username}
             </NavLink>
-            {(user.role === 'artist' || user.role === 'admin') && (
+            {(user.role === 'artist' || user.role === 'admin' || user.role === 'master_admin') && (
               <NavLink to="/artist-studio" className={linkClass}>
                 <Radio size={18} />
                 Artist Studio
               </NavLink>
             )}
-            {user.role === 'admin' && (
+            {(user.role === 'admin' || user.role === 'master_admin') && (
               <NavLink to="/admin" className={linkClass}>
                 <Settings size={18} />
                 Admin Console

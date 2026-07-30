@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     # Redis / caching
     redis_url: str | None = None
 
+    # Cloudflare Turnstile
+    turnstile_secret_key: str = "1x0000000000000000000000000000000AA"
+    turnstile_site_key: str = "1x00000000000000000000AA"
+
+
     # Backblaze B2 S3-compatible storage
     b2_s3_endpoint_url: str | None = None
     b2_access_key_id: str | None = None

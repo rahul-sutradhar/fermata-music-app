@@ -1,17 +1,21 @@
 import { apiRequest } from './client'
 import type { User, TokenResponse } from '@/types'
 
-export function register(username: string, email: string, password: string, fullName?: string) {
+export function register(username: string, email: string, password: string, fullName?: string, captchaToken?: string) {
   return apiRequest<User>('/auth/register', {
     method: 'POST',
+    headers: captchaToken ? { 'X-CAPTCHA-Token': captchaToken } : {},
     body: JSON.stringify({ username, email, password, full_name: fullName }),
   })
 }
 
-export function login(username: string, password: string) {
+export function login(username: string, password: string, captchaToken?: string) {
   return apiRequest<TokenResponse>('/auth/login', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: { 
+      'Content-Type': 'application/x-www-form-urlencoded',
+      ...(captchaToken ? { 'X-CAPTCHA-Token': captchaToken } : {})
+    },
     body: new URLSearchParams({ username, password, grant_type: 'password' }),
   })
 }

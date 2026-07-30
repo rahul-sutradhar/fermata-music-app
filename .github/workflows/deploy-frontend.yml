@@ -43,6 +43,7 @@ jobs:
         working-directory: frontend
         env:
           VITE_API_BASE: ${{ vars.VITE_API_BASE || 'http://localhost:8000' }}
+          VITE_TURNSTILE_SITE_KEY: ${{ vars.VITE_TURNSTILE_SITE_KEY || '1x00000000000000000000AA' }}
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

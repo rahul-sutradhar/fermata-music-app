@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Music2 } from 'lucide-react'
 import { login } from '@/api/auth'
@@ -15,13 +15,66 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  const turnstileContainerRef = useRef<HTMLDivElement | null>(null)
+  const widgetIdRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    const renderTurnstile = () => {
+      if (turnstileContainerRef.current && (window as any).turnstile) {
+        if (widgetIdRef.current) {
+          try {
+            (window as any).turnstile.remove(widgetIdRef.current)
+          } catch (e) {}
+        }
+        try {
+          widgetIdRef.current = (window as any).turnstile.render(turnstileContainerRef.current, {
+            sitekey: import.meta.env.VITE_TURNSTILE_SITE_KEY || "1x00000000000000000000AA",
+            theme: 'dark',
+          })
+        } catch (err) {
+          console.error("Turnstile render error:", err)
+        }
+      }
+    }
+
+    if ((window as any).turnstile) {
+      renderTurnstile()
+    } else {
+      const interval = setInterval(() => {
+        if ((window as any).turnstile) {
+          renderTurnstile()
+          clearInterval(interval)
+        }
+      }, 500)
+      return () => clearInterval(interval)
+    }
+
+    return () => {
+      if (widgetIdRef.current && (window as any).turnstile) {
+        try {
+          (window as any).turnstile.remove(widgetIdRef.current)
+        } catch (e) {}
+      }
+    }
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
 
+    const captchaToken = widgetIdRef.current && (window as any).turnstile
+      ? (window as any).turnstile.getResponse(widgetIdRef.current)
+      : null
+
+    if (!captchaToken) {
+      setError('Please complete the CAPTCHA.')
+      setLoading(false)
+      return
+    }
+
     try {
-      const res = await login(username, password)
+      const res = await login(username, password, captchaToken)
       setAuth(res.access_token, res.refresh_token)
 
       // Fetch user info
@@ -31,6 +84,10 @@ export default function LoginPage() {
       navigate('/')
     } catch (err: any) {
       setError(err.message || 'Login failed')
+      // Reset Turnstile on error so they can solve it again
+      if (widgetIdRef.current && (window as any).turnstile) {
+        (window as any).turnstile.reset(widgetIdRef.current)
+      }
     } finally {
       setLoading(false)
     }
@@ -84,6 +141,8 @@ export default function LoginPage() {
                 placeholder="Your password"
               />
             </div>
+
+            <div ref={turnstileContainerRef} className="flex justify-center my-4"></div>
 
             <button
               type="submit"

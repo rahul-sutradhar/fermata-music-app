@@ -9,7 +9,7 @@ export default function ArtistRoute() {
     return <Navigate to="/login" replace />
   }
 
-  if (user?.role !== 'artist' && user?.role !== 'admin') {
+  if (user?.role !== 'artist' && user?.role !== 'admin' && user?.role !== 'master_admin') {
     return <Navigate to="/" replace />
   }
 

@@ -28,11 +28,9 @@ export default function RegisterPage() {
   const [otp, setOtp] = useState(['', '', '', '', '', ''])
   const [resendTimer, setResendTimer] = useState(0)
 
-  // CAPTCHA Lockout state
-  const [isLockedOut, setIsLockedOut] = useState(false)
-  const [captchaChallenge, setCaptchaChallenge] = useState<{ captcha_id: string; question: string } | null>(null)
-  const [captchaAnswer, setCaptchaAnswer] = useState('')
-  const [captchaToken, setCaptchaToken] = useState('')
+  // Turnstile state and refs
+  const turnstileContainerRef = useRef<HTMLDivElement | null>(null)
+  const widgetIdRef = useRef<string | null>(null)
 
   // Refs for 6-digit OTP code input boxes
   const otpRefs = useRef<(HTMLInputElement | null)[]>([])
@@ -44,6 +42,49 @@ export default function RegisterPage() {
       return () => clearInterval(interval)
     }
   }, [resendTimer])
+
+  // Turnstile widget initialization
+  useEffect(() => {
+    const renderTurnstile = () => {
+      if (turnstileContainerRef.current && (window as any).turnstile && step === 1) {
+        if (widgetIdRef.current) {
+          try {
+            (window as any).turnstile.remove(widgetIdRef.current)
+          } catch (e) {}
+        }
+        try {
+          widgetIdRef.current = (window as any).turnstile.render(turnstileContainerRef.current, {
+            sitekey: import.meta.env.VITE_TURNSTILE_SITE_KEY || "1x00000000000000000000AA",
+            theme: 'dark',
+          })
+        } catch (err) {
+          console.error("Turnstile render error:", err)
+        }
+      }
+    }
+
+    if (step === 1) {
+      if ((window as any).turnstile) {
+        renderTurnstile()
+      } else {
+        const interval = setInterval(() => {
+          if ((window as any).turnstile) {
+            renderTurnstile()
+            clearInterval(interval)
+          }
+        }, 500)
+        return () => clearInterval(interval)
+      }
+    }
+
+    return () => {
+      if (widgetIdRef.current && (window as any).turnstile) {
+        try {
+          (window as any).turnstile.remove(widgetIdRef.current)
+        } catch (e) {}
+      }
+    }
+  }, [step])
 
   // Live password requirements matching
   const metRequirements = REQUIREMENTS.filter((req) => req.test(password))
@@ -60,50 +101,22 @@ export default function RegisterPage() {
   }
   const strength = getStrengthLabel()
 
-  // Fetch CAPTCHA details from backend
-  const fetchCaptcha = async () => {
-    try {
-      setCaptchaAnswer('')
-      const data = await apiRequest<{ captcha_id: string; question: string }>('/auth/captcha')
-      setCaptchaChallenge(data)
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch CAPTCHA challenge.')
-    }
-  }
-
-  // Handle CAPTCHA Verification submit
-  const handleCaptchaVerify = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!captchaChallenge) return
-    setError('')
-    setLoading(true)
-    try {
-      const data = await apiRequest<{ success: boolean; captcha_token: string }>('/auth/captcha/verify', {
-        method: 'POST',
-        body: JSON.stringify({
-          captcha_id: captchaChallenge.captcha_id,
-          answer: captchaAnswer,
-        }),
-      })
-      if (data.success) {
-        setCaptchaToken(data.captcha_token)
-        setIsLockedOut(false)
-        setCaptchaChallenge(null)
-      }
-    } catch (err: any) {
-      setError(err.message || 'CAPTCHA validation failed. Try again.')
-      fetchCaptcha()
-    } finally {
-      setLoading(false)
-    }
-  }
-
   // Step 1: Submit signup registration details
   const handleDetailsSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!isPasswordStrong || !passwordsMatch) return
     setError('')
     setLoading(true)
+
+    const captchaToken = widgetIdRef.current && (window as any).turnstile
+      ? (window as any).turnstile.getResponse(widgetIdRef.current)
+      : null
+
+    if (!captchaToken) {
+      setError('Please complete the CAPTCHA.')
+      setLoading(false)
+      return
+    }
 
     try {
       await apiRequest('/auth/register', {
@@ -114,18 +127,16 @@ export default function RegisterPage() {
           password,
           full_name: fullName,
         }),
-        headers: captchaToken ? { 'X-CAPTCHA-Token': captchaToken } : {},
+        headers: { 'X-CAPTCHA-Token': captchaToken },
       })
       // Successful registration initialization: Proceed to OTP validation
       setStep(2)
       setResendTimer(60)
     } catch (err: any) {
-      // Check if locked out (rate limited)
-      if (err.status === 429 || err.message.toLowerCase().includes('captcha')) {
-        setIsLockedOut(true)
-        fetchCaptcha()
-      } else {
-        setError(err.message || 'Registration failed')
+      setError(err.message || 'Registration failed')
+      // Reset Turnstile on error so they can solve it again
+      if (widgetIdRef.current && (window as any).turnstile) {
+        (window as any).turnstile.reset(widgetIdRef.current)
       }
     } finally {
       setLoading(false)
@@ -173,16 +184,10 @@ export default function RegisterPage() {
           email,
           otp_code: otpCode,
         }),
-        headers: captchaToken ? { 'X-CAPTCHA-Token': captchaToken } : {},
       })
       setStep(3) // Proceed to registration success screen
     } catch (err: any) {
-      if (err.status === 429 || err.message.toLowerCase().includes('captcha')) {
-        setIsLockedOut(true)
-        fetchCaptcha()
-      } else {
-        setError(err.message || 'Invalid verification code')
-      }
+      setError(err.message || 'Invalid verification code')
     } finally {
       setLoading(false)
     }
@@ -199,6 +204,15 @@ export default function RegisterPage() {
   const handleResendOtp = async () => {
     if (resendTimer > 0) return
     setError('')
+    const captchaToken = widgetIdRef.current && (window as any).turnstile
+      ? (window as any).turnstile.getResponse(widgetIdRef.current)
+      : null
+
+    if (!captchaToken) {
+      setError('Please complete the CAPTCHA to resend the code.')
+      return
+    }
+
     try {
       await apiRequest('/auth/register', {
         method: 'POST',
@@ -208,92 +222,19 @@ export default function RegisterPage() {
           password,
           full_name: fullName,
         }),
-        headers: captchaToken ? { 'X-CAPTCHA-Token': captchaToken } : {},
+        headers: { 'X-CAPTCHA-Token': captchaToken },
       })
       setResendTimer(60)
       setOtp(['', '', '', '', '', ''])
       otpRefs.current[0]?.focus()
     } catch (err: any) {
-      if (err.status === 429 || err.message.toLowerCase().includes('captcha')) {
-        setIsLockedOut(true)
-        fetchCaptcha()
-      } else {
-        setError(err.message || 'Resend failed')
+      setError(err.message || 'Resend failed')
+      if (widgetIdRef.current && (window as any).turnstile) {
+        (window as any).turnstile.reset(widgetIdRef.current)
       }
     }
   }
 
-  // Render CAPTCHA Fallback View
-  if (isLockedOut && captchaChallenge) {
-    return (
-      <div className="min-h-screen bg-base flex items-center justify-center p-4 page-transition">
-        <div className="w-full max-w-sm">
-          {/* Logo */}
-          <div className="flex items-center justify-center gap-2 mb-8">
-            <div className="w-10 h-10 rounded-xl bg-spotify-green flex items-center justify-center">
-              <Music2 size={22} className="text-black" />
-            </div>
-            <span className="text-2xl font-bold tracking-tight text-primary">Fermata</span>
-          </div>
-
-          <div className="bg-surface-elevated rounded-2xl p-8 border border-surface-highlight shadow-2xl">
-            <div className="flex flex-col items-center mb-6">
-              <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mb-3">
-                <ShieldAlert className="text-red-500" size={24} />
-              </div>
-              <h1 className="text-xl font-bold text-center">Security Verification</h1>
-              <p className="text-xs text-subtext text-center mt-1">
-                Too many attempts. Please solve the challenge below to continue.
-              </p>
-            </div>
-
-            {error && (
-              <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center">
-                {error}
-              </div>
-            )}
-
-            <form onSubmit={handleCaptchaVerify} className="space-y-6">
-              <div className="bg-surface-highlight/40 border border-surface-highlight rounded-xl p-4 text-center">
-                <span className="text-xs text-subtext block mb-1">Challenge Question</span>
-                <span className="text-lg font-bold text-primary tracking-wide">
-                  {captchaChallenge.question}
-                </span>
-              </div>
-
-              <div>
-                <input
-                  type="text"
-                  value={captchaAnswer}
-                  onChange={(e) => setCaptchaAnswer(e.target.value)}
-                  required
-                  placeholder="Your answer"
-                  className="w-full px-4 py-2.5 rounded-lg bg-surface-highlight text-sm text-primary outline-none border-2 border-transparent focus:border-spotify-green/50 text-center transition-colors font-semibold"
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={fetchCaptcha}
-                  className="flex-1 py-2.5 rounded-full bg-surface-highlight border border-surface-highlight hover:bg-surface text-sm font-semibold transition-all flex items-center justify-center gap-1.5"
-                >
-                  <RefreshCw size={14} /> Refresh
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 py-2.5 rounded-full bg-spotify-green hover:bg-spotify-green-hover text-black font-bold text-sm transition-all"
-                >
-                  {loading ? 'Verifying...' : 'Verify'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="min-h-screen bg-base flex items-center justify-center p-4 page-transition">
@@ -443,6 +384,8 @@ export default function RegisterPage() {
                 )}
               </div>
 
+              <div ref={turnstileContainerRef} className="flex justify-center my-3"></div>
+
               <button
                 type="submit"
                 disabled={loading || !isPasswordStrong || !passwordsMatch}
@@ -511,6 +454,9 @@ export default function RegisterPage() {
             </form>
 
             <div className="mt-6 text-center space-y-4 pt-4 border-t border-surface-highlight/50">
+              {resendTimer === 0 && (
+                <div ref={turnstileContainerRef} className="flex justify-center my-3"></div>
+              )}
               <button
                 type="button"
                 onClick={handleResendOtp}

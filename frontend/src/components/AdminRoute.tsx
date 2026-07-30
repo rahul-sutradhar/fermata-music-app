@@ -9,7 +9,7 @@ export default function AdminRoute() {
     return <Navigate to="/login" replace />
   }
 
-  if (user?.role !== 'admin') {
+  if (user?.role !== 'admin' && user?.role !== 'master_admin') {
     return <Navigate to="/" replace />
   }
 

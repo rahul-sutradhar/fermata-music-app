@@ -350,7 +350,7 @@ export default function AdminPanelPage() {
         ))
       } else if (activeTab === 'admins') {
         setUsers(allUsers.filter(u =>
-          u.role === 'admin' && (
+          (u.role === 'admin' || u.role === 'master_admin') && (
             (u.username || '').toLowerCase().includes(searchQ.toLowerCase()) ||
             (u.email || '').toLowerCase().includes(searchQ.toLowerCase())
           )
@@ -565,7 +565,7 @@ export default function AdminPanelPage() {
     e.preventDefault()
     try {
       if (editingUser) {
-        if (Number(editingUser.id) === 1 || editingUser.username.toLowerCase() === 'admin') {
+        if (Number(editingUser.id) === 1 || editingUser.username.toLowerCase() === 'admin' || editingUser.role === 'master_admin') {
           alert('Master Admin profile is read-only and cannot be updated.')
           setUserModalOpen(false)
           return
@@ -606,7 +606,8 @@ export default function AdminPanelPage() {
   }
 
   const handleUserDelete = async (id: number) => {
-    if (id === 1) {
+    const targetUser = users.find(u => Number(u.id) === Number(id))
+    if (id === 1 || targetUser?.role === 'master_admin') {
       alert('Master Admin account cannot be deleted')
       return
     }
@@ -1896,7 +1897,7 @@ export default function AdminPanelPage() {
       {userModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           {(() => {
-            const isMasterAdminTarget = editingUser && (Number(editingUser.id) === 1 || editingUser.username.toLowerCase() === 'admin')
+            const isMasterAdminTarget = editingUser && (Number(editingUser.id) === 1 || editingUser.username.toLowerCase() === 'admin' || editingUser.role === 'master_admin')
             const isSecondaryAdminEditingOtherAdmin =
               editingUser &&
               currentUser?.role === 'admin' &&

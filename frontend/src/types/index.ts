@@ -3,7 +3,7 @@ export interface User {
   username: string
   email: string
   full_name?: string | null
-  role?: 'user' | 'artist' | 'admin'
+  role?: 'user' | 'artist' | 'admin' | 'master_admin'
   created_at?: string | null
   updated_at?: string | null
 }
