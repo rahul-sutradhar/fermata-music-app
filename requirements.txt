@@ -30,3 +30,7 @@ pgvector>=0.5.0
 # Search & Scraping
 ddgs>=9.14.4
 numpy>=2.0.0
+
+# Hugging Face Spaces Setup
+gradio
+

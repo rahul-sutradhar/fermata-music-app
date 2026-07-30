@@ -1,3 +1,14 @@
+---
+title: Fermata Music Backend
+emoji: 🎵
+colorFrom: green
+colorTo: gray
+sdk: gradio
+app_file: app.py
+pinned: false
+license: mit
+---
+
 <div align="center">
 
 <br/>

@@ -1,7 +1,7 @@
 """add_master_admin_role
 
 Revision ID: a1b2c3d4e5f6
-Revises: f8f44fd6b62b
+Revises: 3e90ff077abd
 Create Date: 2026-07-30
 
 Adds 'master_admin' as a valid discriminator value for the ``role`` column
@@ -18,7 +18,7 @@ import sqlalchemy as sa
 
 
 revision: str = "a1b2c3d4e5f6"
-down_revision: Union[str, Sequence[str], None] = "f8f44fd6b62b"
+down_revision: Union[str, Sequence[str], None] = "3e90ff077abd"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
