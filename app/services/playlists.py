@@ -233,7 +233,20 @@ def save_playlist_cover(
     _ensure_playlist_owner(playlist, user_id)
 
     content_type = cover_file.content_type or ""
-    if not content_type.startswith("image/"):
+    if not content_type or content_type in ("application/octet-stream", "binary/octet-stream"):
+        guessed_type, _ = mimetypes.guess_type(cover_file.filename or "")
+        if guessed_type:
+            content_type = guessed_type
+
+    is_image = False
+    if content_type and content_type.startswith("image/"):
+        is_image = True
+    else:
+        suffix = Path(cover_file.filename or "").suffix.lower()
+        if suffix in {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".svg"}:
+            is_image = True
+
+    if not is_image:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cover image must be an image file",

@@ -186,7 +186,22 @@ def upload_track_audio(
     track = _get_track_or_404(db, track_id)
     _ensure_can_write_to_track(db, track, user)
 
-    if file.content_type is None or not file.content_type.startswith("audio/"):
+    import mimetypes
+    content_type = file.content_type
+    if content_type is None or content_type in ("application/octet-stream", "application/x-zip-compressed", "binary/octet-stream"):
+        guessed_type, _ = mimetypes.guess_type(file.filename or "")
+        if guessed_type:
+            content_type = guessed_type
+
+    is_audio = False
+    if content_type and content_type.startswith("audio/"):
+        is_audio = True
+    else:
+        suffix = Path(file.filename or "").suffix.lower()
+        if suffix in {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".wma", ".webm", ".mp4", ".opus"}:
+            is_audio = True
+
+    if not is_audio:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Uploaded file must be an audio file",
@@ -427,7 +442,22 @@ def upload_track_cover(
     track = _get_track_or_404(db, track_id)
     _ensure_can_write_to_track(db, track, user)
 
-    if file.content_type is None or not file.content_type.startswith("image/"):
+    import mimetypes
+    content_type = file.content_type
+    if content_type is None or content_type in ("application/octet-stream", "binary/octet-stream"):
+        guessed_type, _ = mimetypes.guess_type(file.filename or "")
+        if guessed_type:
+            content_type = guessed_type
+
+    is_image = False
+    if content_type and content_type.startswith("image/"):
+        is_image = True
+    else:
+        suffix = Path(file.filename or "").suffix.lower()
+        if suffix in {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".svg"}:
+            is_image = True
+
+    if not is_image:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Uploaded file must be an image file",
