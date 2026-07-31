@@ -62,7 +62,7 @@ jobs:
       - name: Run tests
         run: python -m pytest -q
         env:
-          DATABASE_URL: postgresql://${{ secrets.DATABASE_USERNAME }}:${{ secrets.DATABASE_PASSWORD }}@${{ secrets.DATABASE_HOSTNAME }}:${{ secrets.DATABASE_PORT }}/${{ secrets.DATABASE_NAME }}
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fermata_test
           SECRET_KEY: test-secret-key
           ALGORITHM: HS256
           ACCESS_TOKEN_EXPIRE_MINUTES: 30

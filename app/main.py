@@ -14,6 +14,10 @@ from alembic.config import Config
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if settings.environment == "testing":
+        yield
+        return
+
     try:
         from app.db.session import engine
         from app.db.base import Base
