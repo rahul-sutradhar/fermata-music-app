@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   Home,
@@ -11,20 +11,17 @@ import {
   Moon,
   User,
   Settings,
-  X,
-  UserCheck,
   History,
   Radio,
   Trash2,
   HelpCircle,
   Headphones,
   Sliders,
-  ChevronDown,
   Palette,
 } from 'lucide-react'
 
 import { useAuthStore } from '@/store/authStore'
-import { useThemeStore, ACCENT_COLORS, type ThemeAccent } from '@/store/themeStore'
+import { useThemeStore } from '@/store/themeStore'
 import { usePlayerStore } from '@/store/playerStore'
 import { getMyPlaylists, createPlaylist, deletePlaylist } from '@/api/playlists'
 import { listArtists } from '@/api/artists'
@@ -51,26 +48,15 @@ export default function Sidebar() {
   const token = useAuthStore((s) => s.token)
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
-  const { theme, toggleTheme, accent, setAccent } = useThemeStore()
+  const { theme, toggleTheme, accentColor, setAccentColor } = useThemeStore()
   const currentTrack = usePlayerStore((s) => s.currentTrack)
   const is3DEnabled = usePlayerStore((s) => s.is3DEnabled)
   const eqPreset = usePlayerStore((s) => s.eqPreset)
   const isEQEnabled = usePlayerStore((s) => s.isEQEnabled)
   const navigate = useNavigate()
+  const colorInputRef = useRef<HTMLInputElement>(null)
 
   const [playlists, setPlaylists] = useState<Playlist[]>([])
-  const [isThemeDropdownOpen, setIsThemeDropdownOpen] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setIsThemeDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleOutsideClick)
-    return () => document.removeEventListener('mousedown', handleOutsideClick)
-  }, [])
 
   const fetchPlaylists = () => {
     if (token) {
@@ -109,9 +95,10 @@ export default function Sidebar() {
   }
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${isActive
-      ? 'bg-surface-highlight text-primary'
-      : 'text-subtext hover:text-primary hover:bg-surface-highlight/50'
+    `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+      isActive
+        ? 'nav-active'
+        : 'text-subtext hover:text-primary hover:bg-surface-highlight/50'
     }`
 
   return (
@@ -119,10 +106,10 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="p-6 pb-2">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-spotify-green flex items-center justify-center">
-            <Music2 size={18} className="text-black" />
+          <div className="w-8 h-8 rounded-lg bg-spotify-green flex items-center justify-center shadow-lg" style={{ boxShadow: '0 0 12px var(--accent-glow)' }}>
+            <Music2 size={18} className="text-white" />
           </div>
-          <span className="text-xl font-bold tracking-tight">Fermata</span>
+          <span className="text-xl font-bold tracking-tight accent-glow">Fermata</span>
         </div>
       </div>
 
@@ -231,45 +218,28 @@ export default function Sidebar() {
           )}
         </button>
 
-        {/* Accent Theme Picker Dropdown */}
-        <div ref={dropdownRef} className="relative w-full">
-          <button
-            onClick={() => setIsThemeDropdownOpen(!isThemeDropdownOpen)}
-            className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-subtext hover:text-primary hover:bg-surface-highlight/50 transition-colors cursor-pointer"
-          >
-            <Palette size={18} />
-            <span>Theme Accent</span>
-            <span
-              className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded leading-none uppercase transition-all duration-300"
-              style={{
-                backgroundColor: ACCENT_COLORS[accent].primary,
-                color: accent === 'amber' ? '#000000' : '#ffffff'
-              }}
-            >
-              {accent}
-            </span>
-          </button>
-
-          {isThemeDropdownOpen && (
-            <div className="absolute left-0 right-0 bottom-full mb-1.5 z-10 bg-surface-elevated border border-surface-highlight/60 rounded-lg shadow-xl overflow-hidden py-1">
-              {(Object.keys(ACCENT_COLORS) as Array<ThemeAccent>).map((name) => (
-                <button
-                  key={name}
-                  onClick={() => {
-                    setAccent(name)
-                    setIsThemeDropdownOpen(false)
-                  }}
-                  className={`flex items-center gap-3 w-full px-3 py-2 text-xs text-left cursor-pointer hover:bg-surface-highlight/60 transition-colors ${
-                    accent === name ? 'text-spotify-green bg-surface-highlight/20 font-bold' : 'text-subtext'
-                  }`}
-                >
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: ACCENT_COLORS[name].primary }} />
-                  <span className="capitalize">{name}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* Accent Colour Picker */}
+        <button
+          onClick={() => colorInputRef.current?.click()}
+          className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-subtext hover:text-primary hover:bg-surface-highlight/50 transition-colors cursor-pointer"
+        >
+          <Palette size={18} />
+          <span>Accent Colour</span>
+          {/* Colour swatch — clicking the row triggers the hidden native picker */}
+          <span
+            className="ml-auto w-4 h-4 rounded-full border-2 border-white/20 shadow-sm flex-shrink-0 transition-all duration-300"
+            style={{ backgroundColor: accentColor }}
+          />
+          <input
+            ref={colorInputRef}
+            type="color"
+            value={accentColor}
+            onChange={(e) => setAccentColor(e.target.value)}
+            className="sr-only"
+            tabIndex={-1}
+            aria-label="Pick accent colour"
+          />
+        </button>
 
         <button
           onClick={toggleTheme}

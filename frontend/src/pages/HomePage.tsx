@@ -112,7 +112,7 @@ export default function HomePage() {
       {/* Recently Played Music Quick Grid */}
       {recentTracks.length > 0 && (
         <section>
-          <h2 className="text-xl font-bold mb-4">Recently Played Music</h2>
+          <h2 className="text-xl font-bold mb-4 text-spotify-green">Recently Played Music</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {recentTracks.map((track) => (
               <button
@@ -121,7 +121,8 @@ export default function HomePage() {
                   setQueue(recentTracks)
                   setTrack(track)
                 }}
-                className="flex items-center gap-3 bg-surface-highlight/40 hover:bg-surface-highlight/95 rounded-md overflow-hidden transition-all duration-200 group text-left p-0 border border-transparent hover:border-surface-highlight cursor-pointer"
+                className="flex items-center gap-3 bg-surface-highlight/40 hover:bg-surface-highlight/95 rounded-md overflow-hidden transition-all duration-200 group text-left p-0 border border-transparent hover:border-spotify-green/40 cursor-pointer"
+                style={{ '--tw-shadow': '0 0 8px var(--accent-glow)' } as React.CSSProperties}
               >
                 {track.cover_url ? (
                   <img
@@ -149,7 +150,7 @@ export default function HomePage() {
       {/* Most Played Music */}
       {mostPlayedTracks.length > 0 && (
         <section>
-          <h2 className="text-xl font-bold mb-4">
+          <h2 className="text-xl font-bold mb-4 text-spotify-green">
             {hasHistory ? "Your Most Played Tracks" : "Popular Tracks"}
           </h2>
           <div className="bg-surface-elevated/20 rounded-xl p-4 border border-surface-highlight/30">

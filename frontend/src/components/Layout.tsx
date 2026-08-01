@@ -15,7 +15,7 @@ import type { Artist } from '@/types'
 export default function Layout() {
   const token = useAuthStore((s) => s.token)
   const user = useAuthStore((s) => s.user)
-  const { theme, toggleTheme, accent } = useThemeStore()
+  const { theme, toggleTheme, accentColor } = useThemeStore()
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
@@ -31,10 +31,10 @@ export default function Layout() {
   const artistDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (accent) {
-      applyAccent(accent)
+    if (accentColor) {
+      applyAccent(accentColor)
     }
-  }, [accent])
+  }, [accentColor])
 
   useEffect(() => {
     const handleOpenModal = () => setIsModalOpen(true)

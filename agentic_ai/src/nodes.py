@@ -89,7 +89,8 @@ def _resolve_candidate_url(cand: Dict[str, Any]) -> str:
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'extractor_args': {
             'youtube': {
-                'player_client': ['web_embedded', 'android', 'ios']
+                'player_client': ['tv_embedded', 'mweb', 'android_vr', 'ios'],
+                'player_skip': ['configs'],
             }
         }
     }
@@ -228,7 +229,8 @@ def search_candidates(state: AgenticState) -> Dict[str, Any]:
                 'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'extractor_args': {
                     'youtube': {
-                        'player_client': ['web_embedded', 'android', 'ios']
+                        'player_client': ['tv_embedded', 'mweb', 'android_vr', 'ios'],
+                        'player_skip': ['configs'],
                     }
                 }
             }
@@ -544,40 +546,73 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             'quiet': False,
             'no_warnings': False,
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'remote_components': ['ejs:npm', 'ejs:github'],
             'outtmpl': temp_file_path + '.%(ext)s',
         }
 
-        # --- Attempt 1: no cookies, lightweight clients (works for most public videos) ---
-        ydl_opts_no_cookies = {
+        # --- Attempt 1: tv_embedded + mweb clients (YouTube bot-checks these the least) ---
+        ydl_opts_tv = {
             **common_opts,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['web_embedded', 'android', 'ios']
+                    'player_client': ['tv_embedded', 'mweb'],
+                    'player_skip': ['configs'],
                 }
             },
         }
-        new_logs.append("[Pipeline] Branch A: Attempting download without cookies (web_embedded/android/ios clients)...")
-        entry = _try_download(ydl_opts_no_cookies, target_link, "no-cookies/web_embedded")
+        new_logs.append("[Pipeline] Branch A: Attempt 1 — tv_embedded/mweb clients (bot-detection bypass)...")
+        entry = _try_download(ydl_opts_tv, target_link, "tv_embedded/mweb")
 
-        # --- Attempt 2: fall back to cookies + default client if attempt 1 failed ---
+        # --- Attempt 2: android_vr + ios (signed app clients, rarely bot-checked) ---
+        if entry is None:
+            ydl_opts_app = {
+                **common_opts,
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['android_vr', 'ios'],
+                    }
+                },
+            }
+            new_logs.append("[Pipeline] Branch A: Attempt 2 — android_vr/ios clients...")
+            entry = _try_download(ydl_opts_app, target_link, "android_vr/ios")
+
+        # --- Attempt 3: ytsearch fallback with tv_embedded (if direct URL failed) ---
+        if entry is None and "youtube.com/watch" in target_link:
+            search_fallback = f"ytsearch1:{title} {artist}"
+            new_logs.append(f"[Pipeline] Branch A: Attempt 3 — ytsearch fallback: '{search_fallback}'")
+            entry = _try_download(ydl_opts_tv, search_fallback, "tv_embedded/ytsearch-fallback")
+
+        # --- Attempt 4: cookies + default client (if cookies file exists) ---
         if entry is None and (temp_cookie_file or cookie_path):
-            new_logs.append("[Pipeline] Branch A: Falling back to cookie-authenticated default client...")
+            new_logs.append("[Pipeline] Branch A: Attempt 4 — cookie-authenticated default client...")
             ydl_opts_with_cookies = {
                 **common_opts,
                 'cookiefile': temp_cookie_file or cookie_path,
-                'js_runtimes': {'node': {}},
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['tv_embedded', 'mweb', 'android_vr', 'ios'],
+                    }
+                },
             }
-            entry = _try_download(ydl_opts_with_cookies, target_link, "cookies/default-client")
+            entry = _try_download(ydl_opts_with_cookies, target_link, "cookies/multi-client")
 
         if entry is None:
-            raise ValueError("All download attempts failed (no-cookies and cookie-authenticated).")
+            raise ValueError("All download attempts failed. YouTube is blocking access — add a cookies.txt file to the server root to authenticate.")
 
         ext = entry.get('ext', 'mp3')
         duration_seconds = int(entry.get('duration') or 200)
         new_logs.append(f"[Pipeline] Branch A: Matched and downloaded YouTube video: '{entry.get('title', 'Unknown')}' (Duration: {duration_seconds}s)")
 
+        # yt-dlp may post-process the file and change its extension, so prefer
+        # the entry['ext'] path but fall back to a glob scan if the file isn't there.
         downloaded_file = f"{temp_file_path}.{ext}"
+        if not os.path.exists(downloaded_file):
+            import glob
+            candidates = glob.glob(f"{temp_file_path}.*")
+            if candidates:
+                downloaded_file = candidates[0]
+                new_logs.append(f"[Pipeline] Branch A: entry ext '{ext}' not found on disk; using discovered file: '{os.path.basename(downloaded_file)}'")
+            else:
+                raise FileNotFoundError(f"Downloaded audio file not found. Expected: {downloaded_file}")
 
         hls_playlist_key = None
         hls_key_key = None

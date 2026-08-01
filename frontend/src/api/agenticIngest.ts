@@ -86,7 +86,8 @@ export async function listIngestionRequests(): Promise<IngestionRequestItem[]> {
 export async function approveIngestionRequest(requestId: number, sourceUrl?: string): Promise<{ message: string }> {
   return apiRequest<{ message: string }>(`/api/v1/agentic-ingest/requests/${requestId}/approve`, {
     method: 'POST',
-    body: sourceUrl ? JSON.stringify({ source_url: sourceUrl }) : undefined,
+    // Always send a JSON body so FastAPI doesn't receive an empty body with Content-Type: application/json (which causes a 422)
+    body: JSON.stringify(sourceUrl ? { source_url: sourceUrl } : {}),
   })
 }
 

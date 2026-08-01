@@ -688,7 +688,11 @@ export default function NowPlayingBar() {
       {/* Desktop view */}
       <div
         onClick={() => usePlayerStore.setState({ isExpanded: true })}
-        className="hidden md:flex h-20 bg-surface-elevated border-t border-surface-highlight items-center px-4 gap-4 justify-between shrink-0 cursor-pointer hover:bg-surface-elevated/80 transition-colors"
+        className="hidden md:flex h-20 bg-surface-elevated items-center px-4 gap-4 justify-between shrink-0 cursor-pointer hover:bg-surface-elevated/80 transition-colors"
+        style={{
+          borderTop: '1px solid var(--spotify-green)',
+          boxShadow: '0 -4px 24px var(--accent-glow)',
+        }}
       >
         {/* Track Info — Left */}
         <div className="flex items-center gap-3 min-w-0 w-[240px] shrink-0">

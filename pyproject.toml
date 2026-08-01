@@ -23,6 +23,8 @@ dependencies = [
     "numpy>=2.0.0",
     "gradio",
     "websockets>=16.0",
+    "langchain-core>=1.5.3",
+    "langchain-mistralai>=1.1.6",
 ]
 
 [build-system]
