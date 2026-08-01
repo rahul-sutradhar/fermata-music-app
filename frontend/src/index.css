@@ -5,6 +5,7 @@
   --color-spotify-green: var(--spotify-green);
   --color-spotify-green-hover: var(--spotify-green-hover);
   --color-accent-muted: var(--accent-muted);
+  --color-accent-text: var(--accent-text);
   --color-surface: var(--surface);
   --color-surface-elevated: var(--surface-elevated);
   --color-surface-highlight: var(--surface-highlight);
@@ -24,6 +25,7 @@
   --accent-muted: rgba(124, 58, 237, 0.12);
   --accent-glow: rgba(124, 58, 237, 0.4);
   --accent-subtle: rgba(124, 58, 237, 0.06);
+  --accent-text: #ffffff; /* white text on dark violet default */
 
   --surface: #121212;
   --surface-elevated: #1a1a1a;
@@ -59,15 +61,9 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-/* Accent glow text — used on headings and active items */
+/* Accent colour on headings and active items — no glow, colour only */
 .accent-glow {
   color: var(--spotify-green);
-  text-shadow: 0 0 20px var(--accent-glow), 0 0 40px var(--accent-glow);
-}
-
-/* No glow in light mode — colour only */
-.light .accent-glow {
-  text-shadow: none;
 }
 
 /* Active nav accent background pill */

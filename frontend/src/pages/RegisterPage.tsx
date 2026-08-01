@@ -389,7 +389,7 @@ export default function RegisterPage() {
               <button
                 type="submit"
                 disabled={loading || !isPasswordStrong || !passwordsMatch}
-                className="w-full py-2.5 rounded-full bg-spotify-green text-black font-bold text-sm hover:bg-spotify-green-hover transition-all hover:scale-[1.02] disabled:opacity-40 disabled:hover:scale-100 mt-6 cursor-pointer flex items-center justify-center gap-2"
+                className="w-full py-2.5 rounded-full bg-spotify-green text-accent-text font-bold text-sm hover:bg-spotify-green-hover transition-all hover:scale-[1.02] disabled:opacity-40 disabled:hover:scale-100 mt-6 cursor-pointer flex items-center justify-center gap-2"
               >
                 {loading ? 'Creating...' : 'Sign Up'}
               </button>
@@ -447,7 +447,7 @@ export default function RegisterPage() {
               <button
                 type="submit"
                 disabled={loading || otp.join('').length < 6}
-                className="w-full py-2.5 rounded-full bg-spotify-green text-black font-bold text-sm hover:bg-spotify-green-hover transition-all hover:scale-[1.02] disabled:opacity-40 disabled:hover:scale-100 cursor-pointer"
+                className="w-full py-2.5 rounded-full bg-spotify-green text-accent-text font-bold text-sm hover:bg-spotify-green-hover transition-all hover:scale-[1.02] disabled:opacity-40 disabled:hover:scale-100 cursor-pointer"
               >
                 {loading ? 'Verifying...' : 'Verify Code'}
               </button>
@@ -491,7 +491,7 @@ export default function RegisterPage() {
 
             <button
               onClick={() => navigate('/login')}
-              className="w-full py-2.5 rounded-full bg-spotify-green text-black font-bold text-sm hover:bg-spotify-green-hover transition-all hover:scale-[1.02] cursor-pointer"
+              className="w-full py-2.5 rounded-full bg-spotify-green text-accent-text font-bold text-sm hover:bg-spotify-green-hover transition-all hover:scale-[1.02] cursor-pointer"
             >
               Proceed to Login
             </button>

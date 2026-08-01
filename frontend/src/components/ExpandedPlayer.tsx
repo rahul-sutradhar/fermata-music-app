@@ -114,9 +114,21 @@ export default function ExpandedPlayer() {
     handleSeek(e.clientX)
   }, [handleSeek])
 
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    e.preventDefault()
+    isDragging.current = true
+    handleSeek(e.touches[0].clientX)
+  }, [handleSeek])
+
   const handleLyricsMouseDown = useCallback((e: React.MouseEvent) => {
     isLyricsDragging.current = true
     handleLyricsSeek(e.clientX)
+  }, [handleLyricsSeek])
+
+  const handleLyricsTouchStart = useCallback((e: React.TouchEvent) => {
+    e.preventDefault()
+    isLyricsDragging.current = true
+    handleLyricsSeek(e.touches[0].clientX)
   }, [handleLyricsSeek])
 
   useEffect(() => {
@@ -134,12 +146,32 @@ export default function ExpandedPlayer() {
       isLyricsDragging.current = false
     }
 
+    const handleTouchMoveGlobal = (e: TouchEvent) => {
+      if (isDragging.current) {
+        e.preventDefault()
+        handleSeek(e.touches[0].clientX)
+      }
+      if (isLyricsDragging.current) {
+        e.preventDefault()
+        handleLyricsSeek(e.touches[0].clientX)
+      }
+    }
+
+    const handleTouchEndGlobal = () => {
+      isDragging.current = false
+      isLyricsDragging.current = false
+    }
+
     window.addEventListener('mousemove', handleMouseMoveGlobal)
     window.addEventListener('mouseup', handleMouseUpGlobal)
+    window.addEventListener('touchmove', handleTouchMoveGlobal, { passive: false })
+    window.addEventListener('touchend', handleTouchEndGlobal)
 
     return () => {
       window.removeEventListener('mousemove', handleMouseMoveGlobal)
       window.removeEventListener('mouseup', handleMouseUpGlobal)
+      window.removeEventListener('touchmove', handleTouchMoveGlobal)
+      window.removeEventListener('touchend', handleTouchEndGlobal)
     }
   }, [handleSeek, handleLyricsSeek])
 
@@ -283,18 +315,23 @@ export default function ExpandedPlayer() {
             <div className="w-full flex flex-col gap-1.5">
               <div
                 ref={progressBarRef}
-                className="relative w-full py-2 cursor-pointer group"
+                className="relative w-full py-3 cursor-pointer group touch-none"
                 onMouseDown={handleMouseDown}
+                onTouchStart={handleTouchStart}
               >
-                <div className="h-1 bg-zinc-700 rounded-full w-full overflow-hidden">
+                <div className="h-1.5 bg-zinc-700 rounded-full w-full overflow-hidden">
                   <div
                     className="h-full bg-white rounded-full group-hover:bg-spotify-green transition-colors"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
+                {/* Thumb — always visible on mobile, hover-only on desktop */}
                 <div
-                  className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow"
-                  style={{ left: `${progress}%`, marginLeft: '-6px' }}
+                  className="absolute top-1/2 -translate-y-1/2 rounded-full bg-white shadow
+                    w-4 h-4 md:w-3 md:h-3
+                    opacity-100 md:opacity-0 md:group-hover:opacity-100
+                    transition-opacity"
+                  style={{ left: `${progress}%`, marginLeft: isMobile ? '-8px' : '-6px' }}
                 />
               </div>
               <div className="flex items-center justify-between text-[11px] text-zinc-400 font-mono tabular-nums px-0.5">

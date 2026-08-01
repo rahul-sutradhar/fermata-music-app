@@ -38,6 +38,10 @@ export const applyAccent = (hex: string) => {
   const g = parseInt(primary.replace('#', '').substring(2, 4), 16)
   const b = parseInt(primary.replace('#', '').substring(4, 6), 16)
 
+  // WCAG-based relative luminance — choose black or white text for best contrast
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  const accentText = luminance > 0.55 ? '#000000' : '#ffffff'
+
   const root = document.documentElement
   root.style.setProperty('--spotify-green', primary)
   root.style.setProperty('--spotify-green-hover', hover)
@@ -45,6 +49,7 @@ export const applyAccent = (hex: string) => {
   root.style.setProperty('--accent-muted', `rgba(${r}, ${g}, ${b}, 0.12)`)
   root.style.setProperty('--accent-glow', `rgba(${r}, ${g}, ${b}, 0.4)`)
   root.style.setProperty('--accent-subtle', `rgba(${r}, ${g}, ${b}, 0.06)`)
+  root.style.setProperty('--accent-text', accentText)
 }
 
 interface ThemeState {
