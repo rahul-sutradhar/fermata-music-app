@@ -10,6 +10,7 @@ import Hls from 'hls.js'
 class CustomKeyLoader extends (Hls as any).DefaultConfig.loader {
   load(context: any, config: any, callbacks: any) {
     if (context.url && context.url.includes('/key')) {
+      console.log('[CustomKeyLoader] Intercepted key request URL:', context.url)
       const activeBase = (import.meta.env.VITE_API_HOSTED_BASE || window.location.origin).replace(/\/$/, '')
       if (!context.url.startsWith(activeBase)) {
         try {
@@ -17,13 +18,19 @@ class CustomKeyLoader extends (Hls as any).DefaultConfig.loader {
           const activeUrlObj = new URL(activeBase)
           urlObj.protocol = activeUrlObj.protocol
           urlObj.host = activeUrlObj.host
+          const original = context.url
           context.url = urlObj.toString()
-        } catch {
+          console.log('[CustomKeyLoader] Rewrote URL from:', original, 'to:', context.url)
+        } catch (err) {
           const pathStart = context.url.indexOf('/tracks/')
           if (pathStart !== -1) {
+            const original = context.url
             context.url = activeBase + context.url.substring(pathStart)
+            console.log('[CustomKeyLoader] Fallback rewrote URL from:', original, 'to:', context.url)
           }
         }
+      } else {
+        console.log('[CustomKeyLoader] URL already matches active base. No rewrite needed.')
       }
     }
     super.load(context, config, callbacks)
@@ -353,7 +360,16 @@ export default function NowPlayingBar() {
 
   // Load player state on page mount / login
   useEffect(() => {
-    if (!token) return
+    if (!token) {
+      usePlayerStore.setState({
+        currentTrack: null,
+        queue: [],
+        isPlaying: false,
+        progressMs: 0,
+        durationMs: 0,
+      })
+      return
+    }
 
     async function restorePlayerState() {
       try {
@@ -379,6 +395,8 @@ export default function NowPlayingBar() {
             }
           } else {
             usePlayerStore.setState({
+              currentTrack: null,
+              progressMs: 0,
               volume: state.volume,
               shuffle: state.shuffle,
               repeatMode: state.repeat_mode as 'off' | 'context' | 'track',
@@ -442,7 +460,7 @@ export default function NowPlayingBar() {
   // Load audio source when track changes
   useEffect(() => {
     const audio = audioRef.current
-    if (!audio || !currentTrack) return
+    if (!audio) return
 
     let cancelled = false
 
@@ -454,6 +472,8 @@ export default function NowPlayingBar() {
     }
     audio.removeAttribute('src')
     audio.load()
+
+    if (!currentTrack) return
 
     async function loadAudio() {
       let url = ''
