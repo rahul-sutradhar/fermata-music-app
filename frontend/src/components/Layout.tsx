@@ -7,7 +7,7 @@ import ExpandedPlayer from './ExpandedPlayer'
 import SpatialAudioModal from './SpatialAudioModal'
 import EqualizerModal from './EqualizerModal'
 import { useAuthStore } from '@/store/authStore'
-import { useThemeStore } from '@/store/themeStore'
+import { useThemeStore, applyAccent } from '@/store/themeStore'
 import { createPlaylist } from '@/api/playlists'
 import { listArtists } from '@/api/artists'
 import type { Artist } from '@/types'
@@ -15,7 +15,7 @@ import type { Artist } from '@/types'
 export default function Layout() {
   const token = useAuthStore((s) => s.token)
   const user = useAuthStore((s) => s.user)
-  const { theme, toggleTheme } = useThemeStore()
+  const { theme, toggleTheme, accent } = useThemeStore()
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
@@ -29,6 +29,12 @@ export default function Layout() {
   const [artistsList, setArtistsList] = useState<Artist[]>([])
   const [showArtistDropdown, setShowArtistDropdown] = useState(false)
   const artistDropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (accent) {
+      applyAccent(accent)
+    }
+  }, [accent])
 
   useEffect(() => {
     const handleOpenModal = () => setIsModalOpen(true)

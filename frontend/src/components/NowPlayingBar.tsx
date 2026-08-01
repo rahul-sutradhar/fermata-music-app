@@ -7,6 +7,29 @@ import { useAuthStore } from '@/store/authStore'
 import PlayerControls from './PlayerControls'
 import Hls from 'hls.js'
 
+class CustomKeyLoader extends (Hls as any).DefaultConfig.loader {
+  load(context: any, config: any, callbacks: any) {
+    if (context.url && context.url.includes('/key')) {
+      const activeBase = (import.meta.env.VITE_API_HOSTED_BASE || window.location.origin).replace(/\/$/, '')
+      if (!context.url.startsWith(activeBase)) {
+        try {
+          const urlObj = new URL(context.url)
+          const activeUrlObj = new URL(activeBase)
+          urlObj.protocol = activeUrlObj.protocol
+          urlObj.host = activeUrlObj.host
+          context.url = urlObj.toString()
+        } catch {
+          const pathStart = context.url.indexOf('/tracks/')
+          if (pathStart !== -1) {
+            context.url = activeBase + context.url.substring(pathStart)
+          }
+        }
+      }
+    }
+    super.load(context, config, callbacks)
+  }
+}
+
 export default function NowPlayingBar() {
   const audioRef = useRef<HTMLAudioElement>(null)
   const hlsRef = useRef<Hls | null>(null)
@@ -129,7 +152,7 @@ export default function NowPlayingBar() {
       const analyser = ctx.createAnalyser()
       analyser.fftSize = 256
       analyserRef.current = analyser
-      ;(window as any).fermataAnalyser = analyser
+        ; (window as any).fermataAnalyser = analyser
 
       // --- Connect Graph (Source -> Preamp -> EQ Chain -> Splits) ---
       source.connect(preamp)
@@ -137,7 +160,7 @@ export default function NowPlayingBar() {
       for (let i = 0; i < 9; i++) {
         filters[i].connect(filters[i + 1])
       }
-      
+
       filters[9].connect(normalGain)
       filters[9].connect(spatialGain)
 
@@ -275,14 +298,14 @@ export default function NowPlayingBar() {
           panner.positionY.setValueAtTime(y, ctx.currentTime)
           panner.positionZ.setValueAtTime(z, ctx.currentTime)
         } else {
-          ;(panner as any).setPosition(x, y, z)
+          ; (panner as any).setPosition(x, y, z)
         }
       }
 
-      ;(window as any).fermata3DAngle = angle
-      ;(window as any).fermata3DX = x
-      ;(window as any).fermata3DY = y
-      ;(window as any).fermata3DZ = z
+      ; (window as any).fermata3DAngle = angle
+        ; (window as any).fermata3DX = x
+        ; (window as any).fermata3DY = y
+        ; (window as any).fermata3DZ = z
 
       animationFrameId = requestAnimationFrame(tick)
     }
@@ -453,6 +476,7 @@ export default function NowPlayingBar() {
 
         if (isHls && Hls.isSupported()) {
           const hls = new Hls({
+            loader: CustomKeyLoader as any,
             xhrSetup: (xhr, xhrUrl) => {
               console.log('[HLS xhrSetup] Requesting URL:', xhrUrl)
               if (xhrUrl.includes('/key')) {
@@ -638,7 +662,7 @@ export default function NowPlayingBar() {
       <audio ref={audioRef} preload="metadata" crossOrigin="anonymous" />
 
       {/* Desktop view */}
-      <div 
+      <div
         onClick={() => usePlayerStore.setState({ isExpanded: true })}
         className="hidden md:flex h-20 bg-surface-elevated border-t border-surface-highlight items-center px-4 gap-4 justify-between shrink-0 cursor-pointer hover:bg-surface-elevated/80 transition-colors"
       >
@@ -691,7 +715,7 @@ export default function NowPlayingBar() {
       </div>
 
       {/* Mobile view (Spotify-like floating card) */}
-      <div 
+      <div
         onClick={() => usePlayerStore.setState({ isExpanded: true })}
         className="flex md:hidden items-center justify-between mx-2 mb-2 h-14 bg-surface-elevated/95 backdrop-blur border border-surface-highlight/60 rounded-lg px-3 gap-3 relative overflow-hidden shadow-lg shadow-black/40 cursor-pointer hover:bg-surface-elevated/80 transition-colors"
       >

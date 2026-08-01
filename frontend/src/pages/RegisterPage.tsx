@@ -237,7 +237,7 @@ export default function RegisterPage() {
 
 
   return (
-    <div className="min-h-screen bg-base flex items-center justify-center p-4 page-transition">
+    <div className="min-h-screen bg-base flex flex-col items-center justify-center p-4 page-transition overflow-y-auto py-8">
       <div className="w-full max-w-sm">
         {/* Logo Header */}
         <div className="flex items-center justify-center gap-2 mb-8">

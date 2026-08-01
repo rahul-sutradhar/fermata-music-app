@@ -25,6 +25,7 @@ export default function HomePage() {
   const [mostPlayedAlbums, setMostPlayedAlbums] = useState<Album[]>([])
   const [playlists, setPlaylists] = useState<Playlist[]>([])
   const [loading, setLoading] = useState(true)
+  const [hasHistory, setHasHistory] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -37,11 +38,6 @@ export default function HomePage() {
         setAllTracks(tracksData)
         setAlbums(albumsData)
 
-        // Set default fallbacks if not logged in
-        setMostPlayedTracks(tracksData.slice(0, 5))
-        setRecentAlbums(albumsData.slice(0, 6))
-        setMostPlayedAlbums(albumsData.slice(0, 6))
-
         if (token) {
           // Load recent + playlists + top metrics for logged-in users
           const [recent, pls, topTracks, topAlbums, recAlbums] = await Promise.all([
@@ -53,19 +49,31 @@ export default function HomePage() {
           ])
           setPlaylists(pls)
           
-          if (topTracks.length > 0) {
-            setMostPlayedTracks(topTracks)
-          }
-          if (topAlbums.length > 0) {
-            setMostPlayedAlbums(topAlbums)
-          }
-          if (recAlbums.length > 0) {
-            setRecentAlbums(recAlbums)
-          }
+          const userHasHistory = recent.length > 0 || topTracks.length > 0 || recAlbums.length > 0
+          setHasHistory(userHasHistory)
 
-          // Resolve track details directly from backend response
-          const trackDetails = recent.slice(0, 8).map((r) => r.track).filter(Boolean) as Track[]
-          setRecentTracks(trackDetails)
+          if (userHasHistory) {
+            setMostPlayedTracks(topTracks)
+            setRecentAlbums(recAlbums)
+            setMostPlayedAlbums(topAlbums)
+            
+            // Resolve track details directly from backend response
+            const trackDetails = recent.slice(0, 8).map((r) => r.track).filter(Boolean) as Track[]
+            setRecentTracks(trackDetails)
+          } else {
+            // Logged in but no history: show fallback global popular list
+            setMostPlayedTracks(tracksData.slice(0, 5))
+            setRecentAlbums(albumsData.slice(0, 6))
+            setMostPlayedAlbums(albumsData.slice(0, 6))
+            setRecentTracks([])
+          }
+        } else {
+          setHasHistory(false)
+          // Logged out: show fallback global popular list
+          setMostPlayedTracks(tracksData.slice(0, 5))
+          setRecentAlbums(albumsData.slice(0, 6))
+          setMostPlayedAlbums(albumsData.slice(0, 6))
+          setRecentTracks([])
         }
       } catch (err) {
         console.error('Failed to load homepage data:', err)
@@ -141,7 +149,9 @@ export default function HomePage() {
       {/* Most Played Music */}
       {mostPlayedTracks.length > 0 && (
         <section>
-          <h2 className="text-xl font-bold mb-4">Your Most Played Tracks</h2>
+          <h2 className="text-xl font-bold mb-4">
+            {hasHistory ? "Your Most Played Tracks" : "Popular Tracks"}
+          </h2>
           <div className="bg-surface-elevated/20 rounded-xl p-4 border border-surface-highlight/30">
             <TrackList tracks={mostPlayedTracks} showHeader={false} />
           </div>
@@ -152,7 +162,7 @@ export default function HomePage() {
       {albums.length > 0 && (
         <>
           {recentAlbums.length > 0 && (
-            <CardGrid title="Recently Played Albums">
+            <CardGrid title={hasHistory ? "Recently Played Albums" : "Featured Albums"}>
               {recentAlbums.map((album) => (
                 <Card
                   key={album.id}
@@ -166,7 +176,7 @@ export default function HomePage() {
           )}
 
           {mostPlayedAlbums.length > 0 && (
-            <CardGrid title="Most Played Albums">
+            <CardGrid title={hasHistory ? "Most Played Albums" : "Trending Albums"}>
               {mostPlayedAlbums.map((album) => (
                 <Card
                   key={album.id}
