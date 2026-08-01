@@ -19,6 +19,7 @@ import {
   Sliders,
   Palette,
   ChevronDown,
+  Download,
 } from 'lucide-react'
 
 import { useAuthStore } from '@/store/authStore'
@@ -63,6 +64,34 @@ export default function Sidebar({ onItemClick }: SidebarProps) {
 
   const [playlists, setPlaylists] = useState<Playlist[]>([])
   const [isAccessoriesOpen, setIsAccessoriesOpen] = useState(false)
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault()
+      setDeferredPrompt(e)
+    }
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+
+    // Check if running in standalone mode (already installed)
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone
+    if (isStandalone) {
+      setDeferredPrompt(null)
+    }
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    }
+  }, [])
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return
+    deferredPrompt.prompt()
+    const { outcome } = await deferredPrompt.userChoice
+    console.log(`[PWA Install] User choice outcome: ${outcome}`)
+    setDeferredPrompt(null)
+  }
 
   const fetchPlaylists = () => {
     if (token) {
@@ -95,8 +124,22 @@ export default function Sidebar({ onItemClick }: SidebarProps) {
     }
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     logout()
+    // Clear dynamic audio, image, and API caches to prevent cross-user leakage on shared devices
+    try {
+      const keys = await caches.keys()
+      await Promise.all(keys.map((key) => caches.delete(key)))
+      // Clean local storage cache indicators
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i)
+        if (key && key.startsWith('fermata-home-v1-')) {
+          localStorage.removeItem(key)
+        }
+      }
+    } catch (err) {
+      console.warn('[Logout] Failed to clear PWA cache databases:', err)
+    }
     navigate('/login')
   }
 
@@ -148,6 +191,19 @@ export default function Sidebar({ onItemClick }: SidebarProps) {
             </>
           )}
         </nav>
+
+        {/* PWA Install Prompt Button */}
+        {deferredPrompt && (
+          <div className="px-3 mt-2 shrink-0">
+            <button
+              onClick={handleInstallClick}
+              className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm font-semibold text-spotify-green bg-spotify-green/10 hover:bg-spotify-green/20 transition-all border border-spotify-green/20 cursor-pointer"
+            >
+              <Download size={20} className="animate-pulse" />
+              Install Fermata App
+            </button>
+          </div>
+        )}
 
         {/* Accessories Accordion Tab */}
         <div className="px-3 mt-4 shrink-0">

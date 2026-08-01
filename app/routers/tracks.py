@@ -81,12 +81,76 @@ def upload_track_audio(
 
 @router.get(
     "/{track_id}/audio",
-    response_model=dict,
+    response_model=None,
     responses={404: {"model": ErrorResponse}, 503: {"model": ErrorResponse}},
 )
-def get_track_audio_url(track_id: int, db: DbSession) -> dict:
-    """Return a signed URL for track playback."""
-    return {"audio_url": track_service.get_track_audio_url(db=db, track_id=track_id)}
+def get_track_audio_url(track_id: int, db: DbSession):
+    """Return a signed URL for track playback.
+
+    For HLS playlists (.m3u8) whose embedded key URI still points to an old
+    backend URL (i.e. uploaded before a URL migration), the playlist is fetched
+    and the key URI is rewritten to the current BACKEND_URL before being
+    returned as a proxied response.
+
+    New tracks whose key URI already matches the current BACKEND_URL are
+    returned as a plain JSON ``{"audio_url": "..."}`` — no extra fetch overhead.
+    """
+    import re as _re
+    import requests as _requests
+    from urllib.parse import urlparse
+
+    audio_url = track_service.get_track_audio_url(db=db, track_id=track_id)
+
+    # Only inspect HLS playlists; raw audio files are returned as-is
+    if audio_url and ".m3u8" in audio_url:
+        current_base = settings.backend_url.rstrip("/")
+        try:
+            resp = _requests.get(audio_url, timeout=10)
+            resp.raise_for_status()
+            content = resp.text
+
+            # Check whether ANY key URI is stale (doesn't start with current base)
+            key_uris = _re.findall(r'URI="([^"]+)"', content)
+            needs_rewrite = any(
+                not uri.startswith(current_base) for uri in key_uris
+            )
+
+            if not needs_rewrite:
+                # All key URIs already correct — let the client use the CDN URL directly
+                return {"audio_url": audio_url}
+
+            # Rewrite stale key URIs to the current backend URL
+            def _rewrite_key_uri(m: _re.Match) -> str:
+                uri_value = m.group(1)
+                try:
+                    parsed = urlparse(uri_value)
+                    new_uri = f"{current_base}{parsed.path}"
+                    if parsed.query:
+                        new_uri += f"?{parsed.query}"
+                except Exception:
+                    new_uri = uri_value
+                return m.group(0).replace(uri_value, new_uri)
+
+            content = _re.sub(r'URI="([^"]+)"', _rewrite_key_uri, content)
+
+            return Response(
+                content=content,
+                media_type="application/vnd.apple.mpegurl",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Access-Control-Allow-Origin": "*",
+                },
+            )
+        except Exception as exc:
+            # Fall back to returning the raw URL if proxying fails
+            import logging
+            logging.getLogger(__name__).warning(
+                "M3U8 proxy/rewrite failed for track %s, falling back to direct URL: %s",
+                track_id, exc,
+            )
+
+    return {"audio_url": audio_url}
+
 
 
 @router.get(

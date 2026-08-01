@@ -4,18 +4,18 @@ import { usePlayerStore } from '@/store/playerStore'
 import { getTrackAudioUrl, getTrack } from '@/api/tracks'
 import { addRecentlyPlayed, getPlayerState, updatePlayerState } from '@/api/player'
 import { useAuthStore } from '@/store/authStore'
+import { API_BASE } from '@/api/client'
 import PlayerControls from './PlayerControls'
 import Hls from 'hls.js'
+const AUDIO_CACHE = 'fermata-audio-cache-v1'
 
 class CustomKeyLoader extends (Hls as any).DefaultConfig.loader {
-  load(context: any, config: any, callbacks: any) {
-    if (context.url && context.url.includes('/key')) {
+  async load(context: any, config: any, callbacks: any) {
+    const isKey = context.url && context.url.includes('/key')
+
+    if (isKey) {
       console.log('[CustomKeyLoader] Intercepted key request URL:', context.url)
-      const activeBase = (
-        import.meta.env.VITE_API_BASE ||
-        import.meta.env.VITE_API_HOSTED_BASE ||
-        window.location.origin
-      ).replace(/\/$/, '')
+      const activeBase = API_BASE.replace(/\/$/, '')
       if (!context.url.startsWith(activeBase)) {
         try {
           const urlObj = new URL(context.url)
@@ -36,12 +36,49 @@ class CustomKeyLoader extends (Hls as any).DefaultConfig.loader {
       } else {
         console.log('[CustomKeyLoader] URL already matches active base. No rewrite needed.')
       }
+
+      // Check key cache first before trying network
+      try {
+        const cache = await caches.open(AUDIO_CACHE)
+        const cachedResponse = await cache.match(context.url)
+
+        if (cachedResponse) {
+          console.log('[CustomKeyLoader] Found cached key for:', context.url)
+          const arrayBuffer = await cachedResponse.arrayBuffer()
+          const stats = {
+            trequest: performance.now(),
+            tfirst: performance.now(),
+            tload: performance.now(),
+            loaded: arrayBuffer.byteLength,
+            total: arrayBuffer.byteLength,
+          }
+          callbacks.onSuccess({ url: context.url, data: arrayBuffer }, stats, context)
+          return
+        }
+      } catch (err) {
+        console.warn('[CustomKeyLoader] Key cache lookup failed:', err)
+      }
+
+      // If key is not cached, override success callback to write key to cache
+      const originalSuccess = callbacks.onSuccess
+      callbacks.onSuccess = async (response: any, stats: any, ctx: any) => {
+        try {
+          const cache = await caches.open(AUDIO_CACHE)
+          const cacheResponse = new Response(response.data, {
+            headers: { 'Content-Type': 'application/octet-stream' },
+          })
+          await cache.put(ctx.url, cacheResponse)
+          console.log('[CustomKeyLoader] Successfully cached key for offline use:', ctx.url)
+        } catch (err) {
+          console.warn('[CustomKeyLoader] Failed to write key to cache:', err)
+        }
+        originalSuccess(response, stats, ctx)
+      }
     }
+
     super.load(context, config, callbacks)
   }
 }
-
-const AUDIO_CACHE = 'fermata-audio-cache-v1'
 
 class CachedFragmentLoader extends (Hls as any).DefaultConfig.loader {
   async load(context: any, config: any, callbacks: any) {
@@ -643,6 +680,47 @@ export default function NowPlayingBar() {
       }
     }
   }, [isPlaying, setProgressMs])
+
+  // --- Sync with Media Session API for Background Playback & Lock Screen Controls ---
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !currentTrack) return
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: currentTrack.title,
+      artist: currentTrack.artist_name || 'Unknown Artist',
+      album: currentTrack.album_title || 'Single',
+      artwork: currentTrack.cover_url ? [
+        { src: currentTrack.cover_url, sizes: '96x96', type: 'image/jpeg' },
+        { src: currentTrack.cover_url, sizes: '192x192', type: 'image/jpeg' },
+        { src: currentTrack.cover_url, sizes: '512x512', type: 'image/jpeg' },
+      ] : []
+    })
+
+    navigator.mediaSession.setActionHandler('play', () => {
+      setIsPlaying(true)
+    })
+    navigator.mediaSession.setActionHandler('pause', () => {
+      setIsPlaying(false)
+    })
+    navigator.mediaSession.setActionHandler('previoustrack', () => {
+      usePlayerStore.getState().playPrevious()
+    })
+    navigator.mediaSession.setActionHandler('nexttrack', () => {
+      usePlayerStore.getState().playNext(true)
+    })
+
+    return () => {
+      navigator.mediaSession.setActionHandler('play', null)
+      navigator.mediaSession.setActionHandler('pause', null)
+      navigator.mediaSession.setActionHandler('previoustrack', null)
+      navigator.mediaSession.setActionHandler('nexttrack', null)
+    }
+  }, [currentTrack, setIsPlaying])
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return
+    navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused'
+  }, [isPlaying])
 
   // Progress updates & Audio play events listener
   useEffect(() => {

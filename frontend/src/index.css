@@ -87,7 +87,9 @@
 
 body {
   margin: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  background-color: var(--base);
+  color: var(--primary);
 }
 
 .pb-safe {

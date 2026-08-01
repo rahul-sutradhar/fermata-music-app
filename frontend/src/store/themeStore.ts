@@ -50,6 +50,15 @@ export const applyAccent = (hex: string) => {
   root.style.setProperty('--accent-glow', `rgba(${r}, ${g}, ${b}, 0.4)`)
   root.style.setProperty('--accent-subtle', `rgba(${r}, ${g}, ${b}, 0.06)`)
   root.style.setProperty('--accent-text', accentText)
+
+  // Synchronize PWA title bar color / browser theme-color meta tag dynamically
+  let meta = document.querySelector('meta[name="theme-color"]')
+  if (!meta) {
+    meta = document.createElement('meta')
+    meta.setAttribute('name', 'theme-color')
+    document.head.appendChild(meta)
+  }
+  meta.setAttribute('content', primary)
 }
 
 interface ThemeState {

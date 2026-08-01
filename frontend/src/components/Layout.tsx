@@ -31,12 +31,6 @@ export default function Layout() {
   const artistDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (accentColor) {
-      applyAccent(accentColor)
-    }
-  }, [accentColor])
-
-  useEffect(() => {
     const handleOpenModal = () => setIsModalOpen(true)
     window.addEventListener('open-create-playlist-modal', handleOpenModal)
     return () => window.removeEventListener('open-create-playlist-modal', handleOpenModal)
@@ -102,7 +96,7 @@ export default function Layout() {
       {/* Mobile Top Header Bar */}
       <header className="flex md:hidden items-center justify-between px-4 h-14 bg-base border-b border-surface-highlight shrink-0">
         {/* Left: Profile / Account Icon to Open Sidebar */}
-        <button 
+        <button
           onClick={() => setIsMobileSidebarOpen(true)}
           className="w-8 h-8 rounded-full bg-surface-highlight flex items-center justify-center text-xs font-bold text-spotify-green hover:scale-105 transition-transform cursor-pointer"
           title="Open Menu"
@@ -113,11 +107,11 @@ export default function Layout() {
             <User size={18} className="text-subtext" />
           )}
         </button>
-        
+
         <span className="text-md font-bold tracking-tight">Fermata</span>
-        
+
         {/* Right: Theme Toggle */}
-        <button 
+        <button
           onClick={toggleTheme}
           className="p-2 rounded-full hover:bg-surface-highlight text-subtext hover:text-primary transition-colors cursor-pointer"
           title={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
@@ -132,36 +126,34 @@ export default function Layout() {
         </div>
         <main className="flex-1 overflow-y-auto bg-surface">
           {/* Key on path forces re-trigger of entry animation on navigation */}
-          <div 
-            key={location.pathname} 
+          <div
+            key={location.pathname}
             className="p-4 md:p-6 pb-40 md:pb-32 page-transition"
           >
             <Outlet />
           </div>
         </main>
       </div>
-      
+
       {/* Mobile Sidebar Drawer Overlay (Transitions smooth sliding and backdrop fading) */}
-      <div 
-        className={`fixed inset-0 z-50 flex md:hidden transition-all duration-300 ${
-          isMobileSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-        }`}
+      <div
+        className={`fixed inset-0 z-50 flex md:hidden transition-all duration-300 ${isMobileSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          }`}
       >
         {/* Backdrop blur overlay */}
-        <div 
+        <div
           className="fixed inset-0 bg-black/60 backdrop-blur-sm"
           onClick={() => setIsMobileSidebarOpen(false)}
         />
-        
+
         {/* Drawer Content */}
-        <div 
-          className={`z-10 relative flex flex-col w-72 h-full bg-base shadow-2xl overflow-hidden transition-transform duration-300 ease-in-out ${
-            isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
+        <div
+          className={`z-10 relative flex flex-col w-72 h-full bg-base shadow-2xl overflow-hidden transition-transform duration-300 ease-in-out ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+            }`}
         >
           {/* Close Button */}
           <div className="absolute top-4 right-4 z-10">
-            <button 
+            <button
               onClick={() => setIsMobileSidebarOpen(false)}
               className="p-2 rounded-full hover:bg-surface-highlight text-subtext hover:text-primary transition-colors cursor-pointer"
               title="Close Menu"
@@ -169,7 +161,7 @@ export default function Layout() {
               <X size={20} />
             </button>
           </div>
-          
+
           {/* Sidebar content (closes menu on actual item click) */}
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
             <Sidebar onItemClick={() => setIsMobileSidebarOpen(false)} />
@@ -180,14 +172,13 @@ export default function Layout() {
       {/* Footer controls & Mobile navigation container */}
       <div className="fixed bottom-0 left-0 right-0 z-40 flex flex-col bg-base shrink-0">
         <NowPlayingBar />
-        
+
         {/* Mobile Bottom Navigation Bar */}
         <nav className="flex md:hidden items-center justify-around h-16 bg-base border-t border-surface-highlight pb-safe">
-          <NavLink 
-            to="/" 
-            className={({ isActive }) => 
-              `flex flex-col items-center justify-center gap-1 text-[10px] font-medium w-20 transition-colors ${
-                isActive ? 'text-spotify-green' : 'text-subtext'
+          <NavLink
+            to="/"
+            className={({ isActive }) =>
+              `flex flex-col items-center justify-center gap-1 text-[10px] font-medium w-20 transition-colors ${isActive ? 'text-spotify-green' : 'text-subtext'
               }`
             }
             end
@@ -195,24 +186,22 @@ export default function Layout() {
             <Home size={20} />
             <span>Home</span>
           </NavLink>
-          
-          <NavLink 
-            to="/search" 
-            className={({ isActive }) => 
-              `flex flex-col items-center justify-center gap-1 text-[10px] font-medium w-20 transition-colors ${
-                isActive ? 'text-spotify-green' : 'text-subtext'
+
+          <NavLink
+            to="/search"
+            className={({ isActive }) =>
+              `flex flex-col items-center justify-center gap-1 text-[10px] font-medium w-20 transition-colors ${isActive ? 'text-spotify-green' : 'text-subtext'
               }`
             }
           >
             <Search size={20} />
             <span>Search</span>
           </NavLink>
-          
-          <NavLink 
-            to="/library" 
-            className={({ isActive }) => 
-              `flex flex-col items-center justify-center gap-1 text-[10px] font-medium w-20 transition-colors ${
-                isActive ? 'text-spotify-green' : 'text-subtext'
+
+          <NavLink
+            to="/library"
+            className={({ isActive }) =>
+              `flex flex-col items-center justify-center gap-1 text-[10px] font-medium w-20 transition-colors ${isActive ? 'text-spotify-green' : 'text-subtext'
               }`
             }
             onClick={(e) => {
@@ -225,8 +214,8 @@ export default function Layout() {
             <Library size={20} />
             <span>Your Library</span>
           </NavLink>
-          
-          <button 
+
+          <button
             onClick={handleCreateClick}
             className="flex flex-col items-center justify-center gap-1 text-[10px] font-medium w-20 text-subtext hover:text-primary transition-colors cursor-pointer"
           >
@@ -345,10 +334,10 @@ export default function Layout() {
                     {artistsList.filter((a) =>
                       a.name.toLowerCase().includes(artistSearch.toLowerCase())
                     ).length === 0 && (
-                      <div className="px-3 py-2 text-xs text-subtext text-center">
-                        No matches found
-                      </div>
-                    )}
+                        <div className="px-3 py-2 text-xs text-subtext text-center">
+                          No matches found
+                        </div>
+                      )}
                   </div>
                 </div>
               )}

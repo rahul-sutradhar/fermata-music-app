@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { HashRouter, Routes, Route } from 'react-router-dom'
-import { useThemeStore } from '@/store/themeStore'
+import { useThemeStore, applyAccent } from '@/store/themeStore'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import HomePage from '@/pages/HomePage'
@@ -24,6 +24,7 @@ import ReportMissingPage from '@/pages/ReportMissingPage'
 
 export default function App() {
   const theme = useThemeStore((s) => s.theme)
+  const accentColor = useThemeStore((s) => s.accentColor)
 
   useEffect(() => {
     if (theme === 'light') {
@@ -32,6 +33,10 @@ export default function App() {
       document.documentElement.classList.remove('light')
     }
   }, [theme])
+
+  useEffect(() => {
+    applyAccent(accentColor)
+  }, [accentColor])
 
   return (
     <HashRouter>

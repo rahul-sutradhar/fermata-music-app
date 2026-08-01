@@ -119,6 +119,12 @@ def generate_presigned_put_url(object_key: str, expires_in: int = 300, content_t
 
 
 def delete_audio_file(object_key: str) -> None:
+    """Delete a single object key.
+
+    On a versioning-enabled bucket this creates a delete marker, making the
+    object invisible but leaving old versions on disk.  For a true hard delete
+    use :func:`delete_all_versions` instead.
+    """
     if not object_key:
         return
     client = get_b2_client()
@@ -128,28 +134,66 @@ def delete_audio_file(object_key: str) -> None:
         raise RuntimeError("Failed to delete audio file from Backblaze B2") from exc
 
 
+def delete_all_versions(object_key: str) -> None:
+    """Permanently remove **every** version and delete-marker for *object_key*.
+
+    Required when the bucket has versioning enabled: a plain delete_object call
+    only adds another hide/delete marker, leaving previous versions untouched.
+    """
+    if not object_key:
+        return
+    client = get_b2_client()
+    bucket = settings.b2_bucket_name
+    try:
+        paginator = client.get_paginator("list_object_versions")
+        to_delete: list[dict] = []
+        for page in paginator.paginate(Bucket=bucket, Prefix=object_key):
+            for v in page.get("Versions", []):
+                if v["Key"] == object_key:
+                    to_delete.append({"Key": v["Key"], "VersionId": v["VersionId"]})
+            for m in page.get("DeleteMarkers", []):
+                if m["Key"] == object_key:
+                    to_delete.append({"Key": m["Key"], "VersionId": m["VersionId"]})
+        if to_delete:
+            for i in range(0, len(to_delete), 1000):
+                client.delete_objects(
+                    Bucket=bucket,
+                    Delete={"Objects": to_delete[i : i + 1000], "Quiet": True},
+                )
+    except (BotoCoreError, ClientError) as exc:
+        raise RuntimeError(f"Failed to delete all versions of {object_key} from Backblaze B2") from exc
+
+
 def delete_objects_with_prefix(prefix: str) -> None:
-    """Deletes all objects in Backblaze B2 matching the given key prefix."""
+    """Permanently delete **all versions and delete-markers** for every key
+    under *prefix* in the B2 bucket.
+
+    The previous implementation used ``list_objects_v2`` which only sees the
+    latest (non-hidden) versions and then calls ``delete_object`` without a
+    VersionId — that merely adds more delete-markers on a versioned bucket.
+    This version uses ``list_object_versions`` to collect every VersionId and
+    DeleteMarker so that all generations are truly erased.
+    """
     if not prefix:
         return
     client = get_b2_client()
+    bucket = settings.b2_bucket_name
     try:
-        paginator = client.get_paginator("list_objects_v2")
-        pages = paginator.paginate(Bucket=settings.b2_bucket_name, Prefix=prefix)
-        
-        objects_to_delete = []
-        for page in pages:
-            if "Contents" in page:
-                for obj in page["Contents"]:
-                    objects_to_delete.append({"Key": obj["Key"]})
-                    
-        if objects_to_delete:
-            for i in range(0, len(objects_to_delete), 1000):
-                batch = objects_to_delete[i:i + 1000]
-                client.delete_objects(
-                    Bucket=settings.b2_bucket_name,
-                    Delete={"Objects": batch}
-                )
+        paginator = client.get_paginator("list_object_versions")
+        to_delete: list[dict] = []
+        for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+            for v in page.get("Versions", []):
+                to_delete.append({"Key": v["Key"], "VersionId": v["VersionId"]})
+            for m in page.get("DeleteMarkers", []):
+                to_delete.append({"Key": m["Key"], "VersionId": m["VersionId"]})
+
+        for i in range(0, len(to_delete), 1000):
+            client.delete_objects(
+                Bucket=bucket,
+                Delete={"Objects": to_delete[i : i + 1000], "Quiet": True},
+            )
     except (BotoCoreError, ClientError) as exc:
-        raise RuntimeError(f"Failed to delete files with prefix {prefix} from Backblaze B2") from exc
+        raise RuntimeError(
+            f"Failed to delete files with prefix {prefix} from Backblaze B2"
+        ) from exc
 

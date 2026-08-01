@@ -5,7 +5,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from app.core.config import settings
-from app.core.storage import delete_audio_file, get_audio_url, upload_audio_file, delete_objects_with_prefix
+from app.core.storage import delete_audio_file, delete_all_versions, get_audio_url, upload_audio_file, delete_objects_with_prefix
 from app.models.album import Album
 from app.models.track import Track
 from app.models.lyric_chunk import LyricChunk
@@ -250,7 +250,16 @@ def upload_track_audio(
             detail=f"Failed to transcode audio file: {str(exc)}"
         )
 
-    # 3. Upload generated HLS files to B2
+    # 3. Wipe ALL previous HLS versions for this track before uploading new ones.
+    #    delete_objects_with_prefix now erases every version + delete-marker so
+    #    no stale hide-marker stacks accumulate in the versioned B2 bucket.
+    hls_prefix = f"tracks/{track.id}/hls/"
+    try:
+        delete_objects_with_prefix(hls_prefix)
+    except RuntimeError:
+        pass  # Non-fatal: upload will overwrite anyway
+
+    # 4. Upload generated HLS files to B2
     hls_playlist_key = f"tracks/{track.id}/hls/playlist.m3u8"
     hls_key_key = f"tracks/{track.id}/hls/enc.key"
 
@@ -303,9 +312,10 @@ def upload_track_audio(
     db.commit()
     db.refresh(track)
 
+    # Hard-delete old raw audio (all versions) if the key changed
     if previous_key and previous_key != object_key:
         try:
-            delete_audio_file(previous_key)
+            delete_all_versions(previous_key)
         except RuntimeError:
             pass
 
@@ -491,9 +501,10 @@ def upload_track_cover(
     db.commit()
     db.refresh(track)
 
-    if previous_key and previous_key != object_key:
+    # Hard-delete old cover (all versions) whether the key changed or not
+    if previous_key:
         try:
-            delete_audio_file(previous_key)
+            delete_all_versions(previous_key)
         except RuntimeError:
             pass
 

@@ -27,7 +27,22 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true)
   const [hasHistory, setHasHistory] = useState(false)
 
+  const [offline, setOffline] = useState(false)
+
   useEffect(() => {
+    const CACHE_KEY = `fermata-home-v1-${token ?? 'guest'}`
+
+    const applySnapshot = (snap: any) => {
+      setAllTracks(snap.allTracks ?? [])
+      setAlbums(snap.albums ?? [])
+      setMostPlayedTracks(snap.mostPlayedTracks ?? [])
+      setRecentAlbums(snap.recentAlbums ?? [])
+      setMostPlayedAlbums(snap.mostPlayedAlbums ?? [])
+      setRecentTracks(snap.recentTracks ?? [])
+      setPlaylists(snap.playlists ?? [])
+      setHasHistory(snap.hasHistory ?? false)
+    }
+
     const load = async () => {
       try {
         // Load all tracks and albums
@@ -37,6 +52,17 @@ export default function HomePage() {
         ])
         setAllTracks(tracksData)
         setAlbums(albumsData)
+
+        let snapshot: any = {
+          allTracks: tracksData,
+          albums: albumsData,
+          mostPlayedTracks: tracksData.slice(0, 5),
+          recentAlbums: albumsData.slice(0, 6),
+          mostPlayedAlbums: albumsData.slice(0, 6),
+          recentTracks: [],
+          playlists: [],
+          hasHistory: false,
+        }
 
         if (token) {
           // Load recent + playlists + top metrics for logged-in users
@@ -48,7 +74,7 @@ export default function HomePage() {
             getRecentlyPlayedAlbums(6).catch(() => []),
           ])
           setPlaylists(pls)
-          
+
           const userHasHistory = recent.length > 0 || topTracks.length > 0 || recAlbums.length > 0
           setHasHistory(userHasHistory)
 
@@ -56,16 +82,19 @@ export default function HomePage() {
             setMostPlayedTracks(topTracks)
             setRecentAlbums(recAlbums)
             setMostPlayedAlbums(topAlbums)
-            
+
             // Resolve track details directly from backend response
             const trackDetails = recent.slice(0, 8).map((r) => r.track).filter(Boolean) as Track[]
             setRecentTracks(trackDetails)
+
+            snapshot = { ...snapshot, mostPlayedTracks: topTracks, recentAlbums: recAlbums, mostPlayedAlbums: topAlbums, recentTracks: trackDetails, playlists: pls, hasHistory: true }
           } else {
             // Logged in but no history: show fallback global popular list
             setMostPlayedTracks(tracksData.slice(0, 5))
             setRecentAlbums(albumsData.slice(0, 6))
             setMostPlayedAlbums(albumsData.slice(0, 6))
             setRecentTracks([])
+            snapshot = { ...snapshot, playlists: pls }
           }
         } else {
           setHasHistory(false)
@@ -75,14 +104,34 @@ export default function HomePage() {
           setMostPlayedAlbums(albumsData.slice(0, 6))
           setRecentTracks([])
         }
+
+        // ── Persist snapshot to localStorage for offline fallback ──
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify(snapshot))
+        } catch {
+          // Storage quota exceeded — silently skip
+        }
+        setOffline(false)
       } catch (err) {
-        console.error('Failed to load homepage data:', err)
+        console.warn('[HomePage] Network failed, loading from localStorage cache:', err)
+
+        // ── Offline fallback: read last-known snapshot ──
+        try {
+          const cached = localStorage.getItem(CACHE_KEY)
+          if (cached) {
+            applySnapshot(JSON.parse(cached))
+            setOffline(true)
+          }
+        } catch {
+          console.error('Failed to read homepage cache from localStorage')
+        }
       } finally {
         setLoading(false)
       }
     }
     load()
   }, [token])
+
 
   const greeting = () => {
     const hour = new Date().getHours()
