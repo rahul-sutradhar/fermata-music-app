@@ -124,22 +124,8 @@ export default function Sidebar({ onItemClick }: SidebarProps) {
     }
   }
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     logout()
-    // Clear dynamic audio, image, and API caches to prevent cross-user leakage on shared devices
-    try {
-      const keys = await caches.keys()
-      await Promise.all(keys.map((key) => caches.delete(key)))
-      // Clean local storage cache indicators
-      for (let i = localStorage.length - 1; i >= 0; i--) {
-        const key = localStorage.key(i)
-        if (key && key.startsWith('fermata-home-v1-')) {
-          localStorage.removeItem(key)
-        }
-      }
-    } catch (err) {
-      console.warn('[Logout] Failed to clear PWA cache databases:', err)
-    }
     navigate('/login')
   }
 

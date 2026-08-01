@@ -87,69 +87,102 @@ def upload_track_audio(
 def get_track_audio_url(track_id: int, db: DbSession):
     """Return a signed URL for track playback.
 
-    For HLS playlists (.m3u8) whose embedded key URI still points to an old
-    backend URL (i.e. uploaded before a URL migration), the playlist is fetched
-    and the key URI is rewritten to the current BACKEND_URL before being
-    returned as a proxied response.
-
-    New tracks whose key URI already matches the current BACKEND_URL are
-    returned as a plain JSON ``{"audio_url": "..."}`` — no extra fetch overhead.
+    If the track is an HLS playlist whose key URI points to a stale domain,
+    it returns a JSON response pointing to our local backend play.m3u8 proxy
+    which handles real-time rewriting.
     """
     import re as _re
     import requests as _requests
-    from urllib.parse import urlparse
 
     audio_url = track_service.get_track_audio_url(db=db, track_id=track_id)
 
-    # Only inspect HLS playlists; raw audio files are returned as-is
     if audio_url and ".m3u8" in audio_url:
         current_base = settings.backend_url.rstrip("/")
         try:
-            resp = _requests.get(audio_url, timeout=10)
+            resp = _requests.get(audio_url, timeout=5)
             resp.raise_for_status()
             content = resp.text
 
-            # Check whether ANY key URI is stale (doesn't start with current base)
             key_uris = _re.findall(r'URI="([^"]+)"', content)
             needs_rewrite = any(
                 not uri.startswith(current_base) for uri in key_uris
             )
 
-            if not needs_rewrite:
-                # All key URIs already correct — let the client use the CDN URL directly
-                return {"audio_url": audio_url}
+            if needs_rewrite:
+                # Return a JSON pointing to our local proxy endpoint
+                proxy_url = f"{current_base}/tracks/{track_id}/play.m3u8"
+                return {"audio_url": proxy_url}
 
-            # Rewrite stale key URIs to the current backend URL
-            def _rewrite_key_uri(m: _re.Match) -> str:
-                uri_value = m.group(1)
-                try:
-                    parsed = urlparse(uri_value)
-                    new_uri = f"{current_base}{parsed.path}"
-                    if parsed.query:
-                        new_uri += f"?{parsed.query}"
-                except Exception:
-                    new_uri = uri_value
-                return m.group(0).replace(uri_value, new_uri)
-
-            content = _re.sub(r'URI="([^"]+)"', _rewrite_key_uri, content)
-
-            return Response(
-                content=content,
-                media_type="application/vnd.apple.mpegurl",
-                headers={
-                    "Cache-Control": "no-cache",
-                    "Access-Control-Allow-Origin": "*",
-                },
-            )
         except Exception as exc:
-            # Fall back to returning the raw URL if proxying fails
             import logging
             logging.getLogger(__name__).warning(
-                "M3U8 proxy/rewrite failed for track %s, falling back to direct URL: %s",
+                "M3U8 proxy check failed for track %s, falling back to direct URL: %s",
                 track_id, exc,
             )
 
     return {"audio_url": audio_url}
+
+
+@router.get(
+    "/{track_id}/play.m3u8",
+    response_class=Response,
+    responses={404: {"model": ErrorResponse}, 503: {"model": ErrorResponse}},
+)
+def get_rewritten_m3u8(track_id: int, db: DbSession):
+    """Fetch the original HLS playlist from storage, rewrite its segment references
+    to absolute CDN URLs, redirect key URI requests to the active backend, and stream.
+    """
+    import re as _re
+    import requests as _requests
+
+    audio_url = track_service.get_track_audio_url(db=db, track_id=track_id)
+    if not audio_url:
+        raise HTTPException(status_code=404, detail="Track audio not found")
+
+    try:
+        resp = _requests.get(audio_url, timeout=10)
+        resp.raise_for_status()
+        content = resp.text
+
+        current_base = settings.backend_url.rstrip("/")
+        base_url = audio_url.rsplit("/", 1)[0] + "/"
+
+        def _rewrite_key_uri(m: _re.Match) -> str:
+            uri_value = m.group(1)
+            new_uri = f"{current_base}/tracks/{track_id}/key"
+            return m.group(0).replace(uri_value, new_uri)
+
+        lines = content.splitlines()
+        rewritten_lines = []
+        for line in lines:
+            line_str = line.strip()
+            if not line_str:
+                continue
+            if line_str.startswith("#"):
+                if line_str.startswith("#EXT-X-KEY"):
+                    line_str = _re.sub(r'URI="([^"]+)"', _rewrite_key_uri, line_str)
+                rewritten_lines.append(line_str)
+            else:
+                if not (line_str.startswith("http://") or line_str.startswith("https://")):
+                    line_str = f"{base_url}{line_str}"
+                rewritten_lines.append(line_str)
+
+        content = "\n".join(rewritten_lines)
+
+        return Response(
+            content=content,
+            media_type="application/vnd.apple.mpegurl",
+            headers={
+                "Cache-Control": "no-cache",
+                "Access-Control-Allow-Origin": "*",
+            },
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Failed to retrieve and proxy HLS playlist: {str(exc)}",
+        )
+
 
 
 

@@ -90,49 +90,23 @@ export default defineConfig({
           },
 
           // ── Strategy 3: HLS audio (.m3u8 playlists + .ts segments) ──
-          // Cache-first, stripping dynamic query parameters (e.g. presigned B2 auth parameters)
+          // Cache-first with a 10-track (~50MB) LRU eviction limit
           {
             urlPattern: ({ url }: { url: URL }) =>
               /\.(m3u8|ts)$/i.test(url.pathname),
             handler: 'CacheFirst',
             options: {
-              cacheName: 'fermata-audio-v2',
+              cacheName: 'fermata-audio-v1',
               expiration: {
-                // Approximate LRU eviction sized to save ~10 tracks (each track is ~200 segments + 1 playlist)
+                // Each track ~200 segments + 1 playlist. 10 tracks ≈ 2010 entries
                 maxEntries: 2100,
-                maxAgeSeconds: 60 * 60 * 24 * 7, // 7 days
+                maxAgeSeconds: 60 * 60 * 24 * 14, // 14 days
               },
               cacheableResponse: {
                 statuses: [0, 200],
               },
-              plugins: [
-                {
-                  // Workbox hook to rewrite the cache key before matching or putting items in the database
-                  cacheKeyWillBeUsed: async ({ request }) => {
-                    const url = new URL(request.url)
-                    url.search = '' // Strip all query parameters (token, authorization, signature)
-                    return url.toString()
-                  }
-                }
-              ]
-            },
-          },
-
-          // ── Strategy 5: HLS Decryption Keys ──
-          // Cache-first for HLS decryption keys, allowing offline playback of encrypted segments
-          {
-            urlPattern: ({ url }: { url: URL }) =>
-              url.pathname.includes('/key'),
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'fermata-keys-v2',
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 * 7, // 7 days
-              },
-              cacheableResponse: {
-                statuses: [0, 200],
-              }
+              // Range requests (partial audio) must be handled by a plugin
+              plugins: [],
             },
           },
 
