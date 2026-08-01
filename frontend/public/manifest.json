@@ -2,14 +2,14 @@
   "name": "Fermata Music",
   "short_name": "Fermata",
   "description": "A production-ready music streaming application powered by FastAPI.",
-  "start_url": "/",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#121212",
   "theme_color": "#1DB954",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/favicon.svg",
+      "src": "favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"

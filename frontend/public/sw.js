@@ -1,9 +1,9 @@
 const CACHE_NAME = 'fermata-shell-v1';
 const ASSETS = [
-  '/',
-  '/index.html',
-  '/favicon.svg',
-  '/manifest.json'
+  './',
+  'index.html',
+  'favicon.svg',
+  'manifest.json'
 ];
 
 // Install Event - Pre-cache critical shell files
