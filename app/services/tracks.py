@@ -5,7 +5,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from app.core.config import settings
-from app.core.storage import delete_audio_file, get_audio_url, upload_audio_file
+from app.core.storage import delete_audio_file, get_audio_url, upload_audio_file, delete_objects_with_prefix
 from app.models.album import Album
 from app.models.track import Track
 from app.models.lyric_chunk import LyricChunk
@@ -405,11 +405,21 @@ def update_track(
 def delete_track(*, db: Session, track_id: int, user: User) -> None:
     track = _get_track_or_404(db, track_id)
     _ensure_can_write_to_track(db, track, user)
-    if track.audio_file_key:
-        try:
-            delete_audio_file(track.audio_file_key)
-        except RuntimeError:
-            pass
+    
+    # 1. Delete specific object keys if they exist (covering any custom/non-standard paths)
+    for key in [track.audio_file_key, track.cover_image_key, track.hls_playlist_key, track.hls_key_key]:
+        if key:
+            try:
+                delete_audio_file(key)
+            except RuntimeError:
+                pass
+                
+    # 2. Delete all files matching the prefix folder 'tracks/{track_id}/' (cleaning up all HLS segments)
+    try:
+        delete_objects_with_prefix(f"tracks/{track_id}/")
+    except RuntimeError:
+        pass
+        
     db.delete(track)
     db.commit()
 

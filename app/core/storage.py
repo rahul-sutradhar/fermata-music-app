@@ -126,3 +126,30 @@ def delete_audio_file(object_key: str) -> None:
         client.delete_object(Bucket=settings.b2_bucket_name, Key=object_key)
     except (BotoCoreError, ClientError) as exc:
         raise RuntimeError("Failed to delete audio file from Backblaze B2") from exc
+
+
+def delete_objects_with_prefix(prefix: str) -> None:
+    """Deletes all objects in Backblaze B2 matching the given key prefix."""
+    if not prefix:
+        return
+    client = get_b2_client()
+    try:
+        paginator = client.get_paginator("list_objects_v2")
+        pages = paginator.paginate(Bucket=settings.b2_bucket_name, Prefix=prefix)
+        
+        objects_to_delete = []
+        for page in pages:
+            if "Contents" in page:
+                for obj in page["Contents"]:
+                    objects_to_delete.append({"Key": obj["Key"]})
+                    
+        if objects_to_delete:
+            for i in range(0, len(objects_to_delete), 1000):
+                batch = objects_to_delete[i:i + 1000]
+                client.delete_objects(
+                    Bucket=settings.b2_bucket_name,
+                    Delete={"Objects": batch}
+                )
+    except (BotoCoreError, ClientError) as exc:
+        raise RuntimeError(f"Failed to delete files with prefix {prefix} from Backblaze B2") from exc
+
