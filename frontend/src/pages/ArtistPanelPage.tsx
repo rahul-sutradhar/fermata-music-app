@@ -442,7 +442,7 @@ export default function ArtistPanelPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-surface-highlight mb-4 gap-2 overflow-x-auto scrollbar-none">
+      <div className="flex border-b border-surface-highlight mb-4 gap-2 overflow-x-auto pb-1">
         <button
           onClick={() => {
             setActiveTab('tracks')

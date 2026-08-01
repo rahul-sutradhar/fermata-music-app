@@ -29,7 +29,7 @@ export default function Card({ title, subtitle, imageUrl, href, onPlay, isRound 
           }`}
         >
           {imageUrl ? (
-            <img src={imageUrl} alt={title} className="w-full h-full object-cover" />
+            <img src={imageUrl} alt={title} loading="lazy" className="w-full h-full object-cover" />
           ) : (
             <Music size={48} className="text-subtext/50" />
           )}

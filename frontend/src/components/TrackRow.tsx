@@ -110,6 +110,7 @@ export default function TrackRow({ track, index, tracks, onPlay, playlistId }: P
           <img
             src={track.cover_url}
             alt={track.title}
+            loading="lazy"
             className="w-9 h-9 rounded object-cover shrink-0 shadow animate-in fade-in"
           />
         ) : (

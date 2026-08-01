@@ -41,6 +41,54 @@ class CustomKeyLoader extends (Hls as any).DefaultConfig.loader {
   }
 }
 
+const AUDIO_CACHE = 'fermata-audio-cache-v1'
+
+class CachedFragmentLoader extends (Hls as any).DefaultConfig.loader {
+  async load(context: any, config: any, callbacks: any) {
+    const isSegment = context.url && context.url.includes('.ts')
+
+    if (isSegment) {
+      try {
+        const cache = await caches.open(AUDIO_CACHE)
+        const cachedResponse = await cache.match(context.url)
+
+        if (cachedResponse) {
+          const arrayBuffer = await cachedResponse.arrayBuffer()
+          const stats = {
+            trequest: performance.now(),
+            tfirst: performance.now(),
+            tload: performance.now(),
+            loaded: arrayBuffer.byteLength,
+            total: arrayBuffer.byteLength,
+          }
+          callbacks.onSuccess({ url: context.url, data: arrayBuffer }, stats, context)
+          return
+        }
+      } catch (err) {
+        console.warn('[HLS Cache] Cache lookup failed:', err)
+      }
+    }
+
+    const originalSuccess = callbacks.onSuccess
+    callbacks.onSuccess = async (response: any, stats: any, ctx: any) => {
+      if (isSegment) {
+        try {
+          const cache = await caches.open(AUDIO_CACHE)
+          const cacheResponse = new Response(response.data, {
+            headers: { 'Content-Type': 'video/mp2t' },
+          })
+          await cache.put(ctx.url, cacheResponse)
+        } catch (err) {
+          console.warn('[HLS Cache] Failed to write segment to cache:', err)
+        }
+      }
+      originalSuccess(response, stats, ctx)
+    }
+
+    super.load(context, config, callbacks)
+  }
+}
+
 export default function NowPlayingBar() {
   const audioRef = useRef<HTMLAudioElement>(null)
   const hlsRef = useRef<Hls | null>(null)
@@ -501,6 +549,7 @@ export default function NowPlayingBar() {
         if (isHls && Hls.isSupported()) {
           const hls = new Hls({
             loader: CustomKeyLoader as any,
+            fLoader: CachedFragmentLoader as any,
             xhrSetup: (xhr, xhrUrl) => {
               console.log('[HLS xhrSetup] Requesting URL:', xhrUrl)
               if (xhrUrl.includes('/key')) {
@@ -699,6 +748,7 @@ export default function NowPlayingBar() {
             <img
               src={currentTrack.cover_url}
               alt={currentTrack.title}
+              loading="lazy"
               className="w-12 h-12 rounded-md object-cover shrink-0 shadow"
             />
           ) : (
@@ -757,6 +807,7 @@ export default function NowPlayingBar() {
             <img
               src={currentTrack.cover_url}
               alt={currentTrack.title}
+              loading="lazy"
               className="w-9 h-9 rounded object-cover shrink-0 shadow"
             />
           ) : (

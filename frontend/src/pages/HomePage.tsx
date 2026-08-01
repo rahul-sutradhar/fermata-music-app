@@ -127,6 +127,7 @@ export default function HomePage() {
                   <img
                     src={track.cover_url}
                     alt={track.title}
+                    loading="lazy"
                     className="w-16 h-16 object-cover shrink-0"
                   />
                 ) : (

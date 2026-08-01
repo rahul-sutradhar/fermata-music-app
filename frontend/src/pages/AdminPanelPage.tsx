@@ -841,10 +841,10 @@ export default function AdminPanelPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-surface-highlight mb-4 gap-2 overflow-x-auto scrollbar-none">
+      <div className="flex border-b border-surface-highlight mb-4 gap-2 overflow-x-auto pb-1">
         <button
           onClick={() => { setActiveTab('tracks'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'tracks' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all shrink-0 ${activeTab === 'tracks' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
             }`}
         >
           <Music size={16} />
@@ -852,7 +852,7 @@ export default function AdminPanelPage() {
         </button>
         <button
           onClick={() => { setActiveTab('albums'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'albums' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all shrink-0 ${activeTab === 'albums' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
             }`}
         >
           <Disc size={16} />
@@ -860,7 +860,7 @@ export default function AdminPanelPage() {
         </button>
         <button
           onClick={() => { setActiveTab('users'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'users' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all shrink-0 ${activeTab === 'users' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
             }`}
         >
           <User size={16} />
@@ -868,7 +868,7 @@ export default function AdminPanelPage() {
         </button>
         <button
           onClick={() => { setActiveTab('artists'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'artists' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all shrink-0 ${activeTab === 'artists' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
             }`}
         >
           <Radio size={16} />
@@ -876,7 +876,7 @@ export default function AdminPanelPage() {
         </button>
         <button
           onClick={() => { setActiveTab('admins'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'admins' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all shrink-0 ${activeTab === 'admins' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
             }`}
         >
           <Shield size={16} />
@@ -884,7 +884,7 @@ export default function AdminPanelPage() {
         </button>
         <button
           onClick={() => { setActiveTab('ingestion'); setSearchQ('') }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${activeTab === 'ingestion' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all shrink-0 ${activeTab === 'ingestion' ? 'border-spotify-green text-spotify-green' : 'border-transparent text-subtext hover:text-primary'
             }`}
         >
           <RefreshCw size={16} />
@@ -927,10 +927,10 @@ export default function AdminPanelPage() {
 
       {/* Sub-tabs for Ingestion Queue */}
       {activeTab === 'ingestion' && !searchQ.trim() && (
-        <div className="flex gap-2 mb-6 overflow-x-auto scrollbar-none pb-1 shrink-0">
+        <div className="flex gap-2 mb-6 overflow-x-auto pb-2 shrink-0">
           <button
             onClick={() => setIngestionSubTab('pending')}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
               ingestionSubTab === 'pending'
                 ? 'bg-spotify-green text-accent-text'
                 : 'bg-surface-highlight/35 text-subtext hover:text-primary hover:bg-surface-highlight/60'
@@ -940,7 +940,7 @@ export default function AdminPanelPage() {
           </button>
           <button
             onClick={() => setIngestionSubTab('retry')}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
               ingestionSubTab === 'retry'
                 ? 'bg-spotify-green text-accent-text'
                 : 'bg-surface-highlight/35 text-subtext hover:text-primary hover:bg-surface-highlight/60'
@@ -950,7 +950,7 @@ export default function AdminPanelPage() {
           </button>
           <button
             onClick={() => setIngestionSubTab('completed')}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
               ingestionSubTab === 'completed'
                 ? 'bg-spotify-green text-accent-text'
                 : 'bg-surface-highlight/35 text-subtext hover:text-primary hover:bg-surface-highlight/60'
@@ -960,7 +960,7 @@ export default function AdminPanelPage() {
           </button>
           <button
             onClick={() => setIngestionSubTab('exists')}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
               ingestionSubTab === 'exists'
                 ? 'bg-spotify-green text-accent-text'
                 : 'bg-surface-highlight/35 text-subtext hover:text-primary hover:bg-surface-highlight/60'
@@ -970,7 +970,7 @@ export default function AdminPanelPage() {
           </button>
           <button
             onClick={() => setIngestionSubTab('rejected')}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
               ingestionSubTab === 'rejected'
                 ? 'bg-spotify-green text-accent-text'
                 : 'bg-surface-highlight/35 text-subtext hover:text-primary hover:bg-surface-highlight/60'
@@ -1694,18 +1694,21 @@ export default function AdminPanelPage() {
 
           {/* INGESTION QUEUE TABLE */}
           {activeTab === 'ingestion' && (
-            <>
-              <div className="grid grid-cols-[28px_1fr_90px_100px] md:grid-cols-[40px_1.5fr_1.2fr_1.2fr_120px_150px_100px_140px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
-                <span>#</span>
-                <span>Song Name</span>
-                <span className="hidden md:block">Artists</span>
-                <span className="hidden md:block">Requested By</span>
-                <span className="hidden md:block">Date Applied</span>
-                <span className="hidden md:block">Source Link</span>
-                <span>Status</span>
-                <span className="text-right">Actions</span>
-              </div>
-              <div className="divide-y divide-surface-highlight/30">
+            <div className="overflow-x-auto scrollbar-thin rounded-lg border border-surface-highlight/30 bg-surface">
+              <div className="min-w-[1020px] divide-y divide-surface-highlight/30">
+                {/* Header */}
+                <div className="grid grid-cols-[40px_1.5fr_1.2fr_1.2fr_120px_150px_100px_140px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+                  <span className="sticky left-0 bg-surface-elevated z-10 py-1">#</span>
+                  <span className="sticky left-10 bg-surface-elevated z-10 border-r border-surface-highlight/30 pr-4 py-1">Song Name</span>
+                  <span>Artists</span>
+                  <span>Requested By</span>
+                  <span>Date Applied</span>
+                  <span>Source Link</span>
+                  <span>Status</span>
+                  <span className="text-right">Actions</span>
+                </div>
+                
+                {/* Rows */}
                 {getSortedIngestionRequests().length === 0 ? (
                   <div className="py-16 text-center text-subtext text-sm">
                     {searchQ ? 'No matching requests found' : 'No ingestion requests in this section'}
@@ -1714,15 +1717,15 @@ export default function AdminPanelPage() {
                   getSortedIngestionRequests().map((req, index) => (
                     <div
                       key={req.id}
-                      className="grid grid-cols-[28px_1fr_90px_100px] md:grid-cols-[40px_1.5fr_1.2fr_1.2fr_120px_150px_100px_140px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/20 transition-colors"
+                      className="group grid grid-cols-[40px_1.5fr_1.2fr_1.2fr_120px_150px_100px_140px] gap-4 items-center px-4 py-3 hover:bg-surface-highlight/10 transition-colors bg-surface"
                     >
-                      {/* Serial Number */}
-                      <span className="text-xs font-semibold text-subtext tabular-nums">
+                      {/* Serial Number (Sticky) */}
+                      <span className="text-xs font-semibold text-subtext tabular-nums sticky left-0 bg-surface group-hover:bg-surface-highlight/10 z-10 transition-colors py-3">
                         {index + 1}
                       </span>
 
-                      {/* Song Name with mobile stack */}
-                      <div className="min-w-0 flex flex-col">
+                      {/* Song Name (Sticky) */}
+                      <div className="min-w-0 flex flex-col sticky left-10 bg-surface group-hover:bg-surface-highlight/10 z-10 border-r border-surface-highlight/30 pr-4 transition-colors py-1">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <span className="text-sm font-medium truncate text-primary block" title={req.song_name}>
                             {req.song_name}
@@ -1732,35 +1735,32 @@ export default function AdminPanelPage() {
                               href={editedUrls[req.id] || req.source_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-spotify-green hover:text-spotify-green-hover shrink-0 md:hidden p-0.5"
+                              className="text-spotify-green hover:text-spotify-green-hover shrink-0 p-0.5"
                               title="Open Source Link"
                             >
                               <ExternalLink size={12} />
                             </a>
                           )}
                         </div>
-                        <span className="text-xs text-subtext block md:hidden truncate">
-                          {req.artist_name || 'Unknown Artist'} • By {req.requested_by || 'system'}
-                        </span>
                       </div>
 
                       {/* Artists Name */}
-                      <span className="text-sm text-subtext truncate animate-in fade-in hidden md:block" title={req.artist_name}>
-                        {req.artist_name}
+                      <span className="text-sm text-subtext truncate animate-in fade-in" title={req.artist_name}>
+                        {req.artist_name || 'Unknown Artist'}
                       </span>
 
                       {/* Requested By User */}
-                      <span className="text-sm text-subtext truncate animate-in fade-in hidden md:block" title={req.requested_by}>
-                        {req.requested_by}
+                      <span className="text-sm text-subtext truncate animate-in fade-in" title={req.requested_by}>
+                        {req.requested_by || 'system'}
                       </span>
 
                       {/* Date Applied */}
-                      <span className="text-xs text-subtext truncate hidden md:block">
+                      <span className="text-xs text-subtext truncate">
                         {formatDate(req.created_at)}
                       </span>
 
                       {/* Clickable Youtube URL */}
-                      <div className="flex items-center min-w-0 hidden md:flex">
+                      <div className="flex items-center min-w-0">
                         {req.status === 'pending' || req.status === 'failed' ? (
                           <div className="flex items-center gap-1.5 min-w-0 w-full">
                             <a
@@ -1913,7 +1913,7 @@ export default function AdminPanelPage() {
                   ))
                 )}
               </div>
-            </>
+            </div>
           )}
         </div>
       )}
