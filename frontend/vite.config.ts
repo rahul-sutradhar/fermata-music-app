@@ -51,9 +51,21 @@ export default defineConfig({
           {
             urlPattern: ({ url }: { url: URL }) =>
               url.pathname.startsWith('/api/') ||
+              url.pathname.startsWith('/tracks') ||
+              url.pathname.startsWith('/albums') ||
+              url.pathname.startsWith('/artists') ||
+              url.pathname.startsWith('/playlists') ||
+              url.pathname.startsWith('/users') ||
+              url.pathname.startsWith('/auth') ||
+              url.pathname.startsWith('/player') ||
+              url.pathname.startsWith('/library') ||
+              url.pathname.startsWith('/search') ||
+              url.pathname.startsWith('/content') ||
+              url.pathname.startsWith('/uploads') ||
               url.hostname.includes('fermata') ||
               url.hostname.includes('render.com') ||
-              url.hostname.includes('railway.app'),
+              url.hostname.includes('railway.app') ||
+              url.port === '8000',
             handler: 'NetworkFirst',
             options: {
               cacheName: 'fermata-api-v1',

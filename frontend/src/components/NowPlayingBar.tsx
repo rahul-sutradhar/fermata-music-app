@@ -5,11 +5,53 @@ import { getTrackAudioUrl, getTrack } from '@/api/tracks'
 import { addRecentlyPlayed, getPlayerState, updatePlayerState } from '@/api/player'
 import { useAuthStore } from '@/store/authStore'
 import { API_BASE } from '@/api/client'
+import { addToOfflineTracks } from '@/utils/offlineCache'
 import PlayerControls from './PlayerControls'
 import Hls from 'hls.js'
 
+const AUDIO_CACHE = 'fermata-audio-cache-v1'
+
 class CustomKeyLoader extends (Hls as any).DefaultConfig.loader {
-  load(context: any, config: any, callbacks: any) {
+  async load(context: any, config: any, callbacks: any) {
+    const isKey = context.url && context.url.includes('/key')
+    const isPlaylist = context.url && context.url.includes('.m3u8')
+
+    if (isKey || isPlaylist) {
+      try {
+        const cache = await caches.open(AUDIO_CACHE)
+        const cachedResponse = await cache.match(context.url)
+
+        if (cachedResponse) {
+          console.log(`[HLS Cache] Serving from cache: ${context.url}`)
+          if (isKey) {
+            const arrayBuffer = await cachedResponse.arrayBuffer()
+            const stats = {
+              trequest: performance.now(),
+              tfirst: performance.now(),
+              tload: performance.now(),
+              loaded: arrayBuffer.byteLength,
+              total: arrayBuffer.byteLength,
+            }
+            callbacks.onSuccess({ url: context.url, data: arrayBuffer }, stats, context)
+            return
+          } else {
+            const text = await cachedResponse.text()
+            const stats = {
+              trequest: performance.now(),
+              tfirst: performance.now(),
+              tload: performance.now(),
+              loaded: text.length,
+              total: text.length,
+            }
+            callbacks.onSuccess({ url: context.url, data: text }, stats, context)
+            return
+          }
+        }
+      } catch (err) {
+        console.warn('[HLS Cache] Cache lookup failed in CustomKeyLoader:', err)
+      }
+    }
+
     if (context.url && context.url.includes('/key')) {
       console.log('[CustomKeyLoader] Intercepted key request URL:', context.url)
       const activeBase = API_BASE.replace(/\/$/, '')
@@ -34,11 +76,35 @@ class CustomKeyLoader extends (Hls as any).DefaultConfig.loader {
         console.log('[CustomKeyLoader] URL already matches active base. No rewrite needed.')
       }
     }
+
+    const originalSuccess = callbacks.onSuccess
+    callbacks.onSuccess = async (response: any, stats: any, ctx: any) => {
+      if (isKey || isPlaylist) {
+        try {
+          const cache = await caches.open(AUDIO_CACHE)
+          let cacheResponse
+          if (isKey) {
+            cacheResponse = new Response(response.data, {
+              headers: { 'Content-Type': 'application/octet-stream' },
+            })
+          } else {
+            cacheResponse = new Response(response.data, {
+              headers: { 'Content-Type': 'application/vnd.apple.mpegurl' },
+            })
+          }
+          await cache.put(ctx.url, cacheResponse)
+          console.log(`[HLS Cache] Successfully cached: ${ctx.url}`)
+        } catch (err) {
+          console.warn('[HLS Cache] Failed to write key/playlist to cache:', err)
+        }
+      }
+      originalSuccess(response, stats, ctx)
+    }
+
     super.load(context, config, callbacks)
   }
 }
 
-const AUDIO_CACHE = 'fermata-audio-cache-v1'
 
 class CachedFragmentLoader extends (Hls as any).DefaultConfig.loader {
   async load(context: any, config: any, callbacks: any) {
@@ -523,6 +589,9 @@ export default function NowPlayingBar() {
     audio.load()
 
     if (!currentTrack) return
+
+    // Trigger background caching for offline playback
+    addToOfflineTracks(currentTrack.id)
 
     async function loadAudio() {
       let url = ''
