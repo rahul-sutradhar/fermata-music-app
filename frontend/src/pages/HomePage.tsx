@@ -122,7 +122,6 @@ export default function HomePage() {
                   setTrack(track)
                 }}
                 className="flex items-center gap-3 bg-surface-highlight/40 hover:bg-surface-highlight/95 rounded-md overflow-hidden transition-all duration-200 group text-left p-0 border border-transparent hover:border-spotify-green/40 cursor-pointer"
-                style={{ '--tw-shadow': '0 0 8px var(--accent-glow)' } as React.CSSProperties}
               >
                 {track.cover_url ? (
                   <img

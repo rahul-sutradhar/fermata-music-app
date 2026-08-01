@@ -185,7 +185,7 @@ export default function LibraryPage() {
               <span
                 className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
                   activeTab === tab.id
-                    ? 'bg-spotify-green text-black'
+                    ? 'bg-spotify-green text-accent-text'
                     : 'bg-surface-highlight text-subtext'
                 }`}
               >

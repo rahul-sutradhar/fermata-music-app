@@ -580,7 +580,7 @@ export default function ReportMissingPage() {
           >
             <div
               className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${msg.sender === 'user'
-                  ? 'bg-spotify-green text-black font-semibold rounded-tr-none'
+                  ? 'bg-spotify-green text-accent-text font-semibold rounded-tr-none'
                   : 'bg-surface-highlight/40 text-primary rounded-tl-none border border-surface-highlight/40'
                 }`}
             >

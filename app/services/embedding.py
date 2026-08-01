@@ -47,7 +47,8 @@ def get_embedding(text: str, max_retries: int = 5) -> List[float]:
             if cached_val and isinstance(cached_val, list) and len(cached_val) == 384:
                 return cached_val
     except Exception as cache_err:
-        print(f"[Embedding] Cache read failure: {str(cache_err)}", flush=True)
+        # Cache read failure is handled silently to prevent log spamming on chunks
+        pass
 
     # Support multiple token casings
     token = (
@@ -98,7 +99,8 @@ def get_embedding(text: str, max_retries: int = 5) -> List[float]:
                                     mem_cache = get_memory_limiter()
                                 mem_cache.set(cache_key, embedding, 86400)
                         except Exception as cache_err:
-                            print(f"[Embedding] Cache write failure: {str(cache_err)}", flush=True)
+                            # Cache write failure is handled silently to prevent log spamming on chunks
+                            pass
                         return embedding
 
                 elif res.status_code == 503:

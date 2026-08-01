@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from pydantic import BaseModel
 from sqlalchemy import select, func
 
-from app.core.deps import DbSession, CurrentUser, CurrentAdmin, CurrentMasterAdmin
+from app.core.deps import DbSession, CurrentUser, CurrentAdmin
 from app.models.ingestion_request import IngestionRequest
 from app.core.config import settings
 
@@ -190,7 +190,7 @@ def select_candidate(payload: SelectRequest, db: DbSession, current_user: Curren
 
 # Admin Ingestion Queue endpoints
 @router.get("/requests")
-def get_ingestion_requests(db: DbSession, current_admin: CurrentMasterAdmin):
+def get_ingestion_requests(db: DbSession, current_admin: CurrentAdmin):
     """
     Retrieve list of ingestion requests in the queue (Admin only).
     """
@@ -561,7 +561,7 @@ class ApproveRequestPayload(BaseModel):
 def approve_ingestion_request(
     request_id: int, 
     db: DbSession, 
-    current_admin: CurrentMasterAdmin,
+    current_admin: CurrentAdmin,
     payload: ApproveRequestPayload = ApproveRequestPayload()
 ):
     """
@@ -591,7 +591,7 @@ def approve_ingestion_request(
 
 
 @router.post("/requests/{request_id}/reject")
-def reject_ingestion_request(request_id: int, db: DbSession, current_admin: CurrentMasterAdmin):
+def reject_ingestion_request(request_id: int, db: DbSession, current_admin: CurrentAdmin):
     """
     Reject / Cancel ingestion request (Admin only).
     """
@@ -617,7 +617,7 @@ def reject_ingestion_request(request_id: int, db: DbSession, current_admin: Curr
 
 
 @router.delete("/requests/{request_id}")
-def delete_ingestion_request(request_id: int, db: DbSession, current_admin: CurrentMasterAdmin):
+def delete_ingestion_request(request_id: int, db: DbSession, current_admin: CurrentAdmin):
     """
     Cancel / Reject / Remove an ingestion request from the queue (Admin only).
     Instead of deleting from DB, sets status to 'rejected' so it appears in the 'Rejected' tab.

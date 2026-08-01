@@ -69,7 +69,15 @@ def get_redis():
     if _redis_client is not None:
         return _redis_client
     if settings.redis_url and redis is not None:
-        _redis_client = redis.from_url(settings.redis_url)
+        # Enable connection pooling robustness features for cloud deployments
+        _redis_client = redis.from_url(
+            settings.redis_url,
+            socket_timeout=5,
+            socket_connect_timeout=5,
+            socket_keepalive=True,
+            retry_on_timeout=True,
+            health_check_interval=30
+        )
         return _redis_client
     return None
 

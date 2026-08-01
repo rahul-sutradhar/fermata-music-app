@@ -333,7 +333,7 @@ export default function ImageCropperModal({
           <button
             type="button"
             onClick={handleCropSave}
-            className="flex-1 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-colors flex items-center justify-center gap-1.5 shadow-lg hover:scale-[1.02]"
+            className="flex-1 px-4 py-2.5 rounded-full bg-spotify-green text-accent-text text-sm font-semibold hover:bg-spotify-green-hover transition-colors flex items-center justify-center gap-1.5 shadow-lg hover:scale-[1.02]"
           >
             <Check size={16} />
             Apply Crop

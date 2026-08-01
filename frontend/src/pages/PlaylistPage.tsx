@@ -285,7 +285,7 @@ export default function PlaylistPage() {
               <button
                 type="submit"
                 disabled={updating}
-                className="flex-1 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-bold hover:bg-spotify-green-hover transition-colors disabled:opacity-50"
+                className="flex-1 px-4 py-2.5 rounded-full bg-spotify-green text-accent-text text-sm font-bold hover:bg-spotify-green-hover transition-colors disabled:opacity-50"
               >
                 {updating ? 'Saving...' : 'Save Changes'}
               </button>

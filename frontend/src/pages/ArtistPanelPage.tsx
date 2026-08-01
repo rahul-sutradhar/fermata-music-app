@@ -423,7 +423,7 @@ export default function ArtistPanelPage() {
               setEditingTrack(null)
               setTrackModalOpen(true)
             }}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-all hover:scale-[1.02] shadow-lg shrink-0"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-spotify-green text-accent-text text-sm font-semibold hover:bg-spotify-green-hover transition-all hover:scale-[1.02] shadow-lg shrink-0"
           >
             <Plus size={16} />
             Upload Track
@@ -433,7 +433,7 @@ export default function ArtistPanelPage() {
         {activeTab === 'albums' && (
           <button
             onClick={() => openAlbumModal()}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-all hover:scale-[1.02] shadow-lg shrink-0"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-spotify-green text-accent-text text-sm font-semibold hover:bg-spotify-green-hover transition-all hover:scale-[1.02] shadow-lg shrink-0"
           >
             <Plus size={16} />
             Create Album
@@ -1074,7 +1074,7 @@ export default function ArtistPanelPage() {
               </button>
               <button
                 type="submit"
-                className="flex-1 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-colors"
+                className="flex-1 px-4 py-2.5 rounded-full bg-spotify-green text-accent-text text-sm font-semibold hover:bg-spotify-green-hover transition-colors"
               >
                 {editingAlbum ? 'Save Album' : 'Create Album'}
               </button>

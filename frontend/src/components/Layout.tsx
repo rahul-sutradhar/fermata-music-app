@@ -170,9 +170,9 @@ export default function Layout() {
             </button>
           </div>
           
-          {/* Sidebar content (closes menu on item click) */}
-          <div className="flex-1 min-h-0 flex flex-col overflow-hidden" onClick={() => setIsMobileSidebarOpen(false)}>
-            <Sidebar />
+          {/* Sidebar content (closes menu on actual item click) */}
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            <Sidebar onItemClick={() => setIsMobileSidebarOpen(false)} />
           </div>
         </div>
       </div>
@@ -364,7 +364,7 @@ export default function Layout() {
               </button>
               <button
                 type="submit"
-                className="flex-1 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-bold hover:bg-spotify-green-hover transition-colors cursor-pointer"
+                className="flex-1 px-4 py-2.5 rounded-full bg-spotify-green text-accent-text text-sm font-bold hover:bg-spotify-green-hover transition-colors cursor-pointer"
               >
                 Create
               </button>

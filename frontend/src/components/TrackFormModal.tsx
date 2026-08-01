@@ -506,7 +506,7 @@ export default function TrackFormModal({
             <button
               type="submit"
               disabled={submitting}
-              className={`flex-1 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-colors flex items-center justify-center gap-1.5 transition-all ${
+              className={`flex-1 px-4 py-2.5 rounded-full bg-spotify-green text-accent-text text-sm font-semibold hover:bg-spotify-green-hover transition-colors flex items-center justify-center gap-1.5 transition-all ${
                 submitting ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'hover:scale-[1.02]'
               }`}
             >

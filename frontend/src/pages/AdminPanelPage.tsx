@@ -805,7 +805,7 @@ export default function AdminPanelPage() {
         {activeTab === 'tracks' && (
           <button
             onClick={() => { setEditingTrack(null); setTrackModalOpen(true) }}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-all hover:scale-[1.02] shadow-lg shrink-0"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-spotify-green text-accent-text text-sm font-semibold hover:bg-spotify-green-hover transition-all hover:scale-[1.02] shadow-lg shrink-0"
           >
             <Plus size={16} />
             Add Track
@@ -814,7 +814,7 @@ export default function AdminPanelPage() {
         {activeTab === 'users' && (
           <button
             onClick={() => openUserModal(null, 'user')}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-all hover:scale-[1.02] shadow-lg shrink-0"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-spotify-green text-accent-text text-sm font-semibold hover:bg-spotify-green-hover transition-all hover:scale-[1.02] shadow-lg shrink-0"
           >
             <Plus size={16} />
             Add User
@@ -823,7 +823,7 @@ export default function AdminPanelPage() {
         {activeTab === 'admins' && (
           <button
             onClick={() => openUserModal(null, 'admin')}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-all hover:scale-[1.02] shadow-lg shrink-0"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-spotify-green text-accent-text text-sm font-semibold hover:bg-spotify-green-hover transition-all hover:scale-[1.02] shadow-lg shrink-0"
           >
             <Plus size={16} />
             Add Admin
@@ -832,7 +832,7 @@ export default function AdminPanelPage() {
         {activeTab === 'albums' && (
           <button
             onClick={() => openAlbumModal()}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-all hover:scale-[1.02] shadow-lg shrink-0"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-spotify-green text-accent-text text-sm font-semibold hover:bg-spotify-green-hover transition-all hover:scale-[1.02] shadow-lg shrink-0"
           >
             <Plus size={16} />
             Add Album
@@ -932,7 +932,7 @@ export default function AdminPanelPage() {
             onClick={() => setIngestionSubTab('pending')}
             className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
               ingestionSubTab === 'pending'
-                ? 'bg-spotify-green text-black'
+                ? 'bg-spotify-green text-accent-text'
                 : 'bg-surface-highlight/35 text-subtext hover:text-primary hover:bg-surface-highlight/60'
             }`}
           >
@@ -942,7 +942,7 @@ export default function AdminPanelPage() {
             onClick={() => setIngestionSubTab('retry')}
             className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
               ingestionSubTab === 'retry'
-                ? 'bg-spotify-green text-black'
+                ? 'bg-spotify-green text-accent-text'
                 : 'bg-surface-highlight/35 text-subtext hover:text-primary hover:bg-surface-highlight/60'
             }`}
           >
@@ -952,7 +952,7 @@ export default function AdminPanelPage() {
             onClick={() => setIngestionSubTab('completed')}
             className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
               ingestionSubTab === 'completed'
-                ? 'bg-spotify-green text-black'
+                ? 'bg-spotify-green text-accent-text'
                 : 'bg-surface-highlight/35 text-subtext hover:text-primary hover:bg-surface-highlight/60'
             }`}
           >
@@ -962,7 +962,7 @@ export default function AdminPanelPage() {
             onClick={() => setIngestionSubTab('exists')}
             className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
               ingestionSubTab === 'exists'
-                ? 'bg-spotify-green text-black'
+                ? 'bg-spotify-green text-accent-text'
                 : 'bg-surface-highlight/35 text-subtext hover:text-primary hover:bg-surface-highlight/60'
             }`}
           >
@@ -972,7 +972,7 @@ export default function AdminPanelPage() {
             onClick={() => setIngestionSubTab('rejected')}
             className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
               ingestionSubTab === 'rejected'
-                ? 'bg-spotify-green text-black'
+                ? 'bg-spotify-green text-accent-text'
                 : 'bg-surface-highlight/35 text-subtext hover:text-primary hover:bg-surface-highlight/60'
             }`}
           >
@@ -999,7 +999,7 @@ export default function AdminPanelPage() {
               </div>
               <button
                 onClick={() => openUserModal(null, 'artist')}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-spotify-green text-black text-xs font-semibold hover:bg-spotify-green-hover transition-colors"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-spotify-green text-accent-text text-xs font-semibold hover:bg-spotify-green-hover transition-colors"
               >
                 <Plus size={14} />
                 Add Artist Account
@@ -1060,7 +1060,7 @@ export default function AdminPanelPage() {
               </div>
               <button
                 onClick={() => openArtistModal()}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-spotify-green text-black text-xs font-semibold hover:bg-spotify-green-hover transition-colors"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-spotify-green text-accent-text text-xs font-semibold hover:bg-spotify-green-hover transition-colors"
               >
                 <Plus size={14} />
                 Add Artist Profile
@@ -2038,7 +2038,7 @@ export default function AdminPanelPage() {
                   {!isReadOnlyModal && (
                     <button
                       type="submit"
-                      className="flex-1 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-colors"
+                      className="flex-1 px-4 py-2.5 rounded-full bg-spotify-green text-accent-text text-sm font-semibold hover:bg-spotify-green-hover transition-colors"
                     >
                       Save
                     </button>
@@ -2150,7 +2150,7 @@ export default function AdminPanelPage() {
               </button>
               <button
                 type="submit"
-                className="flex-1 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-colors"
+                className="flex-1 px-4 py-2.5 rounded-full bg-spotify-green text-accent-text text-sm font-semibold hover:bg-spotify-green-hover transition-colors"
               >
                 Save
               </button>
@@ -2294,7 +2294,7 @@ export default function AdminPanelPage() {
               </button>
               <button
                 type="submit"
-                className="flex-1 px-4 py-2.5 rounded-full bg-spotify-green text-black text-sm font-semibold hover:bg-spotify-green-hover transition-colors"
+                className="flex-1 px-4 py-2.5 rounded-full bg-spotify-green text-accent-text text-sm font-semibold hover:bg-spotify-green-hover transition-colors"
               >
                 Save
               </button>

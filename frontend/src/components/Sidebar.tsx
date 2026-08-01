@@ -18,6 +18,7 @@ import {
   Headphones,
   Sliders,
   Palette,
+  ChevronDown,
 } from 'lucide-react'
 
 import { useAuthStore } from '@/store/authStore'
@@ -44,7 +45,11 @@ export function parsePlaylistName(rawName: string) {
   }
 }
 
-export default function Sidebar() {
+interface SidebarProps {
+  onItemClick?: () => void
+}
+
+export default function Sidebar({ onItemClick }: SidebarProps) {
   const token = useAuthStore((s) => s.token)
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
@@ -57,6 +62,7 @@ export default function Sidebar() {
   const colorInputRef = useRef<HTMLInputElement>(null)
 
   const [playlists, setPlaylists] = useState<Playlist[]>([])
+  const [isAccessoriesOpen, setIsAccessoriesOpen] = useState(false)
 
   const fetchPlaylists = () => {
     if (token) {
@@ -102,189 +108,211 @@ export default function Sidebar() {
     }`
 
   return (
-    <aside className={`flex flex-col bg-base h-full w-full min-h-0 ${currentTrack ? 'md:pb-20' : ''}`}>
-      {/* Logo */}
-      <div className="p-6 pb-2">
+    <aside className="flex flex-col bg-base h-full w-full min-h-0 text-primary">
+      {/* Fixed Logo (Premium Branding) */}
+      <div className="p-6 pb-2 shrink-0">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-spotify-green flex items-center justify-center shadow-lg" style={{ boxShadow: '0 0 12px var(--accent-glow)' }}>
+          <div className="w-8 h-8 rounded-lg bg-spotify-green flex items-center justify-center shadow-md">
             <Music2 size={18} className="text-white" />
           </div>
           <span className="text-xl font-bold tracking-tight accent-glow">Fermata</span>
         </div>
       </div>
 
-      {/* Main Nav */}
-      <nav className="px-3 mt-4 space-y-1">
-        <NavLink to="/" className={linkClass} end>
-          <Home size={20} />
-          Home
-        </NavLink>
-        <NavLink to="/search" className={linkClass}>
-          <Search size={20} />
-          Search
-        </NavLink>
-        <NavLink to="/report-missing" className={linkClass}>
-          <HelpCircle size={20} />
-          Report Missing
-        </NavLink>
-        {token && (
-          <>
-            <NavLink to="/library" className={linkClass}>
-              <Library size={20} />
-              Your Library
-            </NavLink>
-            <NavLink to="/recents" className={linkClass}>
-              <History size={20} />
-              Recently Played
-            </NavLink>
-          </>
-        )}
-      </nav>
-
-      {/* Playlists */}
-      {token && (
-        <div className="flex-1 min-h-0 mt-6 px-3 overflow-hidden flex flex-col">
-          <div className="flex items-center justify-between mb-3 px-3">
-            <span className="text-xs font-semibold uppercase tracking-wider text-subtext">
-              Playlists
-            </span>
-            <button
-              onClick={() => window.dispatchEvent(new Event('open-create-playlist-modal'))}
-              className="p-1 rounded-md text-subtext hover:text-primary hover:bg-surface-highlight transition-colors cursor-pointer"
-              title="Create playlist"
-            >
-              <Plus size={16} />
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto space-y-0.5 scrollbar-thin">
-            {playlists.map((pl) => {
-              const info = parsePlaylistName(pl.name)
-              return (
-                <div key={pl.id} className="group/item flex items-center justify-between">
-                  <NavLink
-                    to={`/playlist/${pl.id}`}
-                    className={({ isActive }) =>
-                      `flex-1 px-3 py-2 rounded-lg text-sm truncate transition-colors duration-150 ${isActive
-                        ? 'bg-surface-highlight text-primary'
-                        : 'text-subtext hover:text-primary hover:bg-surface-highlight/50'
-                      }`
-                    }
-                  >
-                    {info.name}
-                  </NavLink>
-                  <button
-                    onClick={(e) => handleDeleteSidebarPlaylist(e, pl)}
-                    className="p-1.5 opacity-0 group-hover/item:opacity-100 text-subtext hover:text-red-400 transition-all rounded shrink-0 mr-1"
-                    title="Delete Playlist"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-
-      {/* Footer */}
-      <div 
-        className="p-3 mt-auto border-t border-surface-highlight space-y-1"
-        style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom))' }}
-      >
-        <button
-          onClick={() => usePlayerStore.setState({ is3DModalOpen: true })}
-          className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-subtext hover:text-primary hover:bg-surface-highlight/50 transition-colors"
-        >
-          <Headphones size={18} className={is3DEnabled ? "text-[#4de8c8] animate-pulse" : ""} />
-          <span>3D Audio</span>
-          {is3DEnabled && (
-            <span className="ml-auto text-[10px] bg-purple-600 text-white font-bold px-1.5 py-0.5 rounded leading-none">
-              3D ON
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => usePlayerStore.setState({ isEQModalOpen: true })}
-          className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-subtext hover:text-primary hover:bg-surface-highlight/50 transition-colors"
-        >
-          <Sliders size={18} className={isEQEnabled ? "text-[#4de8c8]" : ""} />
-          <span>Equalizer</span>
-          {isEQEnabled && (
-            <span className="ml-auto text-[10px] bg-purple-600 text-white font-bold px-1.5 py-0.5 rounded leading-none uppercase">
-              {eqPreset === 'bass-booster' ? 'Bass' : eqPreset === 'treble-booster' ? 'Treble' : eqPreset}
-            </span>
-          )}
-        </button>
-
-        {/* Accent Colour Picker */}
-        <button
-          onClick={() => colorInputRef.current?.click()}
-          className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-subtext hover:text-primary hover:bg-surface-highlight/50 transition-colors cursor-pointer"
-        >
-          <Palette size={18} />
-          <span>Accent Colour</span>
-          {/* Colour swatch — clicking the row triggers the hidden native picker */}
-          <span
-            className="ml-auto w-4 h-4 rounded-full border-2 border-white/20 shadow-sm flex-shrink-0 transition-all duration-300"
-            style={{ backgroundColor: accentColor }}
-          />
-          <input
-            ref={colorInputRef}
-            type="color"
-            value={accentColor}
-            onChange={(e) => setAccentColor(e.target.value)}
-            className="sr-only"
-            tabIndex={-1}
-            aria-label="Pick accent colour"
-          />
-        </button>
-
-        <button
-          onClick={toggleTheme}
-          className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-subtext hover:text-primary hover:bg-surface-highlight/50 transition-colors"
-        >
-          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-          {theme === 'dark' ? 'Light mode' : 'Dark mode'}
-        </button>
-
-        {token && user ? (
-          <>
-            <NavLink to="/profile" className={linkClass}>
-              <User size={18} />
-              {user.full_name || user.username}
-            </NavLink>
-            {(user.role === 'artist' || user.role === 'admin' || user.role === 'master_admin') && (
-              <NavLink to="/artist-studio" className={linkClass}>
-                <Radio size={18} />
-                Artist Studio
-              </NavLink>
-            )}
-            {(user.role === 'admin' || user.role === 'master_admin') && (
-              <NavLink to="/admin" className={linkClass}>
-                <Settings size={18} />
-                Admin Console
-              </NavLink>
-            )}
-
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-subtext hover:text-red-400 hover:bg-surface-highlight/50 transition-colors"
-            >
-              <LogOut size={18} />
-              Logout
-            </button>
-          </>
-        ) : (
-          <NavLink to="/login" className={linkClass}>
-            <User size={18} />
-            Sign in
+      {/* Main Scrollable Content Area */}
+      <div className="flex-1 overflow-y-auto min-h-0 flex flex-col scrollbar-thin">
+        {/* Main Nav */}
+        <nav className="px-3 mt-4 space-y-1 shrink-0">
+          <NavLink to="/" className={linkClass} onClick={onItemClick} end>
+            <Home size={20} />
+            Home
           </NavLink>
-        )}
-      </div>
+          <NavLink to="/search" className={linkClass} onClick={onItemClick}>
+            <Search size={20} />
+            Search
+          </NavLink>
+          <NavLink to="/report-missing" className={linkClass} onClick={onItemClick}>
+            <HelpCircle size={20} />
+            Report Missing
+          </NavLink>
+          {token && (
+            <>
+              <NavLink to="/library" className={linkClass} onClick={onItemClick}>
+                <Library size={20} />
+                Your Library
+              </NavLink>
+              <NavLink to="/recents" className={linkClass} onClick={onItemClick}>
+                <History size={20} />
+                Recently Played
+              </NavLink>
+            </>
+          )}
+        </nav>
 
-      {/* Playlist Creation Modal removed - now handled globally in Layout.tsx */}
+        {/* Accessories Accordion Tab */}
+        <div className="px-3 mt-4 shrink-0">
+          <button
+            onClick={() => setIsAccessoriesOpen(!isAccessoriesOpen)}
+            className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-subtext hover:text-primary hover:bg-surface-highlight/50 transition-colors cursor-pointer"
+          >
+            <Sliders size={20} />
+            <span>Accessories</span>
+            <ChevronDown 
+              size={16} 
+              className={`ml-auto transition-transform duration-200 ${isAccessoriesOpen ? 'rotate-180' : ''}`} 
+            />
+          </button>
+
+          {isAccessoriesOpen && (
+            <div className="pl-4 space-y-1 mt-1 border-l border-surface-highlight ml-5 transition-all">
+              <button
+                onClick={() => usePlayerStore.setState({ is3DModalOpen: true })}
+                className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-xs text-subtext hover:text-primary hover:bg-surface-highlight/50 transition-colors cursor-pointer"
+              >
+                <Headphones size={16} className={is3DEnabled ? "text-spotify-green animate-pulse" : ""} />
+                <span>3D Audio</span>
+                {is3DEnabled && (
+                  <span className="ml-auto text-[9px] bg-spotify-green text-accent-text font-bold px-1.5 py-0.5 rounded leading-none">
+                    ON
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => usePlayerStore.setState({ isEQModalOpen: true })}
+                className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-xs text-subtext hover:text-primary hover:bg-surface-highlight/50 transition-colors cursor-pointer"
+              >
+                <Sliders size={16} className={isEQEnabled ? "text-spotify-green" : ""} />
+                <span>Equalizer</span>
+                {isEQEnabled && (
+                  <span className="ml-auto text-[9px] bg-spotify-green text-accent-text font-bold px-1.5 py-0.5 rounded leading-none uppercase">
+                    {eqPreset === 'bass-booster' ? 'Bass' : eqPreset === 'treble-booster' ? 'Treble' : eqPreset}
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => colorInputRef.current?.click()}
+                className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-xs text-subtext hover:text-primary hover:bg-surface-highlight/50 transition-colors cursor-pointer"
+              >
+                <Palette size={16} />
+                <span>Accent Colour</span>
+                <span
+                  className="ml-auto w-3 h-3 rounded-full border border-white/20 shadow-sm flex-shrink-0 transition-all duration-300"
+                  style={{ backgroundColor: accentColor }}
+                />
+                <input
+                  ref={colorInputRef}
+                  type="color"
+                  value={accentColor}
+                  onChange={(e) => setAccentColor(e.target.value)}
+                  className="sr-only"
+                  tabIndex={-1}
+                  aria-label="Pick accent colour"
+                />
+              </button>
+
+              <button
+                onClick={toggleTheme}
+                className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-xs text-subtext hover:text-primary hover:bg-surface-highlight/50 transition-colors cursor-pointer"
+              >
+                {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+                <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Playlists (Fills remaining height when playlists are tall) */}
+        {token && (
+          <div className="flex-1 min-h-[160px] mt-6 px-3 flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between mb-3 px-3">
+              <span className="text-xs font-semibold uppercase tracking-wider text-subtext">
+                Playlists
+              </span>
+              <button
+                onClick={() => window.dispatchEvent(new Event('open-create-playlist-modal'))}
+                className="p-1 rounded-md text-subtext hover:text-primary hover:bg-surface-highlight transition-colors cursor-pointer"
+                title="Create playlist"
+              >
+                <Plus size={16} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-0.5 scrollbar-thin">
+              {playlists.map((pl) => {
+                const info = parsePlaylistName(pl.name)
+                return (
+                  <div key={pl.id} className="group/item flex items-center justify-between">
+                    <NavLink
+                      to={`/playlist/${pl.id}`}
+                      className={({ isActive }) =>
+                        `flex-1 px-3 py-2 rounded-lg text-sm truncate transition-colors duration-150 ${isActive
+                          ? 'bg-surface-highlight text-primary'
+                          : 'text-subtext hover:text-primary hover:bg-surface-highlight/50'
+                        }`
+                      }
+                      onClick={onItemClick}
+                    >
+                      {info.name}
+                    </NavLink>
+                    <button
+                      onClick={(e) => handleDeleteSidebarPlaylist(e, pl)}
+                      className="p-1.5 opacity-0 group-hover/item:opacity-100 text-subtext hover:text-red-400 transition-all rounded shrink-0 mr-1"
+                      title="Delete Playlist"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Footer / Profile options / Admin links / Logout */}
+        <div 
+          className={`p-3 mt-auto border-t border-surface-highlight space-y-1 shrink-0 ${
+            currentTrack ? 'sidebar-footer-active' : 'sidebar-footer-inactive'
+          }`}
+        >
+          {token && user ? (
+            <>
+              <NavLink to="/profile" className={linkClass} onClick={onItemClick}>
+                <User size={18} />
+                {user.full_name || user.username}
+              </NavLink>
+              {(user.role === 'artist' || user.role === 'admin' || user.role === 'master_admin') && (
+                <NavLink to="/artist-studio" className={linkClass} onClick={onItemClick}>
+                  <Radio size={18} />
+                  Artist Studio
+                </NavLink>
+              )}
+              {(user.role === 'admin' || user.role === 'master_admin') && (
+                <NavLink to="/admin" className={linkClass} onClick={onItemClick}>
+                  <Settings size={18} />
+                  Admin Console
+                </NavLink>
+              )}
+
+              <button
+                onClick={() => {
+                  handleLogout()
+                  onItemClick?.()
+                }}
+                className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-subtext hover:text-red-400 hover:bg-surface-highlight/50 transition-colors cursor-pointer"
+              >
+                <LogOut size={18} />
+                Logout
+              </button>
+            </>
+          ) : (
+            <NavLink to="/login" className={linkClass} onClick={onItemClick}>
+              <User size={18} />
+              Sign in
+            </NavLink>
+          )}
+        </div>
+      </div>
     </aside>
   )
 }
