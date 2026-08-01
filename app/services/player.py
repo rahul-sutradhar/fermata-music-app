@@ -71,6 +71,7 @@ def get_recently_played(
 ) -> list[RecentlyPlayed]:
     """Get user's recently played tracks, deduplicated by track (most recent play per track)."""
     from sqlalchemy import func
+    from sqlalchemy.orm import joinedload
 
     # Subquery: find the latest played_at timestamp for each distinct track
     latest_per_track = (
@@ -86,6 +87,7 @@ def get_recently_played(
     # Join back to get the full RecentlyPlayed row that matches the latest timestamp
     return db.scalars(
         select(RecentlyPlayed)
+        .options(joinedload(RecentlyPlayed.track))
         .join(
             latest_per_track,
             (RecentlyPlayed.track_id == latest_per_track.c.track_id)
@@ -96,3 +98,4 @@ def get_recently_played(
         .offset(skip)
         .limit(limit)
     ).all()
+

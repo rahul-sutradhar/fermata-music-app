@@ -13,6 +13,18 @@ interface PlayerState {
   repeatMode: 'off' | 'context' | 'track'
   isExpanded: boolean
 
+  is3DEnabled: boolean
+  is3DReverbEnabled: boolean
+  orbitSpeedSeconds: number
+  orbitHeightPercent: number
+  is3DModalOpen: boolean
+
+  isEQEnabled: boolean
+  eqPreset: string
+  eqGains: number[]
+  eqPreamp: number
+  isEQModalOpen: boolean
+
   setTrack: (track: Track) => void
   setQueue: (tracks: Track[]) => void
   setIsPlaying: (playing: boolean) => void
@@ -23,7 +35,71 @@ interface PlayerState {
   setRepeatMode: (mode: 'off' | 'context' | 'track') => void
   playNext: (manual?: boolean) => void
   playPrevious: () => void
+
+  set3DEnabled: (enabled: boolean) => void
+  set3DReverbEnabled: (enabled: boolean) => void
+  setOrbitSpeedSeconds: (seconds: number) => void
+  setOrbitHeightPercent: (percent: number) => void
+  set3DModalOpen: (open: boolean) => void
+
+  setEQEnabled: (enabled: boolean) => void
+  setEQPreset: (preset: string) => void
+  setEQGains: (gains: number[]) => void
+  setEQPreamp: (preamp: number) => void
+  setEQModalOpen: (open: boolean) => void
 }
+
+const getInitial3D = () => {
+  try {
+    const saved = localStorage.getItem('fermata_3d_settings')
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      return {
+        is3DEnabled: !!parsed.is3DEnabled,
+        is3DReverbEnabled: parsed.is3DReverbEnabled !== undefined ? !!parsed.is3DReverbEnabled : true,
+        orbitSpeedSeconds: typeof parsed.orbitSpeedSeconds === 'number' ? parsed.orbitSpeedSeconds : 8,
+        orbitHeightPercent: typeof parsed.orbitHeightPercent === 'number' ? parsed.orbitHeightPercent : 30,
+      }
+    }
+  } catch (err) {
+    console.error('Failed to parse saved 3D settings:', err)
+  }
+  return {
+    is3DEnabled: false,
+    is3DReverbEnabled: true,
+    orbitSpeedSeconds: 8,
+    orbitHeightPercent: 30,
+  }
+}
+
+const initial3D = getInitial3D()
+
+const getInitialEQ = () => {
+  try {
+    const saved = localStorage.getItem('fermata_eq_settings')
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      return {
+        isEQEnabled: !!parsed.isEQEnabled,
+        eqPreset: parsed.eqPreset || 'flat',
+        eqGains: Array.isArray(parsed.eqGains) && parsed.eqGains.length === 10 
+          ? parsed.eqGains 
+          : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        eqPreamp: typeof parsed.eqPreamp === 'number' ? parsed.eqPreamp : 0,
+      }
+    }
+  } catch (err) {
+    console.error('Failed to parse saved EQ settings:', err)
+  }
+  return {
+    isEQEnabled: false,
+    eqPreset: 'flat',
+    eqGains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    eqPreamp: 0,
+  }
+}
+
+const initialEQ = getInitialEQ()
 
 export const usePlayerStore = create<PlayerState>((set, get) => ({
   currentTrack: null,
@@ -36,6 +112,18 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   repeatMode: 'off',
   isExpanded: false,
 
+  is3DEnabled: initial3D.is3DEnabled,
+  is3DReverbEnabled: initial3D.is3DReverbEnabled,
+  orbitSpeedSeconds: initial3D.orbitSpeedSeconds,
+  orbitHeightPercent: initial3D.orbitHeightPercent,
+  is3DModalOpen: false,
+
+  isEQEnabled: initialEQ.isEQEnabled,
+  eqPreset: initialEQ.eqPreset,
+  eqGains: initialEQ.eqGains,
+  eqPreamp: initialEQ.eqPreamp,
+  isEQModalOpen: false,
+
   setTrack: (track) => set({ currentTrack: track, isPlaying: true, progressMs: 0, durationMs: track.duration_seconds ? track.duration_seconds * 1000 : 0 }),
   setQueue: (tracks) => set({ queue: tracks }),
   setIsPlaying: (isPlaying) => set({ isPlaying }),
@@ -44,6 +132,50 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setVolume: (volume) => set({ volume }),
   setShuffle: (shuffle) => set({ shuffle }),
   setRepeatMode: (repeatMode) => set({ repeatMode }),
+
+  set3DEnabled: (is3DEnabled) => {
+    set({ is3DEnabled })
+    const { is3DReverbEnabled, orbitSpeedSeconds, orbitHeightPercent } = get()
+    localStorage.setItem('fermata_3d_settings', JSON.stringify({ is3DEnabled, is3DReverbEnabled, orbitSpeedSeconds, orbitHeightPercent }))
+  },
+  set3DReverbEnabled: (is3DReverbEnabled) => {
+    set({ is3DReverbEnabled })
+    const { is3DEnabled, orbitSpeedSeconds, orbitHeightPercent } = get()
+    localStorage.setItem('fermata_3d_settings', JSON.stringify({ is3DEnabled, is3DReverbEnabled, orbitSpeedSeconds, orbitHeightPercent }))
+  },
+  setOrbitSpeedSeconds: (orbitSpeedSeconds) => {
+    set({ orbitSpeedSeconds })
+    const { is3DEnabled, is3DReverbEnabled, orbitHeightPercent } = get()
+    localStorage.setItem('fermata_3d_settings', JSON.stringify({ is3DEnabled, is3DReverbEnabled, orbitSpeedSeconds, orbitHeightPercent }))
+  },
+  setOrbitHeightPercent: (orbitHeightPercent) => {
+    set({ orbitHeightPercent })
+    const { is3DEnabled, is3DReverbEnabled, orbitSpeedSeconds } = get()
+    localStorage.setItem('fermata_3d_settings', JSON.stringify({ is3DEnabled, is3DReverbEnabled, orbitSpeedSeconds, orbitHeightPercent }))
+  },
+  set3DModalOpen: (is3DModalOpen) => set({ is3DModalOpen }),
+
+  setEQEnabled: (isEQEnabled) => {
+    set({ isEQEnabled })
+    const { eqPreset, eqGains, eqPreamp } = get()
+    localStorage.setItem('fermata_eq_settings', JSON.stringify({ isEQEnabled, eqPreset, eqGains, eqPreamp }))
+  },
+  setEQPreset: (eqPreset) => {
+    set({ eqPreset })
+    const { isEQEnabled, eqGains, eqPreamp } = get()
+    localStorage.setItem('fermata_eq_settings', JSON.stringify({ isEQEnabled, eqPreset, eqGains, eqPreamp }))
+  },
+  setEQGains: (eqGains) => {
+    set({ eqGains })
+    const { isEQEnabled, eqPreset, eqPreamp } = get()
+    localStorage.setItem('fermata_eq_settings', JSON.stringify({ isEQEnabled, eqPreset, eqGains, eqPreamp }))
+  },
+  setEQPreamp: (eqPreamp) => {
+    set({ eqPreamp })
+    const { isEQEnabled, eqPreset, eqGains } = get()
+    localStorage.setItem('fermata_eq_settings', JSON.stringify({ isEQEnabled, eqPreset, eqGains, eqPreamp }))
+  },
+  setEQModalOpen: (isEQModalOpen) => set({ isEQModalOpen }),
 
   playNext: async (manual = false) => {
     const { currentTrack, queue, shuffle, repeatMode } = get()

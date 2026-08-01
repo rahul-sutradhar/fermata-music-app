@@ -63,17 +63,9 @@ export default function HomePage() {
             setRecentAlbums(recAlbums)
           }
 
-          // Resolve track details for recently played
-          const trackMap = new Map(tracksData.map((t) => [t.id, t]))
-          const trackDetails = await Promise.all(
-            recent.slice(0, 8).map((r) => {
-              if (trackMap.has(r.track_id)) {
-                return trackMap.get(r.track_id)!
-              }
-              return getTrack(r.track_id).catch(() => null)
-            }),
-          )
-          setRecentTracks(trackDetails.filter(Boolean) as Track[])
+          // Resolve track details directly from backend response
+          const trackDetails = recent.slice(0, 8).map((r) => r.track).filter(Boolean) as Track[]
+          setRecentTracks(trackDetails)
         }
       } catch (err) {
         console.error('Failed to load homepage data:', err)

@@ -82,8 +82,19 @@ def get_recently_played(
     limit: int = Query(20, ge=1, le=100),
 ) -> list[RecentlyPlayedResponse]:
     """Get recently played tracks."""
+    from app.services.tracks import _to_response as track_to_response
     items = player_service.get_recently_played(db, current_user.id, skip, limit)
-    return [RecentlyPlayedResponse.model_validate(item) for item in items]
+    
+    responses = []
+    for item in items:
+        resp = RecentlyPlayedResponse(
+            id=item.id,
+            track_id=item.track_id,
+            played_at=item.played_at,
+            track=track_to_response(item.track) if item.track else None
+        )
+        responses.append(resp)
+    return responses
 
 
 @router.get(

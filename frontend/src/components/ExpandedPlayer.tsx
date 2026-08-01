@@ -56,6 +56,20 @@ export default function ExpandedPlayer() {
   const [showTransliteration, setShowTransliteration] = useState(false)
   const [translitError, setTranslitError] = useState<string | null>(null)
   const [isLyricsExpanded, setIsLyricsExpanded] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera
+      const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent)
+      const isMobileScreen = window.innerWidth < 768
+      setIsMobile(isMobileUA || isMobileScreen)
+    }
+
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
   // Reset per-track state on track change
   useEffect(() => {
@@ -290,23 +304,25 @@ export default function ExpandedPlayer() {
             </div>
 
             {/* Volume Control */}
-            <div className="hidden md:flex items-center gap-3 w-[150px] mr-auto px-0.5 mt-2 justify-start">
-              <button
-                onClick={() => setVolume(volume === 0 ? 50 : 0)}
-                className="text-zinc-400 hover:text-white transition-colors cursor-pointer"
-                title="Mute / Unmute"
-              >
-                {volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
-              </button>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={volume}
-                onChange={(e) => setVolume(Number(e.target.value))}
-                className="w-full accent-spotify-green h-1 cursor-pointer bg-zinc-700"
-              />
-            </div>
+            {!isMobile && (
+              <div className="hidden md:flex items-center gap-3 w-[150px] mr-auto px-0.5 mt-2 justify-start">
+                <button
+                  onClick={() => setVolume(volume === 0 ? 50 : 0)}
+                  className="text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                  title="Mute / Unmute"
+                >
+                  {volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={volume}
+                  onChange={(e) => setVolume(Number(e.target.value))}
+                  className="w-full accent-spotify-green h-1 cursor-pointer bg-zinc-700"
+                />
+              </div>
+            )}
           </div>
         </div>
 

@@ -68,6 +68,7 @@ export interface RecentlyPlayed {
   id: number
   track_id: number
   played_at: string
+  track?: Track
 }
 
 export interface LibraryItem {

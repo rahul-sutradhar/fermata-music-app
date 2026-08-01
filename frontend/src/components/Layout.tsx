@@ -4,6 +4,8 @@ import { Home, Search, Library, X, Sun, Moon, User, Plus } from 'lucide-react'
 import Sidebar from './Sidebar'
 import NowPlayingBar from './NowPlayingBar'
 import ExpandedPlayer from './ExpandedPlayer'
+import SpatialAudioModal from './SpatialAudioModal'
+import EqualizerModal from './EqualizerModal'
 import { useAuthStore } from '@/store/authStore'
 import { useThemeStore } from '@/store/themeStore'
 import { createPlaylist } from '@/api/playlists'
@@ -228,6 +230,8 @@ export default function Layout() {
         </nav>
       </div>
       <ExpandedPlayer />
+      <SpatialAudioModal />
+      <EqualizerModal />
 
       {/* Custom Playlist Creation Modal (Global) */}
       {isModalOpen && (

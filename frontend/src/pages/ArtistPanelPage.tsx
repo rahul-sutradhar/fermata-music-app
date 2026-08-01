@@ -442,13 +442,13 @@ export default function ArtistPanelPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-surface-highlight mb-4 gap-2">
+      <div className="flex border-b border-surface-highlight mb-4 gap-2 overflow-x-auto scrollbar-none">
         <button
           onClick={() => {
             setActiveTab('tracks')
             setSearchQ('')
           }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all shrink-0 ${
             activeTab === 'tracks'
               ? 'border-spotify-green text-spotify-green'
               : 'border-transparent text-subtext hover:text-primary'
@@ -463,7 +463,7 @@ export default function ArtistPanelPage() {
             setActiveTab('albums')
             setSearchQ('')
           }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all shrink-0 ${
             activeTab === 'albums'
               ? 'border-spotify-green text-spotify-green'
               : 'border-transparent text-subtext hover:text-primary'
@@ -497,13 +497,13 @@ export default function ArtistPanelPage() {
           {/* TRACKS TABLE */}
           {activeTab === 'tracks' && (
             <>
-              <div className="grid grid-cols-[40px_1fr_140px_110px_110px_90px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[28px_1fr_120px] md:grid-cols-[40px_1fr_140px_110px_110px_90px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>#</span>
                 <span>Title</span>
-                <span>Album</span>
-                <span>Created</span>
-                <span>Updated</span>
-                <span>Duration</span>
+                <span className="hidden md:block">Album</span>
+                <span className="hidden md:block">Created</span>
+                <span className="hidden md:block">Updated</span>
+                <span className="hidden md:block">Duration</span>
                 <span className="text-right">Actions</span>
               </div>
               <div className="divide-y divide-surface-highlight/30">
@@ -520,7 +520,7 @@ export default function ArtistPanelPage() {
                       <div
                         key={track.id}
                         onClick={() => handlePlayTrack(track, displayedTracks)}
-                        className={`grid grid-cols-[40px_1fr_140px_110px_110px_90px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${
+                        className={`grid grid-cols-[28px_1fr_120px] md:grid-cols-[40px_1fr_140px_110px_110px_90px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${
                           isCurrentPlaying
                             ? 'bg-spotify-green/15 text-spotify-green font-semibold'
                             : 'hover:bg-surface-highlight/20'
@@ -544,6 +544,9 @@ export default function ArtistPanelPage() {
                           )}
                           <div className="min-w-0">
                             <p className="text-sm font-medium truncate">{track.title}</p>
+                            <span className="text-xs text-subtext block md:hidden truncate">
+                              {track.album_id ? (album?.title || `Album #${track.album_id}`) : 'Single'}
+                            </span>
                             {track.audio_url ? (
                               <span className="text-[10px] text-spotify-green">Audio attached</span>
                             ) : (
@@ -553,7 +556,7 @@ export default function ArtistPanelPage() {
                         </div>
 
                         {/* Album / Single badge */}
-                        <span className="text-sm truncate">
+                        <span className="text-sm truncate hidden md:block">
                           {track.album_id ? (
                             <span className="text-subtext font-medium truncate block">{album?.title || `Album #${track.album_id}`}</span>
                           ) : (
@@ -563,17 +566,17 @@ export default function ArtistPanelPage() {
                           )}
                         </span>
 
-                        {renderDate(track.created_at)}
-                        {renderDate(track.updated_at)}
+                        <div className="hidden md:block">{renderDate(track.created_at)}</div>
+                        <div className="hidden md:block">{renderDate(track.updated_at)}</div>
 
-                        <span className="text-sm text-subtext tabular-nums">
+                        <span className="text-sm text-subtext tabular-nums hidden md:block">
                           {track.duration_seconds
                             ? `${Math.floor(track.duration_seconds / 60)}:${(track.duration_seconds % 60).toString().padStart(2, '0')}`
                             : '—'}
                         </span>
 
 
-                        <div className="flex items-center gap-1 justify-end">
+                        <div className="flex items-center gap-1 justify-end flex-wrap">
                           {/* Play Track Button */}
                           <button
                             onClick={(e) => handlePlayTrack(track, displayedTracks, e)}
@@ -671,12 +674,12 @@ export default function ArtistPanelPage() {
           {/* ALBUMS TABLE WITH ACCORDION & SERIAL ID */}
           {activeTab === 'albums' && (
             <>
-              <div className="grid grid-cols-[40px_1fr_90px_110px_110px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
+              <div className="grid grid-cols-[28px_1fr_100px] md:grid-cols-[40px_1fr_90px_110px_110px_180px] gap-4 px-4 py-3 bg-surface-highlight/40 text-xs font-semibold text-subtext uppercase tracking-wider">
                 <span>#</span>
                 <span>Album Title</span>
-                <span>Tracks</span>
-                <span>Created</span>
-                <span>Updated</span>
+                <span className="hidden md:block">Tracks</span>
+                <span className="hidden md:block">Created</span>
+                <span className="hidden md:block">Updated</span>
                 <span className="text-right">Actions</span>
               </div>
               <div className="divide-y divide-surface-highlight/30">
@@ -694,7 +697,7 @@ export default function ArtistPanelPage() {
                         {/* Album Row */}
                         <div
                           onClick={(e) => toggleAlbumExpand(al.id, e)}
-                          className={`grid grid-cols-[40px_1fr_90px_110px_110px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${
+                          className={`grid grid-cols-[28px_1fr_100px] md:grid-cols-[40px_1fr_90px_110px_110px_180px] gap-4 items-center px-4 py-3 cursor-pointer transition-colors ${
                             isExpanded ? 'bg-surface-highlight/40' : 'hover:bg-surface-highlight/20'
                           }`}
                         >
@@ -724,18 +727,23 @@ export default function ArtistPanelPage() {
                                 <Disc size={18} className="text-subtext/50" />
                               </div>
                             )}
-                            <span className="text-sm font-medium truncate">{al.title}</span>
+                            <div className="min-w-0">
+                              <span className="text-sm font-medium truncate block">{al.title}</span>
+                              <span className="text-xs text-subtext block md:hidden truncate">
+                                {albumTracks.length} track{albumTracks.length === 1 ? '' : 's'}
+                              </span>
+                            </div>
                           </div>
 
-                          <span className="text-sm text-subtext tabular-nums">
+                          <span className="text-sm text-subtext tabular-nums hidden md:block">
                             {albumTracks.length} track{albumTracks.length === 1 ? '' : 's'}
                           </span>
 
-                          {renderDate(al.created_at)}
-                          {renderDate(al.updated_at)}
+                          <div className="hidden md:block">{renderDate(al.created_at)}</div>
+                          <div className="hidden md:block">{renderDate(al.updated_at)}</div>
 
 
-                          <div className="flex items-center gap-1 justify-end">
+                          <div className="flex items-center gap-1 justify-end flex-wrap">
                             {/* Play Entire Album Button */}
                             <button
                               onClick={(e) => handlePlayAlbum(al, e)}
@@ -814,7 +822,7 @@ export default function ArtistPanelPage() {
                                         key={track.id}
                                         onClick={() => handlePlayTrack(track, albumTracks)}
 
-                                      className={`grid grid-cols-[30px_1fr_130px_80px_180px] gap-3 items-center py-2 px-3 rounded-lg cursor-pointer transition-colors ${
+                                      className={`grid grid-cols-[24px_1fr_120px] md:grid-cols-[30px_1fr_130px_80px_180px] gap-3 items-center py-2 px-3 rounded-lg cursor-pointer transition-colors ${
                                         isActiveTrack
                                           ? 'bg-spotify-green/15 text-spotify-green font-semibold'
                                           : 'hover:bg-surface-highlight/30 text-primary'
@@ -849,20 +857,20 @@ export default function ArtistPanelPage() {
                                       </div>
 
                                       {/* Added to Album Date */}
-                                      <span className="text-[11px] text-subtext truncate">
+                                      <span className="text-[11px] text-subtext truncate hidden md:block">
                                         Added: {formatDate(track.updated_at || track.created_at)}
                                       </span>
 
 
                                       {/* Duration */}
-                                      <span className="text-xs text-subtext tabular-nums">
+                                      <span className="text-xs text-subtext tabular-nums hidden md:block">
                                         {track.duration_seconds
                                           ? `${Math.floor(track.duration_seconds / 60)}:${(track.duration_seconds % 60).toString().padStart(2, '0')}`
                                           : '—'}
                                       </span>
 
                                       {/* Track Actions */}
-                                      <div className="flex items-center gap-1 justify-end">
+                                      <div className="flex items-center gap-1 justify-end flex-wrap">
                                         {/* Play Track */}
                                         <button
                                           onClick={(e) => handlePlayTrack(track, albumTracks, e)}

@@ -30,12 +30,17 @@ class PlayerStateUpdate(BaseModel):
     track_id: int | None = None
 
 
+from app.schemas.track import TrackResponse
+
+
 class RecentlyPlayedResponse(BaseModel):
     """Recently played item."""
 
     id: int
     track_id: int
     played_at: datetime
+    track: TrackResponse | None = None
 
     class Config:
         from_attributes = True
+

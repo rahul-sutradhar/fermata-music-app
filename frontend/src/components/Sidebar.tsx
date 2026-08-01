@@ -17,6 +17,8 @@ import {
   Radio,
   Trash2,
   HelpCircle,
+  Headphones,
+  Sliders,
 } from 'lucide-react'
 
 import { useAuthStore } from '@/store/authStore'
@@ -49,6 +51,9 @@ export default function Sidebar() {
   const logout = useAuthStore((s) => s.logout)
   const { theme, toggleTheme } = useThemeStore()
   const currentTrack = usePlayerStore((s) => s.currentTrack)
+  const is3DEnabled = usePlayerStore((s) => s.is3DEnabled)
+  const eqPreset = usePlayerStore((s) => s.eqPreset)
+  const isEQEnabled = usePlayerStore((s) => s.isEQEnabled)
   const navigate = useNavigate()
 
   const [playlists, setPlaylists] = useState<Playlist[]>([])
@@ -186,6 +191,32 @@ export default function Sidebar() {
         className="p-3 mt-auto border-t border-surface-highlight space-y-1"
         style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom))' }}
       >
+        <button
+          onClick={() => usePlayerStore.setState({ is3DModalOpen: true })}
+          className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-subtext hover:text-primary hover:bg-surface-highlight/50 transition-colors"
+        >
+          <Headphones size={18} className={is3DEnabled ? "text-[#4de8c8] animate-pulse" : ""} />
+          <span>3D Audio</span>
+          {is3DEnabled && (
+            <span className="ml-auto text-[10px] bg-purple-600 text-white font-bold px-1.5 py-0.5 rounded leading-none">
+              3D ON
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => usePlayerStore.setState({ isEQModalOpen: true })}
+          className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-subtext hover:text-primary hover:bg-surface-highlight/50 transition-colors"
+        >
+          <Sliders size={18} className={isEQEnabled ? "text-[#4de8c8]" : ""} />
+          <span>Equalizer</span>
+          {isEQEnabled && (
+            <span className="ml-auto text-[10px] bg-purple-600 text-white font-bold px-1.5 py-0.5 rounded leading-none uppercase">
+              {eqPreset === 'bass-booster' ? 'Bass' : eqPreset === 'treble-booster' ? 'Treble' : eqPreset}
+            </span>
+          )}
+        </button>
+
         <button
           onClick={toggleTheme}
           className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-subtext hover:text-primary hover:bg-surface-highlight/50 transition-colors"

@@ -13,6 +13,173 @@ export default function NowPlayingBar() {
   const shouldRestoreProgress = useRef(false)
   const isInitialRestoring = useRef(true)
   const [showMobileVolume, setShowMobileVolume] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+
+  // --- Web Audio 3D Spatial Audio Refs ---
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null)
+  const normalGainRef = useRef<GainNode | null>(null)
+  const spatialGainRef = useRef<GainNode | null>(null)
+  const pannerRef = useRef<PannerNode | null>(null)
+  const dryGainRef = useRef<GainNode | null>(null)
+  const convolverRef = useRef<ConvolverNode | null>(null)
+  const wetGainRef = useRef<GainNode | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const eqFiltersRef = useRef<BiquadFilterNode[]>([])
+  const preampRef = useRef<GainNode | null>(null)
+
+  const is3DEnabled = usePlayerStore((s) => s.is3DEnabled)
+  const is3DReverbEnabled = usePlayerStore((s) => s.is3DReverbEnabled)
+  const orbitSpeedSeconds = usePlayerStore((s) => s.orbitSpeedSeconds)
+  const orbitHeightPercent = usePlayerStore((s) => s.orbitHeightPercent)
+  const eqGains = usePlayerStore((s) => s.eqGains)
+  const eqPreamp = usePlayerStore((s) => s.eqPreamp)
+  const isEQEnabled = usePlayerStore((s) => s.isEQEnabled)
+
+  const initSpatialEngine = useCallback(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    if (audioContextRef.current) return
+
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
+      const ctx = new AudioContextClass({ latencyHint: 'interactive' })
+      audioContextRef.current = ctx
+
+      // 1. Create Media Source
+      const source = ctx.createMediaElementSource(audio)
+      sourceNodeRef.current = source
+
+      // 2. Create Preamp Gain Node (Converts dB to linear multiplier)
+      const preamp = ctx.createGain()
+      const initialPreampDb = usePlayerStore.getState().eqPreamp
+      const activePreamp = usePlayerStore.getState().isEQEnabled ? initialPreampDb : 0
+      preamp.gain.value = Math.pow(10, activePreamp / 20)
+      preampRef.current = preamp
+
+      // --- Create 10-Band Graphic Equalizer Filter Chain ---
+      const bands = [31, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
+      const filters: BiquadFilterNode[] = []
+      const currentGains = usePlayerStore.getState().eqGains
+      const active = usePlayerStore.getState().isEQEnabled
+
+      for (let i = 0; i < 10; i++) {
+        const filter = ctx.createBiquadFilter()
+        if (i === 0) {
+          filter.type = 'lowshelf'
+        } else if (i === 9) {
+          filter.type = 'highshelf'
+        } else {
+          filter.type = 'peaking'
+          filter.Q.value = 1.0
+        }
+        filter.frequency.value = bands[i]
+        filter.gain.value = active ? (currentGains[i] ?? 0) : 0
+        filters.push(filter)
+      }
+      eqFiltersRef.current = filters
+
+      // 3. Normal Path Gain
+      const normalGain = ctx.createGain()
+      normalGain.gain.value = usePlayerStore.getState().is3DEnabled ? 0.0 : 1.0
+      normalGainRef.current = normalGain
+
+      // 4. Spatial Path Gain
+      const spatialGain = ctx.createGain()
+      spatialGain.gain.value = usePlayerStore.getState().is3DEnabled ? 1.0 : 0.0
+      spatialGainRef.current = spatialGain
+
+      // 5. Panner Node (HRTF)
+      const panner = ctx.createPanner()
+      panner.panningModel = 'HRTF'
+      panner.distanceModel = 'inverse'
+      panner.refDistance = 1
+      panner.maxDistance = 50
+      panner.rolloffFactor = 1
+      pannerRef.current = panner
+
+      // 6. Dry Gain Node
+      const dryGain = ctx.createGain()
+      dryGain.gain.value = 1.0
+      dryGainRef.current = dryGain
+
+      // 7. Reverb Convolver Node
+      const convolver = ctx.createConvolver()
+      // Build synthetic impulse response exactly like the original code
+      const rate = ctx.sampleRate
+      const duration = 2.2
+      const decay = 3.2
+      const length = rate * duration
+      const impulse = ctx.createBuffer(2, length, rate)
+      for (let ch = 0; ch < 2; ch++) {
+        const data = impulse.getChannelData(ch)
+        for (let i = 0; i < length; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay)
+        }
+      }
+      convolver.buffer = impulse
+      convolverRef.current = convolver
+
+      // 8. Wet Gain Node (Reverb Volume)
+      const wetGain = ctx.createGain()
+      wetGain.gain.value = usePlayerStore.getState().is3DReverbEnabled ? 0.25 : 0.0
+      wetGainRef.current = wetGain
+
+      // 9. Analyser Node
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 256
+      analyserRef.current = analyser
+      ;(window as any).fermataAnalyser = analyser
+
+      // --- Connect Graph (Source -> Preamp -> EQ Chain -> Splits) ---
+      source.connect(preamp)
+      preamp.connect(filters[0])
+      for (let i = 0; i < 9; i++) {
+        filters[i].connect(filters[i + 1])
+      }
+      
+      filters[9].connect(normalGain)
+      filters[9].connect(spatialGain)
+
+      normalGain.connect(ctx.destination)
+
+      // source -> panner -> [dry to destination] + [wet through convolver to destination]
+      spatialGain.connect(panner)
+
+      panner.connect(dryGain)
+      panner.connect(convolver)
+
+      convolver.connect(wetGain)
+
+      dryGain.connect(analyser)
+      wetGain.connect(analyser)
+
+      analyser.connect(ctx.destination)
+    } catch (err) {
+      console.error('Failed to initialize spatial audio engine:', err)
+    }
+  }, [])
+
+  const resumeAudioContext = useCallback(() => {
+    if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+      audioContextRef.current.resume().catch((err) => {
+        console.warn('AudioContext resume failed:', err)
+      })
+    }
+  }, [])
+
+  useEffect(() => {
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera
+      const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent)
+      const isMobileScreen = window.innerWidth < 768
+      setIsMobile(isMobileUA || isMobileScreen)
+    }
+
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
   const currentTrack = usePlayerStore((s) => s.currentTrack)
   const isPlaying = usePlayerStore((s) => s.isPlaying)
@@ -28,6 +195,138 @@ export default function NowPlayingBar() {
   const setVolume = usePlayerStore((s) => s.setVolume)
   const playNext = usePlayerStore((s) => s.playNext)
   const token = useAuthStore((s) => s.token)
+
+  // --- Web Audio State Syncer (3D Mode) ---
+  useEffect(() => {
+    if (!audioContextRef.current) {
+      if (is3DEnabled) {
+        initSpatialEngine()
+      } else {
+        return
+      }
+    }
+    const ctx = audioContextRef.current
+    if (!ctx) return
+
+    resumeAudioContext()
+
+    const now = ctx.currentTime
+    const normalGain = normalGainRef.current
+    const spatialGain = spatialGainRef.current
+
+    if (normalGain && spatialGain) {
+      normalGain.gain.setValueAtTime(normalGain.gain.value, now)
+      normalGain.gain.linearRampToValueAtTime(is3DEnabled ? 0.0 : 1.0, now + 0.05)
+
+      spatialGain.gain.setValueAtTime(spatialGain.gain.value, now)
+      spatialGain.gain.linearRampToValueAtTime(is3DEnabled ? 1.0 : 0.0, now + 0.05)
+    }
+  }, [is3DEnabled, initSpatialEngine, resumeAudioContext])
+
+  // --- Web Audio State Syncer (Reverb) ---
+  useEffect(() => {
+    if (!audioContextRef.current) return
+    const ctx = audioContextRef.current
+    const wetGain = wetGainRef.current
+    if (wetGain) {
+      const now = ctx.currentTime
+      wetGain.gain.setValueAtTime(wetGain.gain.value, now)
+      wetGain.gain.linearRampToValueAtTime(is3DReverbEnabled ? 0.25 : 0.0, now + 0.05)
+    }
+  }, [is3DReverbEnabled])
+
+  // --- Web Audio Position Update Loop (Orbit) ---
+  useEffect(() => {
+    let animationFrameId: number
+    let angle = (window as any).fermata3DAngle || 0
+    let lastTs = performance.now()
+
+    const tick = (ts: number) => {
+      const dt = (ts - lastTs) / 1000
+      lastTs = ts
+
+      const ctx = audioContextRef.current
+      const panner = pannerRef.current
+
+      if (isPlaying) {
+        const revPerSec = 1 / orbitSpeedSeconds
+        angle += dt * revPerSec * Math.PI * 2
+        if (angle > Math.PI * 2) {
+          angle -= Math.PI * 2
+        }
+      }
+
+      const radius = 3
+      const heightAmount = orbitHeightPercent / 100
+
+      let x = 0
+      let y = 0
+      let z = -0.001
+
+      if (is3DEnabled) {
+        x = Math.cos(angle) * radius
+        z = Math.sin(angle) * radius
+        y = Math.sin(angle * 2) * heightAmount * radius * 0.6
+      }
+
+      if (panner && ctx) {
+        if (panner.positionX) {
+          panner.positionX.setValueAtTime(x, ctx.currentTime)
+          panner.positionY.setValueAtTime(y, ctx.currentTime)
+          panner.positionZ.setValueAtTime(z, ctx.currentTime)
+        } else {
+          ;(panner as any).setPosition(x, y, z)
+        }
+      }
+
+      ;(window as any).fermata3DAngle = angle
+      ;(window as any).fermata3DX = x
+      ;(window as any).fermata3DY = y
+      ;(window as any).fermata3DZ = z
+
+      animationFrameId = requestAnimationFrame(tick)
+    }
+
+    animationFrameId = requestAnimationFrame(tick)
+
+    return () => {
+      cancelAnimationFrame(animationFrameId)
+    }
+  }, [is3DEnabled, isPlaying, orbitSpeedSeconds, orbitHeightPercent])
+
+  // --- Web Audio State Syncer (Equalizer Filters) ---
+  useEffect(() => {
+    if (!audioContextRef.current) return
+    const ctx = audioContextRef.current
+    const filters = eqFiltersRef.current
+    if (filters && filters.length === 10) {
+      const now = ctx.currentTime
+      for (let i = 0; i < 10; i++) {
+        const filter = filters[i]
+        if (filter) {
+          const targetGain = isEQEnabled ? (eqGains[i] ?? 0) : 0
+          filter.gain.setValueAtTime(filter.gain.value, now)
+          // Ramping smoothly over 50ms to prevent pops/clicks on drag/toggle
+          filter.gain.linearRampToValueAtTime(targetGain, now + 0.05)
+        }
+      }
+    }
+  }, [eqGains, isEQEnabled])
+
+  // --- Web Audio State Syncer (Equalizer Preamp) ---
+  useEffect(() => {
+    if (!audioContextRef.current) return
+    const ctx = audioContextRef.current
+    const preamp = preampRef.current
+    if (preamp) {
+      const now = ctx.currentTime
+      const targetPreampDb = isEQEnabled ? eqPreamp : 0
+      const linearGain = Math.pow(10, targetPreampDb / 20)
+      preamp.gain.setValueAtTime(preamp.gain.value, now)
+      // Ramping smoothly over 50ms to prevent pops/clicks on drag/toggle
+      preamp.gain.linearRampToValueAtTime(linearGain, now + 0.05)
+    }
+  }, [eqPreamp, isEQEnabled])
 
   // Load player state on page mount / login
   useEffect(() => {
@@ -80,36 +379,42 @@ export default function NowPlayingBar() {
     if (!token || !currentTrack || isInitialRestoring.current) return
 
     const timer = setTimeout(() => {
-      updatePlayerState({
+      const payload: any = {
         track_id: currentTrack.id,
         is_playing: isPlaying,
         progress_ms: usePlayerStore.getState().progressMs,
-        volume: volume,
         shuffle: shuffle,
         repeat_mode: repeatMode,
-      }).catch(() => { })
+      }
+      if (!isMobile) {
+        payload.volume = volume
+      }
+      updatePlayerState(payload).catch(() => { })
     }, 1000)
 
     return () => clearTimeout(timer)
-  }, [token, currentTrack, isPlaying, volume, shuffle, repeatMode])
+  }, [token, currentTrack, isPlaying, volume, shuffle, repeatMode, isMobile])
 
   // Periodic progress sync back to the database (every 5 seconds while playing)
   useEffect(() => {
     if (!token || !currentTrack || !isPlaying) return
 
     const interval = setInterval(() => {
-      updatePlayerState({
+      const payload: any = {
         track_id: currentTrack.id,
         is_playing: isPlaying,
         progress_ms: usePlayerStore.getState().progressMs,
-        volume: usePlayerStore.getState().volume,
         shuffle: usePlayerStore.getState().shuffle,
         repeat_mode: usePlayerStore.getState().repeatMode,
-      }).catch(() => { })
+      }
+      if (!isMobile) {
+        payload.volume = usePlayerStore.getState().volume
+      }
+      updatePlayerState(payload).catch(() => { })
     }, 5000)
 
     return () => clearInterval(interval)
-  }, [token, currentTrack, isPlaying])
+  }, [token, currentTrack, isPlaying, isMobile])
 
   // Load audio source when track changes
   useEffect(() => {
@@ -142,12 +447,11 @@ export default function NowPlayingBar() {
 
       try {
         // Explicitly apply volume to prevent browser volume resets on new track loads
-        audio!.volume = Math.pow(usePlayerStore.getState().volume / 100, 2)
+        audio!.volume = isMobile ? 1.0 : Math.pow(usePlayerStore.getState().volume / 100, 2)
 
         const isHls = url.includes('.m3u8')
 
         if (isHls && Hls.isSupported()) {
-          // Use hls.js for all browsers that support Media Source Extensions (Chrome/Firefox/Edge)
           const hls = new Hls({
             xhrSetup: (xhr, xhrUrl) => {
               console.log('[HLS xhrSetup] Requesting URL:', xhrUrl)
@@ -185,7 +489,6 @@ export default function NowPlayingBar() {
             }
           })
         } else {
-          // Native HLS support (Safari/iOS) or standard raw audio fallback
           audio!.src = url
           audio!.load()
 
@@ -200,7 +503,6 @@ export default function NowPlayingBar() {
           }
         }
 
-        // Record recently played
         const shouldPlay = usePlayerStore.getState().isPlaying
         if (token && shouldPlay) {
           addRecentlyPlayed(currentTrack!.id).catch(() => { })
@@ -223,10 +525,9 @@ export default function NowPlayingBar() {
   // Sync volume
   useEffect(() => {
     if (audioRef.current) {
-      // Use exponential curve for natural logarithmic volume perception
-      audioRef.current.volume = Math.pow(volume / 100, 2)
+      audioRef.current.volume = isMobile ? 1.0 : Math.pow(volume / 100, 2)
     }
-  }, [volume])
+  }, [volume, isMobile])
 
   // Sync playback play/pause state with store changes
   useEffect(() => {
@@ -246,7 +547,7 @@ export default function NowPlayingBar() {
     }
   }, [isPlaying, setProgressMs])
 
-  // Progress updates
+  // Progress updates & Audio play events listener
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
@@ -285,16 +586,25 @@ export default function NowPlayingBar() {
       }
     }
 
+    const onPlay = () => {
+      initSpatialEngine()
+      resumeAudioContext()
+    }
+
     audio.addEventListener('timeupdate', onTimeUpdate)
     audio.addEventListener('loadedmetadata', onLoadedMetadata)
     audio.addEventListener('ended', onEnded)
+    audio.addEventListener('play', onPlay)
+    audio.addEventListener('playing', onPlay)
 
     return () => {
       audio.removeEventListener('timeupdate', onTimeUpdate)
       audio.removeEventListener('loadedmetadata', onLoadedMetadata)
       audio.removeEventListener('ended', onEnded)
+      audio.removeEventListener('play', onPlay)
+      audio.removeEventListener('playing', onPlay)
     }
-  }, [currentTrack, setProgressMs, setDurationMs, setIsPlaying, playNext])
+  }, [currentTrack, setProgressMs, setDurationMs, setIsPlaying, playNext, initSpatialEngine, resumeAudioContext])
 
   // Expose a global seek helper for components like ExpandedPlayer that don't have direct ref access
   useEffect(() => {
@@ -325,7 +635,7 @@ export default function NowPlayingBar() {
   return (
     <>
       {/* Hidden audio element */}
-      <audio ref={audioRef} preload="metadata" />
+      <audio ref={audioRef} preload="metadata" crossOrigin="anonymous" />
 
       {/* Desktop view */}
       <div 
@@ -359,23 +669,25 @@ export default function NowPlayingBar() {
         </div>
 
         {/* Volume — Right */}
-        <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-2 w-[160px] justify-end relative">
-          <button
-            onClick={toggleMute}
-            className="p-1 text-subtext hover:text-primary transition-colors cursor-pointer"
-            title="Volume Control"
-          >
-            {volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
-          </button>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            value={volume}
-            onChange={(e) => setVolume(Number(e.target.value))}
-            className="w-24 accent-spotify-green h-1 cursor-pointer bg-zinc-700 rounded-full"
-          />
-        </div>
+        {!isMobile && (
+          <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-2 w-[160px] justify-end relative">
+            <button
+              onClick={toggleMute}
+              className="p-1 text-subtext hover:text-primary transition-colors cursor-pointer"
+              title="Volume Control"
+            >
+              {volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={volume}
+              onChange={(e) => setVolume(Number(e.target.value))}
+              className="w-24 accent-spotify-green h-1 cursor-pointer bg-zinc-700 rounded-full"
+            />
+          </div>
+        )}
       </div>
 
       {/* Mobile view (Spotify-like floating card) */}

@@ -372,10 +372,10 @@ def search(*, db: Session, q: str, limit: int = 10) -> SearchResponse:
         .limit(limit)
     ).all()
 
-    # Typo tolerance fallback for albums and artists if limits not reached
+    # Typo tolerance fallback for albums and artists if no matches are found
     THRESHOLD = 0.45
-    if len(albums) < limit:
-        all_albums = db.scalars(select(Album).options(joinedload(Album.artist))).all()
+    if len(albums) == 0:
+        all_albums = db.scalars(select(Album).options(joinedload(Album.artist)).limit(500)).all()
         scored_albums = []
         for a in all_albums:
             if any(x.id == a.id for x in albums):
@@ -391,8 +391,8 @@ def search(*, db: Session, q: str, limit: int = 10) -> SearchResponse:
                 break
             albums.append(a)
 
-    if len(artists) < limit:
-        all_artists = db.scalars(select(Artist)).all()
+    if len(artists) == 0:
+        all_artists = db.scalars(select(Artist).limit(500)).all()
         scored_artists = []
         for ar in all_artists:
             if any(x.id == ar.id for x in artists):
