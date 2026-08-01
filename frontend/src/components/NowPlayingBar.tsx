@@ -7,124 +7,6 @@ import { useAuthStore } from '@/store/authStore'
 import { API_BASE } from '@/api/client'
 import PlayerControls from './PlayerControls'
 import Hls from 'hls.js'
-const AUDIO_CACHE = 'fermata-audio-cache-v1'
-
-class CustomKeyLoader extends (Hls as any).DefaultConfig.loader {
-  async load(context: any, config: any, callbacks: any) {
-    const isKey = context.url && context.url.includes('/key')
-
-    if (isKey) {
-      console.log('[CustomKeyLoader] Intercepted key request URL:', context.url)
-      const activeBase = API_BASE.replace(/\/$/, '')
-      if (!context.url.startsWith(activeBase)) {
-        try {
-          const urlObj = new URL(context.url)
-          const activeUrlObj = new URL(activeBase)
-          urlObj.protocol = activeUrlObj.protocol
-          urlObj.host = activeUrlObj.host
-          const original = context.url
-          context.url = urlObj.toString()
-          console.log('[CustomKeyLoader] Rewrote URL from:', original, 'to:', context.url)
-        } catch (err) {
-          const pathStart = context.url.indexOf('/tracks/')
-          if (pathStart !== -1) {
-            const original = context.url
-            context.url = activeBase + context.url.substring(pathStart)
-            console.log('[CustomKeyLoader] Fallback rewrote URL from:', original, 'to:', context.url)
-          }
-        }
-      } else {
-        console.log('[CustomKeyLoader] URL already matches active base. No rewrite needed.')
-      }
-
-      // Check key cache first before trying network
-      try {
-        const cache = await caches.open(AUDIO_CACHE)
-        const cachedResponse = await cache.match(context.url)
-
-        if (cachedResponse) {
-          console.log('[CustomKeyLoader] Found cached key for:', context.url)
-          const arrayBuffer = await cachedResponse.arrayBuffer()
-          const stats = {
-            trequest: performance.now(),
-            tfirst: performance.now(),
-            tload: performance.now(),
-            loaded: arrayBuffer.byteLength,
-            total: arrayBuffer.byteLength,
-          }
-          callbacks.onSuccess({ url: context.url, data: arrayBuffer }, stats, context)
-          return
-        }
-      } catch (err) {
-        console.warn('[CustomKeyLoader] Key cache lookup failed:', err)
-      }
-
-      // If key is not cached, override success callback to write key to cache
-      const originalSuccess = callbacks.onSuccess
-      callbacks.onSuccess = async (response: any, stats: any, ctx: any) => {
-        try {
-          const cache = await caches.open(AUDIO_CACHE)
-          const cacheResponse = new Response(response.data, {
-            headers: { 'Content-Type': 'application/octet-stream' },
-          })
-          await cache.put(ctx.url, cacheResponse)
-          console.log('[CustomKeyLoader] Successfully cached key for offline use:', ctx.url)
-        } catch (err) {
-          console.warn('[CustomKeyLoader] Failed to write key to cache:', err)
-        }
-        originalSuccess(response, stats, ctx)
-      }
-    }
-
-    super.load(context, config, callbacks)
-  }
-}
-
-class CachedFragmentLoader extends (Hls as any).DefaultConfig.loader {
-  async load(context: any, config: any, callbacks: any) {
-    const isSegment = context.url && context.url.includes('.ts')
-
-    if (isSegment) {
-      try {
-        const cache = await caches.open(AUDIO_CACHE)
-        const cachedResponse = await cache.match(context.url)
-
-        if (cachedResponse) {
-          const arrayBuffer = await cachedResponse.arrayBuffer()
-          const stats = {
-            trequest: performance.now(),
-            tfirst: performance.now(),
-            tload: performance.now(),
-            loaded: arrayBuffer.byteLength,
-            total: arrayBuffer.byteLength,
-          }
-          callbacks.onSuccess({ url: context.url, data: arrayBuffer }, stats, context)
-          return
-        }
-      } catch (err) {
-        console.warn('[HLS Cache] Cache lookup failed:', err)
-      }
-    }
-
-    const originalSuccess = callbacks.onSuccess
-    callbacks.onSuccess = async (response: any, stats: any, ctx: any) => {
-      if (isSegment) {
-        try {
-          const cache = await caches.open(AUDIO_CACHE)
-          const cacheResponse = new Response(response.data, {
-            headers: { 'Content-Type': 'video/mp2t' },
-          })
-          await cache.put(ctx.url, cacheResponse)
-        } catch (err) {
-          console.warn('[HLS Cache] Failed to write segment to cache:', err)
-        }
-      }
-      originalSuccess(response, stats, ctx)
-    }
-
-    super.load(context, config, callbacks)
-  }
-}
 
 export default function NowPlayingBar() {
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -585,8 +467,6 @@ export default function NowPlayingBar() {
 
         if (isHls && Hls.isSupported()) {
           const hls = new Hls({
-            loader: CustomKeyLoader as any,
-            fLoader: CachedFragmentLoader as any,
             xhrSetup: (xhr, xhrUrl) => {
               console.log('[HLS xhrSetup] Requesting URL:', xhrUrl)
               if (xhrUrl.includes('/key')) {
