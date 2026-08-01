@@ -11,7 +11,11 @@ class CustomKeyLoader extends (Hls as any).DefaultConfig.loader {
   load(context: any, config: any, callbacks: any) {
     if (context.url && context.url.includes('/key')) {
       console.log('[CustomKeyLoader] Intercepted key request URL:', context.url)
-      const activeBase = (import.meta.env.VITE_API_HOSTED_BASE || window.location.origin).replace(/\/$/, '')
+      const activeBase = (
+        import.meta.env.VITE_API_BASE ||
+        import.meta.env.VITE_API_HOSTED_BASE ||
+        window.location.origin
+      ).replace(/\/$/, '')
       if (!context.url.startsWith(activeBase)) {
         try {
           const urlObj = new URL(context.url)

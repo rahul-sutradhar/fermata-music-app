@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     debug: bool = False
     environment: str = "development"
     database_url: str = "postgresql://postgres:postgres@localhost:5432/fermata"
+    allowed_origins: str = "*"
 
     # JWT
     secret_key: str = "change-me-in-production"
