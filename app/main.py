@@ -14,7 +14,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.routers import albums, artists, auth, content, library, player, playlists, search, tracks, users
-from app.routers import uploads, agentic_ingest, studio
+from app.routers import uploads, agentic_ingest
+try:
+    from app.routers import studio
+except ImportError:
+    studio = None
 from app.middleware.rate_limiter import RateLimitMiddleware
 
 from contextlib import asynccontextmanager
@@ -135,7 +139,8 @@ app.include_router(library.router)
 app.include_router(player.router)
 app.include_router(content.router)
 app.include_router(uploads.router)
-app.include_router(studio.router)
+if studio is not None:
+    app.include_router(studio.router)
 app.include_router(agentic_ingest.router, prefix="/api/v1")
 
 
