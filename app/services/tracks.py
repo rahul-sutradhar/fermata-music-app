@@ -312,10 +312,10 @@ def upload_track_audio(
     db.commit()
     db.refresh(track)
 
-    # Hard-delete old raw audio (all versions) if the key changed
-    if previous_key and previous_key != object_key:
+    # Hard-delete old raw audio (all versions) to prevent multiple versions or orphan files accumulating
+    if previous_key:
         try:
-            delete_all_versions(previous_key)
+            delete_all_versions(previous_key, keep_latest=(previous_key == object_key))
         except RuntimeError:
             pass
 
@@ -443,9 +443,10 @@ def set_track_audio_key(*, db: Session, track_id: int, object_key: str, user: Us
     db.commit()
     db.refresh(track)
 
-    if previous_key and previous_key != object_key:
+    # Hard-delete old raw audio (all versions) to prevent multiple versions or orphan files accumulating
+    if previous_key:
         try:
-            delete_audio_file(previous_key)
+            delete_all_versions(previous_key, keep_latest=(previous_key == object_key))
         except RuntimeError:
             pass
 
@@ -501,10 +502,10 @@ def upload_track_cover(
     db.commit()
     db.refresh(track)
 
-    # Hard-delete old cover (all versions) whether the key changed or not
+    # Hard-delete old cover (all versions) to prevent multiple versions or orphan files accumulating
     if previous_key:
         try:
-            delete_all_versions(previous_key)
+            delete_all_versions(previous_key, keep_latest=(previous_key == object_key))
         except RuntimeError:
             pass
 

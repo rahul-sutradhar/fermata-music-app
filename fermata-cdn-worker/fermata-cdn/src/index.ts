@@ -44,22 +44,52 @@ export default {
 		// Fetch the file from B2
 		const response = await fetch(signedRequest);
 		
-		// Add Cache-Control headers for Cloudflare edge cache
+		// Set CORS and Cache-Control headers
+		const headers = new Headers(response.headers);
+		headers.set("Access-Control-Allow-Origin", "*");
+		headers.set("Access-Control-Allow-Methods", "GET, OPTIONS, HEAD");
+		headers.set("Access-Control-Allow-Headers", "*");
+
 		if (response.status === 200 && request.method === "GET") {
-			const headers = new Headers(response.headers);
-			headers.set("Cache-Control", "public, max-age=31536000"); // Cache for 1 year
-			headers.set("Access-Control-Allow-Origin", "*");         // Enable CORS for players
-			
+			// If it's the HLS playlist, rewrite it to append the version query param to each segment URL
+			if (url.pathname.endsWith("playlist.m3u8")) {
+				const version = url.searchParams.get("v");
+				if (version) {
+					const text = await response.text();
+					const lines = text.split("\n").map(line => {
+						const trimmed = line.trim();
+						if (trimmed && !trimmed.startsWith("#") && trimmed.endsWith(".ts")) {
+							const separator = trimmed.includes("?") ? "&" : "?";
+							const hasCR = line.endsWith("\r");
+							return `${trimmed}${separator}v=${version}${hasCR ? "\r" : ""}`;
+						}
+						return line;
+					});
+					const rewrittenText = lines.join("\n");
+
+					headers.set("Cache-Control", "public, max-age=31536000"); // Cache versioned playlist for 1 year
+					return new Response(rewrittenText, {
+						status: response.status,
+						headers
+					});
+				}
+			}
+
+			// Cache all other assets (segments with v= query params, cover images, raw downloads) for 1 year
+			headers.set("Cache-Control", "public, max-age=31536000");
+
 			// Clone the response so we can consume the stream in the background
 			const cacheClone = response.clone();
 			ctx.waitUntil(consumeStream(cacheClone));
-			
-			return new Response(response.body, {
-				status: response.status,
-				headers
-			});
+		} else {
+			// Do not cache errors or non-GET requests
+			headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
 		}
-		
-		return response;
+
+		return new Response(response.body, {
+			status: response.status,
+			statusText: response.statusText,
+			headers
+		});
 	},
 } satisfies ExportedHandler<Env>;

@@ -142,7 +142,7 @@ def test_confirm_track_replaces_previous_key(auth_client, db_session, sample_tra
 
     with patch("app.services.tracks.get_audio_url", 
                return_value="https://example.backblazeb2.com/signed-get-url"), \
-         patch("app.services.tracks.delete_audio_file") as mock_delete:
+         patch("app.services.tracks.delete_all_versions") as mock_delete:
         response = auth_client.post("/uploads/confirm-track", json={
             "track_id": sample_track.id,
             "key": "tracks/123/new-audio.mp3"
@@ -151,7 +151,7 @@ def test_confirm_track_replaces_previous_key(auth_client, db_session, sample_tra
         assert response.status_code == 200
         
         # Verify old key was deleted
-        mock_delete.assert_called_once_with("tracks/123/old-audio.mp3")
+        mock_delete.assert_called_once_with("tracks/123/old-audio.mp3", keep_latest=False)
         
         # Verify new key is set
         db_session.refresh(sample_track)
@@ -304,5 +304,57 @@ def test_upload_track_cover(auth_client, db_session, sample_track):
         mock_upload.assert_called_once()
 
 
+def test_upload_track_cover_same_key_does_not_delete(auth_client, db_session, sample_track):
+    """Test that uploading a cover with the same key triggers deletion of historical versions only."""
+    sample_track.cover_image_key = f"tracks/{sample_track.id}/cover.png"
+    db_session.commit()
 
+    with patch("app.services.tracks.upload_audio_file") as mock_upload, \
+         patch("app.services.tracks.delete_all_versions") as mock_delete, \
+         patch("app.core.storage.get_audio_url", return_value="http://testserver/storage/tracks/1/cover.png"):
+        
+        file_data = ("cover.png", b"fake image data", "image/png")
+        response = auth_client.post(
+            f"/tracks/{sample_track.id}/cover",
+            files={"file": file_data},
+        )
+        assert response.status_code == 200
+        mock_upload.assert_called_once()
+        mock_delete.assert_called_once_with(f"tracks/{sample_track.id}/cover.png", keep_latest=True)
+
+
+def test_upload_track_cover_different_key_triggers_delete(auth_client, db_session, sample_track):
+    """Test that uploading a cover with a different key triggers full deletion of the old key."""
+    sample_track.cover_image_key = f"tracks/{sample_track.id}/cover.jpg"
+    db_session.commit()
+
+    with patch("app.services.tracks.upload_audio_file") as mock_upload, \
+         patch("app.services.tracks.delete_all_versions") as mock_delete, \
+         patch("app.core.storage.get_audio_url", return_value="http://testserver/storage/tracks/1/cover.png"):
+        
+        file_data = ("cover.png", b"fake image data", "image/png")
+        response = auth_client.post(
+            f"/tracks/{sample_track.id}/cover",
+            files={"file": file_data},
+        )
+        assert response.status_code == 200
+        mock_upload.assert_called_once()
+        mock_delete.assert_called_once_with(f"tracks/{sample_track.id}/cover.jpg", keep_latest=False)
+
+
+def test_confirm_track_same_key_does_not_delete_active(auth_client, db_session, sample_track):
+    """Confirm endpoint should call delete_all_versions with keep_latest=True when the key is the same."""
+    sample_track.audio_file_key = "tracks/123/audio.mp3"
+    db_session.commit()
+
+    with patch("app.services.tracks.get_audio_url", 
+               return_value="https://example.backblazeb2.com/signed-get-url"), \
+         patch("app.services.tracks.delete_all_versions") as mock_delete:
+        response = auth_client.post("/uploads/confirm-track", json={
+            "track_id": sample_track.id,
+            "key": "tracks/123/audio.mp3"
+        })
+
+        assert response.status_code == 200
+        mock_delete.assert_called_once_with("tracks/123/audio.mp3", keep_latest=True)
 

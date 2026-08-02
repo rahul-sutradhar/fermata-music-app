@@ -134,25 +134,41 @@ def delete_audio_file(object_key: str) -> None:
         raise RuntimeError("Failed to delete audio file from Backblaze B2") from exc
 
 
-def delete_all_versions(object_key: str) -> None:
-    """Permanently remove **every** version and delete-marker for *object_key*.
+def delete_all_versions(object_key: str, keep_latest: bool = False) -> None:
+    """Permanently remove versions and delete-markers for *object_key*.
 
     Required when the bucket has versioning enabled: a plain delete_object call
     only adds another hide/delete marker, leaving previous versions untouched.
+    If keep_latest is True, the current active version (marked with IsLatest=True)
+    is excluded from deletion, leaving only the newly uploaded file active.
     """
     if not object_key:
         return
     client = get_b2_client()
     bucket = settings.b2_bucket_name
     try:
+        # 1. Abort any unfinished multipart uploads for this exact key
+        try:
+            uploads = client.list_multipart_uploads(Bucket=bucket, Prefix=object_key)
+            for u in uploads.get("Uploads", []):
+                if u["Key"] == object_key:
+                    client.abort_multipart_upload(Bucket=bucket, Key=u["Key"], UploadId=u["UploadId"])
+        except Exception:
+            pass  # Non-fatal
+
+        # 2. Collect and delete all versions
         paginator = client.get_paginator("list_object_versions")
         to_delete: list[dict] = []
         for page in paginator.paginate(Bucket=bucket, Prefix=object_key):
             for v in page.get("Versions", []):
                 if v["Key"] == object_key:
+                    if keep_latest and v.get("IsLatest"):
+                        continue
                     to_delete.append({"Key": v["Key"], "VersionId": v["VersionId"]})
             for m in page.get("DeleteMarkers", []):
                 if m["Key"] == object_key:
+                    if keep_latest and m.get("IsLatest"):
+                        continue
                     to_delete.append({"Key": m["Key"], "VersionId": m["VersionId"]})
         if to_delete:
             for i in range(0, len(to_delete), 1000):
@@ -179,6 +195,15 @@ def delete_objects_with_prefix(prefix: str) -> None:
     client = get_b2_client()
     bucket = settings.b2_bucket_name
     try:
+        # 1. Abort any unfinished multipart uploads under this prefix
+        try:
+            uploads = client.list_multipart_uploads(Bucket=bucket, Prefix=prefix)
+            for u in uploads.get("Uploads", []):
+                client.abort_multipart_upload(Bucket=bucket, Key=u["Key"], UploadId=u["UploadId"])
+        except Exception:
+            pass  # Non-fatal
+
+        # 2. Collect and delete all versions
         paginator = client.get_paginator("list_object_versions")
         to_delete: list[dict] = []
         for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
