@@ -1,10 +1,20 @@
+import os
+import socket
+
+# Force IPv4 DNS resolution globally to prevent "Network is unreachable" (Errno 101)
+# and "Address family for hostname not supported" (Errno -9) connection issues on Render/Docker.
+orig_getaddrinfo = socket.getaddrinfo
+def forced_ipv4_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+    return orig_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+socket.getaddrinfo = forced_ipv4_getaddrinfo
+
 from fastapi import FastAPI, Header, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.routers import albums, artists, auth, content, library, player, playlists, search, tracks, users
-from app.routers import uploads, agentic_ingest
+from app.routers import uploads, agentic_ingest, studio
 from app.middleware.rate_limiter import RateLimitMiddleware
 
 from contextlib import asynccontextmanager
@@ -125,6 +135,7 @@ app.include_router(library.router)
 app.include_router(player.router)
 app.include_router(content.router)
 app.include_router(uploads.router)
+app.include_router(studio.router)
 app.include_router(agentic_ingest.router, prefix="/api/v1")
 
 
