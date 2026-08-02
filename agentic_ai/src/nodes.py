@@ -310,7 +310,7 @@ def search_candidates(state: AgenticState) -> Dict[str, Any]:
                 'no_warnings': True,
                 'skip_download': True,
                 'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'source_address': '0.0.0.0',
+                'force_ipv4': True,
                 'extractor_args': {
                     'youtube': {
                         'player_client': ['web_embedded', 'android', 'ios']
@@ -649,7 +649,7 @@ def download_and_upload_audio(state: AgenticState) -> Dict[str, Any]:
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'remote_components': ['ejs:npm', 'ejs:github'],
             'outtmpl': temp_file_path + '.%(ext)s',
-            'source_address': '0.0.0.0',
+            'force_ipv4': True,
         }
 
         # --- Attempt 1: no cookies, lightweight clients (works for most public videos) ---
