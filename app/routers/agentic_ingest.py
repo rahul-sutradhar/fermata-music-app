@@ -163,10 +163,14 @@ def select_candidate(payload: SelectRequest, db: DbSession, current_user: Curren
             
         # Add a record to the ingestion_requests database queue table
         matching_cand = state.values.get("selected_song", {})
+        from agentic_ai.src.nodes import clean_youtube_title
+        raw_title = matching_cand.get("title", "Unknown")
+        raw_artist = matching_cand.get("artist", "Unknown Artist")
+        clean_title = clean_youtube_title(raw_title, raw_artist)
         db_req = IngestionRequest(
             thread_id=payload.thread_id,
-            song_name=matching_cand.get("title", "Unknown"),
-            artist_name=matching_cand.get("artist", "Unknown Artist"),
+            song_name=clean_title,
+            artist_name=raw_artist,
             user_id=current_user.id,
             source_url=matching_cand.get("source_url", ""),
             cover_url=matching_cand.get("cover_url", ""),
@@ -402,8 +406,10 @@ def _execute_ingestion(db: DbSession, request_id: int):
             return
         
         # Allocate Track
+        from agentic_ai.src.nodes import clean_youtube_title
+        clean_title = clean_youtube_title(db_req.song_name, db_req.artist_name)
         db_track = Track(
-            title=db_req.song_name,
+            title=clean_title,
             duration_seconds=200,  # fallback default
             audio_file_key=None,
             cover_image_key=None
@@ -411,13 +417,13 @@ def _execute_ingestion(db: DbSession, request_id: int):
         db.add(db_track)
         db.commit()
         db.refresh(db_track)
-        print(f"[Ingestion Task] Allocated Track ID: {db_track.id} for song '{db_req.song_name}'", flush=True)
+        print(f"[Ingestion Task] Allocated Track ID: {db_track.id} for song '{clean_title}'", flush=True)
         
         # Prepare state values
         state = {
-            "song_name": db_req.song_name,
+            "song_name": clean_title,
             "selected_song": {
-                "title": db_req.song_name,
+                "title": clean_title,
                 "artist": db_req.artist_name,
                 "source_url": db_req.source_url,
                 "cover_url": db_req.cover_url or "https://picsum.photos/500/500",

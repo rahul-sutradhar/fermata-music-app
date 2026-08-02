@@ -185,6 +185,90 @@ def _search_spotify_candidates(query: str, client_id: str, client_secret: str) -
         return candidates
     except Exception:
         return []
+
+
+def clean_youtube_title(title: str, uploader: str = None) -> str:
+    import re
+    # 1. Remove anything inside parentheses/brackets containing music video/audio/lyrics keywords
+    title = re.sub(r'\([^[)]*(?:official|video|audio|lyrics?|hd|4k|music|lyric)[^[)]*\)', '', title, flags=re.IGNORECASE)
+    title = re.sub(r'\[[^[\]]*(?:official|video|audio|lyrics?|hd|4k|music|lyric)[^[\]]*\]', '', title, flags=re.IGNORECASE)
+
+    # 2. Remove bare keywords at the end or in boundaries
+    patterns_to_remove = [
+        r'\b(?:official[\s]*video|official[\s]*music[\s]*video|official[\s]*audio|lyric[s]?[\s]*video|video[\s]*song|full[\s]*video[\s]*song|full[\s]*audio[\s]*song)\b',
+        r'\b(?:official|video|audio|lyrics?|hd|4k|music|lyric)\b'
+    ]
+    
+    cleaned = title
+    for pat in patterns_to_remove:
+        cleaned = re.sub(pat, '', cleaned, flags=re.IGNORECASE)
+        
+    # Split by common separators: | , - , – , — , ~ , :
+    parts = [p.strip() for p in re.split(r'\||-|–|—|~|:', cleaned) if p.strip()]
+    
+    if not parts:
+        return title.strip()
+        
+    if len(parts) == 1:
+        return parts[0]
+        
+    if uploader:
+        uploader_clean = uploader.strip().lower()
+        # Remove common channel suffixes
+        uploader_clean = re.sub(r'\b(?:vevo|official|music|records|tv|channel|yt)\b', '', uploader_clean).strip()
+        
+        # Check if first part matches uploader
+        first_part = parts[0].lower()
+        if uploader_clean and (uploader_clean in first_part or first_part in uploader_clean):
+            if len(parts) > 1:
+                return parts[1]
+                
+        # Check if last part matches uploader
+        last_part = parts[-1].lower()
+        if uploader_clean and (uploader_clean in last_part or last_part in uploader_clean):
+            return parts[0]
+            
+    return parts[0]
+
+
+def get_youtube_metadata_fallback(url: str) -> Dict[str, Any]:
+    import re
+    import requests
+    
+    video_id = None
+    if "youtu.be" in url:
+        match = re.search(r'youtu\.be/([^/?#]+)', url)
+        if match:
+            video_id = match.group(1)
+    else:
+        match = re.search(r'[?&]v=([^&#]+)', url)
+        if match:
+            video_id = match.group(1)
+        else:
+            match = re.search(r'youtube\.com/embed/([^/?#]+)', url)
+            if match:
+                video_id = match.group(1)
+                
+    if not video_id:
+        return None
+        
+    try:
+        oembed_url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
+        response = requests.get(oembed_url, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            return {
+                "title": data.get("title", "Unknown Title"),
+                "uploader": data.get("author_name", "Unknown Artist"),
+                "cover_url": data.get("thumbnail_url") or f"https://img.youtube.com/vi/{video_id}/0.jpg",
+                "video_id": video_id
+            }
+    except Exception:
+        pass
+        
+    return None
+
+
 def search_candidates(state: AgenticState) -> Dict[str, Any]:
     song_name = state.get("song_name", "")
     artist = state.get("artist") or ""
@@ -235,31 +319,49 @@ def search_candidates(state: AgenticState) -> Dict[str, Any]:
             if temp_cookie_file or cookie_path:
                 ydl_opts['cookiefile'] = temp_cookie_file or cookie_path
 
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(song_name_clean, download=False)
-                title = info.get('title', 'Unknown Title')
-                uploader = info.get('uploader', 'Unknown Artist')
-                duration = info.get('duration', 0)
-                video_id = info.get('id')
-                watch_url = f"https://www.youtube.com/watch?v={video_id}"
-                
-                # Fetch standard high-res YouTube video thumbnail URL
-                cover_url = f"https://img.youtube.com/vi/{video_id}/0.jpg"
-                
-                candidates = [{
-                    "id": "cand_1",
-                    "title": title,
-                    "artist": uploader,
-                    "album": "YouTube Source Link",
-                    "duration_seconds": duration,
-                    "source_url": watch_url,
-                    "cover_url": cover_url
-                }]
-                new_logs.append(f"[Search] Successfully extracted video metadata: '{title}' by {uploader}.")
-                return {
-                    "candidates": candidates,
-                    "logs": new_logs
-                }
+            title, uploader, duration, video_id, cover_url, watch_url = None, None, None, None, None, None
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(song_name_clean, download=False)
+                    title = info.get('title', 'Unknown Title')
+                    uploader = info.get('uploader', 'Unknown Artist')
+                    duration = info.get('duration', 0)
+                    video_id = info.get('id')
+                    watch_url = f"https://www.youtube.com/watch?v={video_id}"
+                    cover_url = f"https://img.youtube.com/vi/{video_id}/0.jpg"
+                    method_used = "yt-dlp"
+            except Exception as ytdl_exc:
+                new_logs.append(f"[Search] yt-dlp metadata extraction failed: {str(ytdl_exc)}. Trying oEmbed fallback...")
+                # Fall back to oEmbed API which is publicly accessible and not blocked
+                fallback_info = get_youtube_metadata_fallback(song_name_clean)
+                if fallback_info:
+                    title = fallback_info.get("title")
+                    uploader = fallback_info.get("uploader")
+                    video_id = fallback_info.get("video_id")
+                    cover_url = fallback_info.get("cover_url")
+                    watch_url = f"https://www.youtube.com/watch?v={video_id}"
+                    duration = 240 # default fallback duration
+                    method_used = "oEmbed API"
+                else:
+                    raise ValueError("Both yt-dlp and oEmbed fallback failed to extract metadata.")
+            
+            # Clean video title to isolate the song name
+            clean_title = clean_youtube_title(title, uploader)
+            
+            candidates = [{
+                "id": "cand_1",
+                "title": clean_title,
+                "artist": uploader,
+                "album": "YouTube Source Link",
+                "duration_seconds": duration,
+                "source_url": watch_url,
+                "cover_url": cover_url
+            }]
+            new_logs.append(f"[Search] Successfully extracted video metadata via {method_used}: '{clean_title}' (original: '{title}') by {uploader}.")
+            return {
+                "candidates": candidates,
+                "logs": new_logs
+            }
         except Exception as e:
             new_logs.append(f"[Search] Direct link metadata extraction failed: {str(e)}. Proceeding to search query.")
  
@@ -692,15 +794,41 @@ def process_and_upload_cover(state: AgenticState) -> Dict[str, Any]:
         response.raise_for_status()
         
         # Open in memory and resize/optimize
-        from PIL import Image  # lazy import — only loaded during cover processing
+        from PIL import Image, ImageFilter  # lazy import — only loaded during cover processing
         img = Image.open(io.BytesIO(response.content))
         new_logs.append(f"[Pipeline] Branch B: Loaded image format: {img.format}, original size: {img.size}")
         
-        img = img.resize((500, 500))
+        # Crop/pad landscape image to square using a blurred background to maintain aspect ratio without distortion
+        target_size = (500, 500)
+        # Create a blurred background by stretching the image to target_size and blurring it
+        bg = img.resize(target_size, Image.Resampling.LANCZOS)
+        bg = bg.filter(ImageFilter.GaussianBlur(radius=25))
+        
+        # Resize original proportionally to fit within target_size
+        img_ratio = img.width / img.height
+        target_ratio = target_size[0] / target_size[1]
+        
+        if img_ratio > target_ratio:
+            # Image is wider: fit to width
+            new_w = target_size[0]
+            new_h = int(new_w / img_ratio)
+        else:
+            # Image is taller: fit to height
+            new_h = target_size[1]
+            new_w = int(new_h * img_ratio)
+            
+        img_resized = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        
+        # Paste onto center of the blurred background
+        x = (target_size[0] - new_w) // 2
+        y = (target_size[1] - new_h) // 2
+        bg.paste(img_resized, (x, y))
+        
+        img = bg
         cover_buffer = io.BytesIO()
         img.save(cover_buffer, format="JPEG", quality=85)
         cover_buffer.seek(0)
-        new_logs.append("[Pipeline] Branch B: Resized and saved image to JPEG memory buffer.")
+        new_logs.append("[Pipeline] Branch B: Padded cover image to square with blurred background and saved to JPEG buffer.")
         
         # Upload buffer directly to Backblaze B2
         new_logs.append("[Pipeline] Branch B: Uploading in-memory cover photo to Backblaze B2/CDN...")
