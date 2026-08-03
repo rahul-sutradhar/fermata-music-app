@@ -29,14 +29,70 @@ export const adjustColorBrightness = (hex: string, percent: number) => {
   return `#${rr}${gg}${bb}`
 }
 
+export const parseHexToRgba = (hex: string) => {
+  const cleanHex = hex.replace('#', '')
+  const r = parseInt(cleanHex.substring(0, 2), 16) || 0
+  const g = parseInt(cleanHex.substring(2, 4), 16) || 0
+  const b = parseInt(cleanHex.substring(4, 6), 16) || 0
+  const a = cleanHex.length >= 8 ? parseInt(cleanHex.substring(6, 8), 16) / 255 : 1
+  return { r, g, b, a }
+}
+
+export const rgbaToHex = (r: number, g: number, b: number, a: number) => {
+  const rr = Math.round(r).toString(16).padStart(2, '0')
+  const gg = Math.round(g).toString(16).padStart(2, '0')
+  const bb = Math.round(b).toString(16).padStart(2, '0')
+  const aa = Math.round(a * 255).toString(16).padStart(2, '0')
+  return `#${rr}${gg}${bb}${aa}`
+}
+
+export const clampRgba = (r: number, g: number, b: number, a: number) => {
+  let targetR = Math.max(0, Math.min(255, r))
+  let targetG = Math.max(0, Math.min(255, g))
+  let targetB = Math.max(0, Math.min(255, b))
+  let targetA = Math.max(0.35, Math.min(1.0, a))
+
+  let luminance = (0.299 * targetR + 0.587 * targetG + 0.114 * targetB) / 255
+  if (luminance > 0.8) {
+    const factor = 0.8 / luminance
+    targetR = Math.round(targetR * factor)
+    targetG = Math.round(targetG * factor)
+    targetB = Math.round(targetB * factor)
+  } else if (luminance < 0.15) {
+    if (targetR < 25 && targetG < 25 && targetB < 25) {
+      targetR = Math.max(targetR, 25)
+      targetG = Math.max(targetG, 25)
+      targetB = Math.max(targetB, 25)
+      luminance = (0.299 * targetR + 0.587 * targetG + 0.114 * targetB) / 255
+    }
+    const factor = 0.15 / Math.max(0.01, luminance)
+    targetR = Math.min(255, Math.round(targetR * factor))
+    targetG = Math.min(255, Math.round(targetG * factor))
+    targetB = Math.min(255, Math.round(targetB * factor))
+
+    const newLum = (0.299 * targetR + 0.587 * targetG + 0.114 * targetB) / 255
+    if (newLum < 0.15) {
+      const diff = 0.15 - newLum
+      const addValue = Math.ceil(diff * 255)
+      targetR = Math.min(255, targetR + addValue)
+      targetG = Math.min(255, targetG + addValue)
+      targetB = Math.min(255, targetB + addValue)
+    }
+  }
+
+  return { r: targetR, g: targetG, b: targetB, a: targetA }
+}
+
 export const applyAccent = (hex: string) => {
-  const primary = hex || '#7c3aed'
+  const rawColor = hex || '#7c3aed'
+  const parsed = parseHexToRgba(rawColor)
+  const clamped = clampRgba(parsed.r, parsed.g, parsed.b, parsed.a)
+  const primary = rgbaToHex(clamped.r, clamped.g, clamped.b, clamped.a)
   const hover = adjustColorBrightness(primary, 18)
 
-  // Derive RGB components for CSS alpha compositing
-  const r = parseInt(primary.replace('#', '').substring(0, 2), 16)
-  const g = parseInt(primary.replace('#', '').substring(2, 4), 16)
-  const b = parseInt(primary.replace('#', '').substring(4, 6), 16)
+  const r = clamped.r
+  const g = clamped.g
+  const b = clamped.b
 
   // WCAG-based relative luminance — choose black or white text for best contrast
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255

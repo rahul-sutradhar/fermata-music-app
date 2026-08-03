@@ -14,6 +14,8 @@ from app.models.track import Track
 from app.models.user import User
 from app.models.ingestion_request import IngestionRequest
 from app.models.lyric_chunk import LyricChunk
+from app.models.draft import Draft
+from app.models.track_backup import TrackBackup
 
 __all__ = [
     "Album",
@@ -36,4 +38,6 @@ __all__ = [
     "UserLibrary",
     "IngestionRequest",
     "LyricChunk",
+    "Draft",
+    "TrackBackup",
 ]

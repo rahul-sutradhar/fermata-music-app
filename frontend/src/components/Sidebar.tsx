@@ -23,7 +23,7 @@ import {
 } from 'lucide-react'
 
 import { useAuthStore } from '@/store/authStore'
-import { useThemeStore } from '@/store/themeStore'
+import { useThemeStore, parseHexToRgba, rgbaToHex, clampRgba } from '@/store/themeStore'
 import { usePlayerStore } from '@/store/playerStore'
 import { getMyPlaylists, createPlaylist, deletePlaylist } from '@/api/playlists'
 import { listArtists } from '@/api/artists'
@@ -46,6 +46,8 @@ export function parsePlaylistName(rawName: string) {
   }
 }
 
+
+
 interface SidebarProps {
   onItemClick?: () => void
 }
@@ -60,7 +62,15 @@ export default function Sidebar({ onItemClick }: SidebarProps) {
   const eqPreset = usePlayerStore((s) => s.eqPreset)
   const isEQEnabled = usePlayerStore((s) => s.isEQEnabled)
   const navigate = useNavigate()
-  const colorInputRef = useRef<HTMLInputElement>(null)
+  const [isColorMixerOpen, setIsColorMixerOpen] = useState(false)
+
+  const handleMixerChange = (updates: Partial<{ r: number; g: number; b: number; a: number }>) => {
+    const current = parseHexToRgba(accentColor)
+    const nextRaw = { ...current, ...updates }
+    const clamped = clampRgba(nextRaw.r, nextRaw.g, nextRaw.b, nextRaw.a)
+    const nextHex = rgbaToHex(clamped.r, clamped.g, clamped.b, clamped.a)
+    setAccentColor(nextHex)
+  }
 
   const [playlists, setPlaylists] = useState<Playlist[]>([])
   const [isAccessoriesOpen, setIsAccessoriesOpen] = useState(false)
@@ -130,10 +140,9 @@ export default function Sidebar({ onItemClick }: SidebarProps) {
   }
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-      isActive
-        ? 'nav-active'
-        : 'text-subtext hover:text-primary hover:bg-surface-highlight/50'
+    `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${isActive
+      ? 'nav-active'
+      : 'text-subtext hover:text-primary hover:bg-surface-highlight/50'
     }`
 
   return (
@@ -142,9 +151,9 @@ export default function Sidebar({ onItemClick }: SidebarProps) {
       <div className="p-6 pb-2 shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-spotify-green flex items-center justify-center shadow-md">
-            <Music2 size={18} className="text-white" />
+            <Music2 size={18} className="text-accent-text" />
           </div>
-          <span className="text-xl font-bold tracking-tight accent-glow">Fermata</span>
+          <span className="text-xl font-bold tracking-tight text-primary">Fermata</span>
         </div>
       </div>
 
@@ -199,9 +208,9 @@ export default function Sidebar({ onItemClick }: SidebarProps) {
           >
             <Sliders size={20} />
             <span>Accessories</span>
-            <ChevronDown 
-              size={16} 
-              className={`ml-auto transition-transform duration-200 ${isAccessoriesOpen ? 'rotate-180' : ''}`} 
+            <ChevronDown
+              size={16}
+              className={`ml-auto transition-transform duration-200 ${isAccessoriesOpen ? 'rotate-180' : ''}`}
             />
           </button>
 
@@ -234,7 +243,7 @@ export default function Sidebar({ onItemClick }: SidebarProps) {
               </button>
 
               <button
-                onClick={() => colorInputRef.current?.click()}
+                onClick={() => setIsColorMixerOpen(!isColorMixerOpen)}
                 className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-xs text-subtext hover:text-primary hover:bg-surface-highlight/50 transition-colors cursor-pointer"
               >
                 <Palette size={16} />
@@ -243,16 +252,85 @@ export default function Sidebar({ onItemClick }: SidebarProps) {
                   className="ml-auto w-3 h-3 rounded-full border border-white/20 shadow-sm flex-shrink-0 transition-all duration-300"
                   style={{ backgroundColor: accentColor }}
                 />
-                <input
-                  ref={colorInputRef}
-                  type="color"
-                  value={accentColor}
-                  onChange={(e) => setAccentColor(e.target.value)}
-                  className="sr-only"
-                  tabIndex={-1}
-                  aria-label="Pick accent colour"
-                />
               </button>
+
+              {isColorMixerOpen && (() => {
+                const { r, g, b, a } = parseHexToRgba(accentColor)
+                return (
+                  <div className="mx-2 px-3 py-2.5 rounded-lg bg-surface-highlight/20 border border-surface-highlight/40 space-y-3 text-[11px] animate-in slide-in-from-top-1 duration-150">
+                    <div className="flex justify-between items-center text-subtext">
+                      <span className="font-semibold text-primary">RGBA Mixer</span>
+                      <span className="font-mono text-xs uppercase bg-surface-highlight/50 px-1.5 py-0.5 rounded text-spotify-green">
+                        {accentColor}
+                      </span>
+                    </div>
+
+                    {/* Red */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-subtext">
+                        <span>Red</span>
+                        <span className="font-mono font-bold text-red-400">{r}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="255"
+                        value={r}
+                        onChange={(e) => handleMixerChange({ r: parseInt(e.target.value) })}
+                        className="w-full h-1 bg-surface-highlight rounded-lg appearance-none cursor-pointer accent-red-500"
+                      />
+                    </div>
+
+                    {/* Green */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-subtext">
+                        <span>Green</span>
+                        <span className="font-mono font-bold text-green-400">{g}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="255"
+                        value={g}
+                        onChange={(e) => handleMixerChange({ g: parseInt(e.target.value) })}
+                        className="w-full h-1 bg-surface-highlight rounded-lg appearance-none cursor-pointer accent-green-500"
+                      />
+                    </div>
+
+                    {/* Blue */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-subtext">
+                        <span>Blue</span>
+                        <span className="font-mono font-bold text-blue-400">{b}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="255"
+                        value={b}
+                        onChange={(e) => handleMixerChange({ b: parseInt(e.target.value) })}
+                        className="w-full h-1 bg-surface-highlight rounded-lg appearance-none cursor-pointer accent-blue-500"
+                      />
+                    </div>
+
+                    {/* Alpha */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-subtext">
+                        <span>Alpha (Opacity)</span>
+                        <span className="font-mono font-bold text-purple-400">{Math.round(a * 100)}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="35"
+                        max="100"
+                        value={Math.round(a * 100)}
+                        onChange={(e) => handleMixerChange({ a: parseInt(e.target.value) / 100 })}
+                        className="w-full h-1 bg-surface-highlight rounded-lg appearance-none cursor-pointer accent-purple-500"
+                      />
+                    </div>
+                  </div>
+                )
+              })()}
 
               <button
                 onClick={toggleTheme}
@@ -312,10 +390,9 @@ export default function Sidebar({ onItemClick }: SidebarProps) {
         )}
 
         {/* Footer / Profile options / Admin links / Logout */}
-        <div 
-          className={`p-3 mt-auto border-t border-surface-highlight space-y-1 shrink-0 ${
-            currentTrack ? 'sidebar-footer-active' : 'sidebar-footer-inactive'
-          }`}
+        <div
+          className={`p-3 mt-auto border-t border-surface-highlight space-y-1 shrink-0 ${currentTrack ? 'sidebar-footer-active' : 'sidebar-footer-inactive'
+            }`}
         >
           {token && user ? (
             <>
