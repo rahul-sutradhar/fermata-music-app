@@ -92,9 +92,9 @@ def test_update_draft(auth_client, sample_draft, db_session):
     """Test updating draft volumes and title."""
     response = auth_client.put(
         f"/studio/drafts/{sample_draft.id}",
-        json={
+        data={
             "title": "Updated Draft Name",
-            "mix_volumes": {"vocal": 0.5, "music": 0.5, "bass": 0.5, "drums": 0.5}
+            "mix_volumes": '{"vocal": 0.5, "music": 0.5, "bass": 0.5, "drums": 0.5}'
         }
     )
     assert response.status_code == 200
